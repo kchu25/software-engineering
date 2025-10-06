@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+  
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Convolutions</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+  <a href="/tags/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h3 id="convolutions"><a href="#convolutions" class="header-anchor">Convolutions</a></h3>
+<p>The textbook definition of &#40;linear&#41; convolution is as follows: a convolution of two vectors \(\bm f\in\mathbb R^n\) and \(\bm x\in\mathbb R^m\) is a vector \(\bm f * \bm x\in\mathbb R^{n+m-1}\), where</p>
+\[(\bm f * \bm x)[k] = \sum_{i+j=k+1}f[i] x[j],\]
+<p>i.e., the \(k\)-th entry of the vector \(\bm f * \bm x\) is the sum of all product \(\bm f[i]\bm x[j]\) such that the indices \(i,j\) satisfy the condition \(i+j=k+1\). </p>
+<p>This definition doesn&#39;t show convolution is related to applcations &#40;it&#39;s more useful for proof exercises&#41;. Ok, what is an intuitive way to think about convolution?</p>
+<p>Note that convolution is a linear operation, for which we can write it down as a matrix-vector multiplication. To make things concrete, suppose \(\bm f=(f_1,f_2,f_3)^\top\) and \(\bm x=(x_1,x_2,x_3,x_4)^\top\), then we can write</p>
+\[\bm f * \bm x = \begin{pmatrix} f_1 & 0   & 0   & 0   \\ 
+                                f_2 & f_1 & 0   & 0   \\
+                                f_3 & f_2 & f_1 & 0   \\
+                                0   & f_3 & f_2 & f_1 \\
+                                0   & 0   & f_3 & f_2 \\
+                                0   & 0   & 0   & f_3
+\end{pmatrix}\begin{pmatrix}x_1 \\ x_2 \\ x_3 \\ x_4 \end{pmatrix},\]
+<p>which is the same as what&#39;s going on in equation &#40;1&#41;.</p>
+<p>What&#39;s interesting from this perspective is when the vector \(\bm x\) is <em>sparse</em>, i.e. \(\bm x\) has mostly zero entries. Let&#39;s say \(\bm x=(0,1,0,0)^\top\). Substitute this to the above, we have that</p>
+\[\bm f * \bm x = \begin{pmatrix} f_1 & 0   & 0   & 0   \\ 
+                                f_2 & f_1 & 0   & 0   \\
+                                f_3 & f_2 & f_1 & 0   \\
+                                0   & f_3 & f_2 & f_1 \\
+                                0   & 0   & f_3 & f_2 \\
+                                0   & 0   & 0   & f_3
+\end{pmatrix}\begin{pmatrix}0 \\ 1 \\ 0 \\ 0 \end{pmatrix}=\begin{pmatrix} 0 \\ f_1 \\ f_2 \\ f_3 \\ 0 \\ 0 \end{pmatrix}\]
+<p>What does this say? If we think about that \(\bm f * \bm x\) as some kind of signal, then this is saying that \(\bm f\) as a feature is presented in the span from the 2nd to the 4th entries.</p>
+<p>We can leverage this intuition to think about applications related to bioinformatics. If the signal is a DNA string, and the feature represents a motif, e.g., it could be a k-mer, or a position frequency matrix, etc., then we have something meaningful: the sparse vector \(\bm x\) indicates where the motif \(\bm f\) is presented in the DNA string. Moreover, the non-zero entry in \(\bm x\) doesn&#39;t need to be \(1\). It could be an arbitrary value signifying the strength of the presense of \(\bm f\) in the DNA string. </p>
+<p>The description above is just an analogy. To develop this idea further, we look at a classic problem in signal processing: <a href="../cdl">convolutional dictionary learning</a>.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+  </body>
+</html>

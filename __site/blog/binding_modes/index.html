@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+  
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Proteins with complex binding modes</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+  <a href="/tags/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h3 id="proteins_with_complex_binding_modes"><a href="#proteins_with_complex_binding_modes" class="header-anchor">Proteins with complex binding modes</a></h3>
+<h4 id="simplified_single_motif_discovery_problem"><a href="#simplified_single_motif_discovery_problem" class="header-anchor">Simplified single motif discovery problem</a></h4>
+<p>In the <em>motif discovery problem</em>, an example dataset will look exactly like:</p>
+<div class="img-small3"><img src="/blog/pics/motif/unaligned_noans.png" alt="Unaligned" /></div>
+<p>i.e., a dataset whose entries are all DNA strings. </p>
+<p>This dataset usually is obtained from a sequencing experiment, e.g., Chip-Seq. </p>
+<p>In addition, this dataset is associated with a protein. The assumption is that this protein tends to bind to a set of similar DNA substrings embedded in those DNA strings &#40;In biology it&#39;s colloquially called the protein&#39;s binding <em>specificity</em>&#41;, and we need to find out where those substrings occurred.</p>
+<p>Let&#39;s assume we possess a well-defined problem formulation alongside an effective algorithm for identifying this set of similar string – referred to as the purple substrings in the dataset:</p>
+<div class="img-small3"><img src="/blog/pics/motif/unaligned.png" alt="Unaligned" /></div>
+<p>We can then turn them into a multiple sequence alignment &#40;MSA&#41;:</p>
+<div class="img-tiny"><img src="/blog/pics/motif/aligned.png" alt="Unaligned" /></div>
+<p>This MSA, in turn, can be made into a <em>position weight matrix</em> &#40;PWM&#41; \(\bm P\). </p>
+<p>We estimate the position weight matrix \(\bm P\) by first using the empirical frequency \(\bm f_{\alpha i}\) of each nucleotide \(\alpha\) at each position \(i\) from the MSA. This step is equivalent to doing a maximum likelihood estimate of the parameters of a product multinomial distribution. Then, we fill each \((\alpha, i)\)-entry of the PWM \(\bm P\) by \(\bm P_{\alpha i} = \log_2 (\bm f_{\alpha i} / \bm b_\alpha)\), where \(\bm b_\alpha\) is the assumed genomic background frequency for nucleotide \(\alpha\).</p>
+<p>We can visualize the PWM \(\bm P\) in the following picture:</p>
+<div class="img-small2"><img src="/blog/pics/motif/pwm.png" alt="Unaligned" /></div>
+<p>where the height of the nucleotide at each column shows how conserved each nucleotide is at each position. The higher the nucleotide, the more conserved; each \(i\)-th column&#39;s height is given by the so-called information content formula, i.e., \(\sum_\alpha \bm f_{\alpha i} \log_2 (\bm f_{\alpha i} / \bm b_\alpha)\).</p>
+<p>However, the motif discovery problem becomes significantly more intricate when considering the mechanism by which proteins bind to DNA. </p>
+<h4 id="complex_binding_modes"><a href="#complex_binding_modes" class="header-anchor">Complex binding modes</a></h4>
+<p>Here, we present qualitative characterizations of various binding modes along with illustrative examples sourced from the study by <a href="https://academic.oup.com/nar/article/42/4/2099/2435233">Siggers and Gordan</a>. </p>
+<p>One complex mechanism through which a protein can bind to DNA is via <em>variable spacing</em>:</p>
+<p><img src="/blog/pics/motif/v-spacing.png" alt="vs" /></p>
+<p>In variable spacing, the binding sites are fragmented into distinct parts. It&#39;s a common biological terminology to denote the separation between these parts as a spacer when a protein binds to the DNA.</p>
+<p>Another scenario involves <em>multiple DNA binding domains</em> &#40;DBDs&#41;:</p>
+<p><img src="/blog/pics/motif/mdbds.png" alt="vs" /></p>
+<p>In cases of multiple DBDs, a protein may possess distinct binding sites across its structure. Additionally, we can also have a situation called <em>multimeric binding</em>:</p>
+<p><img src="/blog/pics/motif/multimeric-b.png" alt="vs" /></p>
+<p>In multimeric binding, once more, the protein features more than one binding site. However, in this scenario, one binding site represents an extended version of another, meaning that the binding sites overlap.</p>
+<p>Last, we have <em>alternate structural conformations</em>:</p>
+<p><img src="/blog/pics/motif/asc.png" alt="vs" /></p>
+<p>In summary, these situations, encompassing binding modes such as variable spacing, multiple DBDs, multimeric binding, and alternate structural conformations, collectively render motif discovery significantly more intricate than the simplified version of the problem discussed earlier.</p>
+<p>Moreover, these binding modes for a protein may not necessarily be mutually exclusive. For instance, a protein could exhibit binding modes that encompass both multimeric binding and variable spacing.</p>
+<p>Detecting motifs characterized by the aforementioned binding modes presents a computational challenge. In the upcoming series of blog posts, we will outline our approach to identifying these complex binding patterns.</p>
+<h4 id="references"><a href="#references" class="header-anchor">References</a></h4>
+<ul><li id="#siggers2014protein">Trevor and Gordan Siggers, <span style="font-style:italic;">Protein--DNA binding: complexities and multi-protein codes</span>, 2014.</li></ul>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+  </body>
+</html>

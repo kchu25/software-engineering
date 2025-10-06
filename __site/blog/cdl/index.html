@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+  
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Convolutional dictionary learning</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+  <a href="/tags/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h3 id="convolutional_dictionary_learning"><a href="#convolutional_dictionary_learning" class="header-anchor">Convolutional dictionary learning</a></h3>
+<p>So we saw <a href="../conv">convolutions</a>. Given a filter \(\bm d\) and a sparse code \(\bm x\), an important insight we saw from the convolution is that the sparse code plays the role of an &quot;indicator&quot;, indicating where and how much the filter \(\bm d\) should appear in the convolution \(\bm d * \bm x\).</p>
+<p>Let&#39;s leverage this intuition a bit further. What if we have a signal \(\bm s\), and that we try to &quot;approximate&quot; \(\bm s\) using a sum of convolutions, i.e.,</p>
+\[\bm d_1 * \bm x_1 + \bm d_2 * \bm x_2 + \cdots + \bm d_M * \bm x_M \approx \bm s\]
+<p>for which we can visualize as </p>
+<p><img src="/blog/pics/conv.png" alt="Sum of convolutions" /></p>
+<p>where the orange vector on the right is the signal \(\bm s\). Let&#39;s formalize this as an optimization problem &#40;single signal case&#41;:</p>
+\[ \begin{align*}
+    \argmin_{\{ \bm d_m:\,\|\bm d_m\|_2=1\},\, \,\{\bm x_m\}}\,\,\, \frac{1}{2} \left\| \sum_m \bm d_m * \bm x_m - \bm s \right\|^2_2 + \lambda\sum_{m}\|\bm x_m\|_1
+    \end{align*}
+\]
+<p>i.e., we want to find the best filters \(\{\bm d_m\}\) and the sparse code \(\{\bm x_m\}\) to represent the signal \(\bm s\). The hyperparameter \(\lambda\) balances the trade-off between data fitting loss and the sparsity of \(\{\bm x_m\}\), and we enforce the constraint \(\|\bm d_m\|_2=1\) to avoid the scaling ambiguity in between the filters and the sparse code. We can easily extend this to the case where we have multiple signals:</p>
+\[ \begin{align*}
+    \argmin_{\{ \bm d_m:\,\|\bm d_m\|_2=1\},\, \,\{\bm x_{mn}\}}\,\,\, \frac{1}{2} \sum_n\left\| \sum_m \bm d_m * \bm x_{mn} - \bm s_n \right\|^2_2 + \lambda\sum_{n,m}\|\bm x_{mn}\|_1
+    \end{align*}
+\]
+<p>The problem formulation of &#40;2&#41; and &#40;3&#41; is called a <em>convolutional dictionary learning</em> &#40;CDL&#41; problem. So what&#39;s the advantage of formulating the problem as a CDL?</p>
+<ul>
+<li><p>CDL is highly interpretable:</p>
+<blockquote>
+<p>In CDL, each signal is approximated by a sparse linear combination of the filters and the sparse code. The sparse code indicates where and how much the filters should appear.</p>
+</blockquote>
+</li>
+<li><p>Minimizing the CDL objective \(\Rightarrow\) we obtain specialized filters representing the frequently occurring patterns in the signals.</p>
+</li>
+</ul>
+<p>Equation &#40;1&#41; also shows that CDL is a <a href="../dist_rep">distributed representation</a>. There&#39;s a particular name for this representation: it is a <em>sparse representation</em> — the model uses a sparse linear combination of the filters and the sparse code to describe each signal in the dataset.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+  </body>
+</html>

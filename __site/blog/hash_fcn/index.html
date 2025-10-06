@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Universal hash functions (practical)</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+  <a href="/tags/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h3 id="universal_hash_functions"><a href="#universal_hash_functions" class="header-anchor">Universal hash functions</a></h3>
+<p>The definition of universal hash function is as follows:</p>
+<div class="graybox"><p>A family of hash functions \(\mathcal H\) mapping to a set of keys \(U\) to a range of integers \(\{0,1,\dots,M-1\}\) is called <strong><em>universal</em></strong> if any two distinct keys \(x,y\in U\) the probability that a hash function \(h\) from \(\mathcal H\) maps \(x\) and \(y\) to the same value is at most \(\frac{1}{M}\): </p>
+\[\underset{h\in \mathcal H}{\mathbb P}\left[h(x)=h(y)\right]\leq \frac{1}{M}\]</div>
+<p>Constructing a universal hash function from a family of such functions is straightforward. Here&#39;s a way to do it:</p>
+<ul>
+<li><p>Fix a prime number \(M\) </p>
+</li>
+<li><p>Assume that the keys in the universe can be encoded as vectors of positive integers \((x_1,x_2,\dots,x_k)\)</p>
+</li>
+<li><p>Uniformly choose numbers \(r_1,r_2,\dots,r_k\) from the set \(\{0,1,\dots,M-1\}\)</p>
+</li>
+<li><p>Define the hash function as </p>
+</li>
+</ul>
+\[h(x) = (r_1x_1+\cdots+r_kx_k)\,\,\text{mod}\,\,M\]
+<p>Done&#33; We&#39;ve now constructed a universal hash function \(h\) with a collsion probability \(1/M\). You can find a proof of this, e.g. in this lecture <a href="https://www.cs.cmu.edu/~avrim/451f11/lectures/lect1004.pdf">here</a> by Arvim Blum&#41;.</p>
+<p>However, in some cases, the prime number \(M\) might be inconvenient to work with, especially if we want to restrict the range of the output to \(\{0,\dots,N-1\}\), where \(N < M\). To address this, we can modify the hash function as follows:</p>
+\[h(x) = (r_1x_1+\cdots+r_kx_k)\,\,\text{mod}\,\,M \,\, \text{mod}\,\, N\]
+<p>Now the collision probability increases from \(1/M\) to \(1/N\). This happens because the reduction from \(\{0,\dots,M-1\}\) to \(\{0,\dots,N-1\}\) causes each value in \(\{0,\dots,N-1\}\) to correspond to \(\lfloor \frac{M}{N} \rfloor + 1\) values from the original range \(\{0,\dots,M-1\}\).</p>
+<p>Here&#39;s a simple Julia code to construct universal hash function \(h\):</p>
+<div class="graybox"><pre><code class="language-julia">using Primes
+# K: dimension for the items in the universe
+# M: A sufficiently large prime number
+# N: the output dimension when N &gt; 1
+function create_universal_hash&#40;K::Int, M::Int; N &#61; 1&#41;
+    @assert isprime&#40;M&#41; &quot;M must be a prime number&quot;
+    r &#61; &#91;rand&#40;0:M-1&#41; for _ &#61; 1:K&#93;
+    h&#40;x&#41; &#61; &#40;sum&#40;r .* x&#41; &#37; M&#41; &#37; N
+    return h
+end</code></pre></div>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
