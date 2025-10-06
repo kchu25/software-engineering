@@ -19,11 +19,21 @@ jobs:
       with:
         version: '1.11'
         
-    - name: Install Franklin.jl
-      run: julia -e 'using Pkg; Pkg.add("Franklin")'
+    - name: Cache Julia packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.julia
+        key: ${{ runner.os }}-julia-${{ hashFiles('**/Project.toml', '**/Manifest.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-julia-
+        
+    - name: Install dependencies
+      run: |
+        julia --project=. -e 'using Pkg; Pkg.instantiate()'
+        julia --project=. -e 'using Pkg; Pkg.add("Franklin")'
       
     - name: Build site
-      run: julia -e 'using Franklin; optimize()'
+      run: julia --project=. -e 'using Franklin; optimize()'
       
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
