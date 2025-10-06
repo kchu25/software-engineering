@@ -1,4 +1,4 @@
-Sitemap: https://kchu25.github.io/sitemap.xml
+Sitemap: https://kchu25.github.io/mathematics/sitemap.xml
 
 User-agent: *
 Disallow:
