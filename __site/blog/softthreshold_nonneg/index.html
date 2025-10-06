@@ -16,7 +16,7 @@
 <header>
   <h1 style="color:#283747">Mathematics</h1>
   <nav>
-  <a href="/tags/" class="current">Tags</a>
+    <a href="/" class="current">Tags</a>
   | <a href="/blog" >Notes</a>
   <hr/>
   </nav>
@@ -24,7 +24,7 @@
 
 
 <!-- Content appended here -->
-<div class="franklin-content"><h3 id="proximal_gradient_descent__2"><a href="#proximal_gradient_descent__2" class="header-anchor">Proximal gradient descent</a></h3>
+<div class="franklin-content"><h3 id="proximal_gradient_descent"><a href="#proximal_gradient_descent" class="header-anchor">Proximal gradient descent</a></h3>
 <p>I often forget how to derive proximal gradient descent. So here we go.</p>
 <p>Proximal gradient descent is for solving the problem of this form:</p>
 \[\min_{\bm z} f(\bm z)+g(\bm z)\]
@@ -43,7 +43,7 @@
 \bm x^{(k)} = \text{prox}_{g,\eta^k}(\bm x^{(k-1)}-\eta^k\nabla f(\bm x^{(k-1)})),\quad k=1,2,3...
 \]
 <p>There are many theoretical properties to show that this basically behaves like gradient descent. I&#39;d skip that for now.</p>
-<h3 id="soft-thresholding_operator_with_01_constraint__2"><a href="#soft-thresholding_operator_with_01_constraint__2" class="header-anchor">Soft-thresholding operator with &#91;0,1&#93; constraint</a></h3>
+<h3 id="soft-thresholding_operator_with_01_constraint"><a href="#soft-thresholding_operator_with_01_constraint" class="header-anchor">Soft-thresholding operator with &#91;0,1&#93; constraint</a></h3>
 <p>The problem I&#39;m interested in is </p>
 \[\min_{\bm z} f(\bm z)+g(\bm z)\]
 <p>where \(f(\bm z)=\frac{1}{2}\|\bm A\bm z-\bm b\|^2_2\) and \(g(\bm z)=\lambda\|\bm z\|_1+\Pi(\bm z)\). Here \(\Pi\) is an indicator function on \([0,1]^n\) hypercube that returns \(\infty\) if any \((z_1,...,z_n)\) falls outside of it.</p>

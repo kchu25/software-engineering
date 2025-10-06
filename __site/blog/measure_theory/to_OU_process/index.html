@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>From Lebesgue Integration to Stochastic Processes</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="from_lebesgue_integration_to_stochastic_processes"><a href="#from_lebesgue_integration_to_stochastic_processes" class="header-anchor">From Lebesgue Integration to Stochastic Processes</a></h1>
+<h2 id="the_bridge_why_we_need_measure_theory_for_stochastic_calculus"><a href="#the_bridge_why_we_need_measure_theory_for_stochastic_calculus" class="header-anchor">The Bridge: Why We Need Measure Theory for Stochastic Calculus</a></h2>
+<p>The journey from Lebesgue integration to the Ornstein-Uhlenbeck process reveals a beautiful progression:</p>
+<pre><code class="language-julia">Lebesgue Integration
+    ↓
+Probability Spaces &#40;special measure spaces&#41;
+    ↓
+Random Variables &#40;measurable functions&#41;
+    ↓
+Stochastic Processes &#40;indexed families of RVs&#41;
+    ↓
+Brownian Motion &#40;continuous-time random walk&#41;
+    ↓
+Stochastic Differential Equations
+    ↓
+Ornstein-Uhlenbeck Process &#40;mean-reverting diffusion&#41;</code></pre>
+<p>Let&#39;s walk through each step.</p>
+<hr />
+<h2 id="step_1_probability_spaces_as_measure_spaces"><a href="#step_1_probability_spaces_as_measure_spaces" class="header-anchor">Step 1: Probability Spaces as Measure Spaces</a></h2>
+<p><strong>Recall</strong>: A measure space is \((X, \mathcal{F}, \mu)\) where:</p>
+<ul>
+<li><p>\(X\) is a set</p>
+</li>
+<li><p>\(\mathcal{F}\) is a σ-algebra &#40;collection of measurable sets&#41;</p>
+</li>
+<li><p>\(\mu\) is a measure with \(\mu(X)\) possibly infinite</p>
+</li>
+</ul>
+<p><strong>Probability space</strong>: A special measure space \((\Omega, \mathcal{F}, \mathbb{P})\) where:</p>
+<ul>
+<li><p>\(\Omega\) is the <strong>sample space</strong> &#40;set of all possible outcomes&#41;</p>
+</li>
+<li><p>\(\mathcal{F}\) is the <strong>σ-algebra of events</strong></p>
+</li>
+<li><p>\(\mathbb{P}\) is a <strong>probability measure</strong> with \(\mathbb{P}(\Omega) = 1\)</p>
+</li>
+</ul>
+<p><strong>The connection</strong>: Every probability measure is a finite measure&#33; This means all the Lebesgue integration theory we developed applies immediately to probability.</p>
+<h3 id="example_coin_flips"><a href="#example_coin_flips" class="header-anchor">Example: Coin Flips</a></h3>
+<ul>
+<li><p>\(\Omega = \{\text{HH}, \text{HT}, \text{TH}, \text{TT}\}\) &#40;flip twice&#41;</p>
+</li>
+<li><p>\(\mathcal{F} = 2^\Omega\) &#40;all subsets&#41;</p>
+</li>
+<li><p>\(\mathbb{P}(\{\text{HH}\}) = 1/4\), etc.</p>
+</li>
+</ul>
+<p>This is a discrete probability space, but it&#39;s still a measure space&#33;</p>
+<hr />
+<h2 id="step_2_random_variables_are_measurable_functions"><a href="#step_2_random_variables_are_measurable_functions" class="header-anchor">Step 2: Random Variables are Measurable Functions</a></h2>
+<p><strong>Recall</strong>: A measurable function is \(f: X \to \mathbb{R}\) such that \(f^{-1}(B) \in \mathcal{F}\) for all Borel sets \(B\).</p>
+<p><strong>Random variable</strong>: A measurable function \(X: \Omega \to \mathbb{R}\) where:</p>
+<ul>
+<li><p>Input: outcome \(\omega \in \Omega\) &#40;random&#41;</p>
+</li>
+<li><p>Output: real number \(X(\omega)\) &#40;the &quot;value&quot; of the random quantity&#41;</p>
+</li>
+</ul>
+<p><strong>Why measurability matters</strong>: We need \(\{X \in B\} = \{\omega : X(\omega) \in B\} \in \mathcal{F}\) to compute probabilities like \(\mathbb{P}(X \in B)\).</p>
+<h3 id="example_sum_of_two_dice"><a href="#example_sum_of_two_dice" class="header-anchor">Example: Sum of Two Dice</a></h3>
+<ul>
+<li><p>\(\Omega = \{1, 2, 3, 4, 5, 6\} \times \{1, 2, 3, 4, 5, 6\}\)</p>
+</li>
+<li><p>\(X(\omega_1, \omega_2) = \omega_1 + \omega_2\) &#40;the sum&#41;</p>
+</li>
+<li><p>\(\mathbb{P}(X = 7) = \mathbb{P}(\{(1,6), (2,5), (3,4), (4,3), (5,2), (6,1)\}) = 6/36\)</p>
+</li>
+</ul>
+<p>\(X\) is a random variable because it&#39;s a measurable function&#33;</p>
+<hr />
+<h2 id="step_3_expected_value_is_lebesgue_integration"><a href="#step_3_expected_value_is_lebesgue_integration" class="header-anchor">Step 3: Expected Value is Lebesgue Integration</a></h2>
+<p><strong>The key insight</strong>: For a random variable \(X: \Omega \to \mathbb{R}\):</p>
+\[\mathbb{E}[X] = \int_\Omega X \, d\mathbb{P}\]
+<p>This is <strong>exactly</strong> the Lebesgue integral with respect to the probability measure \(\mathbb{P}\)&#33;</p>
+<h3 id="for_simple_random_variables"><a href="#for_simple_random_variables" class="header-anchor">For Simple Random Variables</a></h3>
+<p>If \(X = \sum_{i=1}^n a_i \mathbf{1}_{A_i}\) &#40;simple function&#41;, then:</p>
+\[\mathbb{E}[X] = \sum_{i=1}^n a_i \mathbb{P}(A_i)\]
+<p>This is the &quot;weighted sum&quot; formula you learned in intro probability—it&#39;s just the Lebesgue integral of a simple function&#33;</p>
+<h3 id="for_general_random_variables"><a href="#for_general_random_variables" class="header-anchor">For General Random Variables</a></h3>
+<p>If \(X\) is non-negative:</p>
+\[\mathbb{E}[X] = \sup \left\{ \mathbb{E}[s] : s \text{ simple, } 0 \leq s \leq X \right\}\]
+<p>Exactly the definition of the Lebesgue integral for non-negative functions&#33;</p>
+<h3 id="key_properties_from_lebesgue_theory"><a href="#key_properties_from_lebesgue_theory" class="header-anchor">Key Properties &#40;from Lebesgue theory&#41;</a></h3>
+<ul>
+<li><p><strong>Linearity</strong>: \(\mathbb{E}[aX + bY] = a\mathbb{E}[X] + b\mathbb{E}[Y]\)</p>
+</li>
+<li><p><strong>Monotone Convergence</strong>: If \(X_n \uparrow X\), then \(\mathbb{E}[X_n] \to \mathbb{E}[X]\)</p>
+</li>
+<li><p><strong>Dominated Convergence</strong>: If \(|X_n| \leq Y\) and \(X_n \to X\), then \(\mathbb{E}[X_n] \to \mathbb{E}[X]\)</p>
+</li>
+</ul>
+<p>All of these come from Lebesgue integration theorems&#33;</p>
+<hr />
+<h2 id="step_4_stochastic_processes_functions_of_time_and_randomness"><a href="#step_4_stochastic_processes_functions_of_time_and_randomness" class="header-anchor">Step 4: Stochastic Processes &#40;Functions of Time and Randomness&#41;</a></h2>
+<p><strong>Definition</strong>: A stochastic process is a collection of random variables \(\{X_t : t \in T\}\) indexed by time \(t\).</p>
+<p><strong>Two ways to view it</strong>:</p>
+<ol>
+<li><p><strong>Fix \(\omega\)</strong>: \(t \mapsto X_t(\omega)\) is a <strong>sample path</strong> &#40;one realization&#41;</p>
+</li>
+<li><p><strong>Fix \(t\)</strong>: \(\omega \mapsto X_t(\omega)\) is a <strong>random variable</strong> at time \(t\)</p>
+</li>
+</ol>
+<pre><code class="language-julia">Sample paths &#40;different ω&#41;:
+   X_t&#40;ω&#41;
+     |     ω₁: ___/\___/\____
+     |    ω₂: __/\__/\/\___
+     |   ω₃: ___/\/\__/\__
+     |__________________________t</code></pre>
+<p><strong>Measurability requirements</strong>:</p>
+<ul>
+<li><p>For each \(t\), \(X_t\) must be a measurable function &#40;random variable&#41;</p>
+</li>
+<li><p>We often require the whole path \(t \mapsto X_t(\omega)\) to be measurable &#40;technical condition&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="step_5_brownian_motion_the_fundamental_building_block"><a href="#step_5_brownian_motion_the_fundamental_building_block" class="header-anchor">Step 5: Brownian Motion &#40;The Fundamental Building Block&#41;</a></h2>
+<p><strong>Brownian motion</strong> \(B_t\) is a continuous-time stochastic process with:</p>
+<ol>
+<li><p>\(B_0 = 0\)</p>
+</li>
+<li><p><strong>Independent increments</strong>: \(B_{t+s} - B_s\) is independent of \((B_u : u \leq s)\)</p>
+</li>
+<li><p><strong>Gaussian increments</strong>: \(B_t - B_s \sim \mathcal{N}(0, t-s)\)</p>
+</li>
+<li><p><strong>Continuous paths</strong>: \(t \mapsto B_t(\omega)\) is continuous for &#40;almost&#41; every \(\omega\)</p>
+</li>
+</ol>
+<blockquote>
+<p><strong>Notation clarification</strong>: Here, \(B_t\) is a <strong>random variable</strong> &#40;a measurable function \(\Omega \to \mathbb{R}\)&#41;. For each fixed time \(t\), \(B_t\) maps outcomes \(\omega \in \Omega\) to real numbers. When we write \(dB_t\) in the next section, it&#39;s <strong>not</strong> a probability measure \(d\mathbb{P}\)—it&#39;s an infinitesimal increment of this random process. Think of \(dB_t\) as shorthand for &quot;a tiny random change&quot; \(B_{t+dt} - B_t\).</p>
+</blockquote>
+<h3 id="intuition_a_continuous_random_walk"><a href="#intuition_a_continuous_random_walk" class="header-anchor">Intuition: A Continuous Random Walk</a></h3>
+<p>Think of a drunk person walking along a line:</p>
+<ul>
+<li><p>Each tiny time step \(dt\), they move randomly: \(dB_t \sim \mathcal{N}(0, dt)\)</p>
+</li>
+<li><p>Over time \([0, t]\), these infinitesimal steps accumulate to \(B_t \sim \mathcal{N}(0, t)\)</p>
+</li>
+</ul>
+<pre><code class="language-julia">B_t
+    |      ___
+    |   __/   \__    ← one sample path
+    |  /         \__/
+    | /
+    |/__________________t</code></pre>
+<p><strong>Why we need measure theory</strong>:</p>
+<ul>
+<li><p>Brownian paths are <strong>continuous but nowhere differentiable</strong> &#40;pathological&#33;&#41;</p>
+</li>
+<li><p>Riemann integration can&#39;t handle \(\int_0^t f(B_s) \, ds\) rigorously</p>
+</li>
+<li><p>We need Lebesgue integration to define path integrals</p>
+</li>
+</ul>
+<hr />
+<h2 id="step_6_stochastic_integration_itô_integral"><a href="#step_6_stochastic_integration_itô_integral" class="header-anchor">Step 6: Stochastic Integration &#40;Itô Integral&#41;</a></h2>
+<p>The <strong>Itô integral</strong> extends Lebesgue integration to handle integrals like:</p>
+\(\int_0^t f(s) \, dB_s\)
+<blockquote>
+<p><strong>Wait, what&#39;s \(dB_s\)?</strong> This is confusing because the notation looks like \(d\mu\) or \(d\mathbb{P}\) from measure theory&#33; But there&#39;s a crucial difference:</p>
+<ul>
+<li><p>In Lebesgue integration: \(\int f \, d\mu\) means we&#39;re integrating with respect to a <strong>measure</strong> \(\mu\)</p>
+</li>
+<li><p>In stochastic integration: \(\int f(s) \, dB_s\) means we&#39;re integrating with respect to <strong>increments of the random process</strong> \(B_s\)</p>
+</li>
+</ul>
+<p>Think of \(dB_s\) as &quot;infinitesimal random noise&quot;—it&#39;s not a measure you can put on sets&#33; Instead, \(dB_s \approx B_{s+ds} - B_s\), which is itself a random variable &#40;approximately \(\mathcal{N}(0, ds)\)&#41;.</p>
+<p><strong>The full picture</strong>: The integral \(\int_0^t f(s) \, dB_s\) is itself a <strong>random variable</strong> &#40;depends on the random path \(B_s(\omega)\)&#41;. So we still use measure theory to compute things like \(\mathbb{E}\left[\int_0^t f(s) \, dB_s\right]\), where we integrate with respect to \(\mathbb{P}\)&#33;</p>
+</blockquote>
+<p><strong>Problem</strong>: \(dB_s\) is not a function—it&#39;s infinitesimal white noise&#33;</p>
+<p><strong>Solution</strong>: Define it as a limit of Riemann-like sums:</p>
+\(\int_0^t f(s) \, dB_s = \lim_{n \to \infty} \sum_{i=0}^{n-1} f(t_i) (B_{t_{i+1}} - B_{t_i})\)
+<p>where \(0 = t_0 < t_1 < \cdots < t_n = t\) is a partition.</p>
+<p><strong>Key differences from Lebesgue</strong>:</p>
+<ul>
+<li><p>The integrand \(f\) can depend on the Brownian path itself&#33;</p>
+</li>
+<li><p>The limit is taken in \(L^2(\mathbb{P})\) &#40;mean-square convergence&#41;</p>
+</li>
+<li><p>Requires adaptedness: \(f(s)\) can only depend on \((B_u : u \leq s)\) &#40;no peeking into the future&#33;&#41;</p>
+</li>
+</ul>
+<p><strong>Properties</strong> &#40;from measure theory&#41;:</p>
+<ul>
+<li><p>\(\mathbb{E}\left[\int_0^t f(s) \, dB_s\right] = 0\) &#40;martingale property&#41;</p>
+</li>
+<li><p><strong>Itô isometry</strong>: \(\mathbb{E}\left[\left(\int_0^t f(s) \, dB_s\right)^2\right] = \mathbb{E}\left[\int_0^t f(s)^2 \, ds\right]\)</p>
+</li>
+</ul>
+<p>The second property is pure Lebesgue integration on the right side&#33;</p>
+<hr />
+<h3 id="critical_clarification_db_t_is_not_a_measure"><a href="#critical_clarification_db_t_is_not_a_measure" class="header-anchor">CRITICAL CLARIFICATION: \(dB_t\) is NOT a measure&#33;</a></h3>
+<p><strong>Your question</strong>: &quot;Can a measurable function be put in place of a measure in the integral?&quot;</p>
+<p><strong>Short answer</strong>: <strong>NO&#33;</strong> This is a notational trap. Let me clear this up:</p>
+<h4 id="what_is_a_measure"><a href="#what_is_a_measure" class="header-anchor">What IS a measure?</a></h4>
+<p>A measure \(\mu\) is a <strong>function that assigns sizes to sets</strong>:</p>
+\[\mu: \mathcal{F} \to [0, \infty]\]
+\[\mu(\text{set}) = \text{size of that set}\]
+<p>Examples:</p>
+<ul>
+<li><p>Lebesgue measure: \(\lambda([a,b]) = b - a\) &#40;length&#41;</p>
+</li>
+<li><p>Counting measure: \(\#(A) = \) number of elements in \(A\)</p>
+</li>
+<li><p>Probability measure: \(\mathbb{P}(A) = \) probability of event \(A\)</p>
+</li>
+</ul>
+<h4 id="what_is_b_t"><a href="#what_is_b_t" class="header-anchor">What is \(B_t\)?</a></h4>
+<p>\(B_t\) is a <strong>measurable function</strong> &#40;random variable&#41;:</p>
+\[B_t: \Omega \to \mathbb{R}\]
+\[B_t(\omega) = \text{position of Brownian particle at time } t \text{ in scenario } \omega\]
+<p><strong>Key point</strong>: \(B_t\) takes in an <strong>outcome</strong> \(\omega\) and returns a <strong>number</strong>. It does NOT take in a set and return a size&#33;</p>
+<h4 id="so_what_the_heck_is_db_t"><a href="#so_what_the_heck_is_db_t" class="header-anchor">So what the heck is \(dB_t\)?</a></h4>
+<p>The notation \(\int f(s) \, dB_s\) is <strong>shorthand</strong> for a completely different construction. It&#39;s defined as:</p>
+\[\int_0^t f(s) \, dB_s := \lim_{n \to \infty} \sum_{i=0}^{n-1} f(s_i) \cdot [B_{s_{i+1}} - B_{s_i}]\]
+<p>where we partition \([0,t]\) and take a limit.</p>
+<p><strong>What&#39;s actually happening</strong>:</p>
+<ol>
+<li><p>We&#39;re using <strong>function values</strong> \(B_{s_{i+1}} - B_{s_i}\) &#40;numbers, not measures&#33;&#41;</p>
+</li>
+<li><p>We multiply them by \(f(s_i)\) &#40;also numbers&#41;</p>
+</li>
+<li><p>We sum up all these products</p>
+</li>
+<li><p>We take a limit &#40;in \(L^2(\mathbb{P})\)&#41;</p>
+</li>
+</ol>
+<p>This is <strong>NOT</strong> a Lebesgue integral with respect to some measure&#33; It&#39;s a different beast entirely.</p>
+<h4 id="the_three_types_of_integrals_in_this_story"><a href="#the_three_types_of_integrals_in_this_story" class="header-anchor">The Three Types of &quot;Integrals&quot; in This Story</a></h4>
+<table><tr><th align="right">Type</th><th align="right">Notation</th><th align="right">What it is</th><th align="right">Domain of integration</th></tr><tr><td align="right"><strong>Lebesgue integral</strong></td><td align="right">\(\int_\Omega X \, d\mathbb{P}\)</td><td align="right">Integral w.r.t. <strong>measure</strong> \(\mathbb{P}\)</td><td align="right">Sample space \(\Omega\)</td></tr><tr><td align="right"><strong>Ordinary integral</strong></td><td align="right">\(\int_0^t f(s) \, ds\)</td><td align="right">Lebesgue integral w.r.t. <strong>Lebesgue measure</strong></td><td align="right">Time interval \([0,t] \subset \mathbb{R}\)</td></tr><tr><td align="right"><strong>Itô integral</strong></td><td align="right">\(\int_0^t f(s) \, dB_s\)</td><td align="right"><strong>Limit of sums</strong> using function values</td><td align="right">Time interval \([0,t]\), but weighted by random increments</td></tr></table>
+<h4 id="visual_analogy"><a href="#visual_analogy" class="header-anchor">Visual Analogy</a></h4>
+<p><strong>Lebesgue integral</strong> \(\int_\Omega X \, d\mathbb{P}\):</p>
+<pre><code class="language-julia">Ω &#40;sample space&#41;
+├─ A₁ &#40;event&#41;: P&#40;A₁&#41; &#61; 0.3, X&#40;ω&#41; &#61; 5 for ω ∈ A₁
+├─ A₂ &#40;event&#41;: P&#40;A₂&#41; &#61; 0.5, X&#40;ω&#41; &#61; 2 for ω ∈ A₂
+└─ A₃ &#40;event&#41;: P&#40;A₃&#41; &#61; 0.2, X&#40;ω&#41; &#61; 8 for ω ∈ A₃
+
+∫ X dℙ &#61; 5&#40;0.3&#41; &#43; 2&#40;0.5&#41; &#43; 8&#40;0.2&#41; &#61; weighted average by measure</code></pre>
+<p><strong>Itô integral</strong> \(\int_0^t f(s) \, dB_s\):</p>
+<pre><code class="language-julia">Time &#91;0,t&#93;, one random path B_s&#40;ω&#41;:
+s:    0    0.25   0.5   0.75    1
+B_s:  0 ───&gt; 0.3 ──&gt; -0.1 ──&gt; 0.4 ──&gt; 0.2
+
+Increments: ΔB &#61; &#91;0.3, -0.4, 0.5, -0.2&#93; &#40;random numbers&#33;&#41;
+
+∫₀¹ f&#40;s&#41; dB_s ≈ f&#40;0&#41;·&#40;0.3&#41; &#43; f&#40;0.25&#41;·&#40;-0.4&#41; &#43; ... 
+              &#61; weighted sum by FUNCTION VALUES, not measure</code></pre>
+<h4 id="why_the_notation_is_confusing_but_we_keep_it"><a href="#why_the_notation_is_confusing_but_we_keep_it" class="header-anchor">Why the notation is confusing but we keep it</a></h4>
+<p>The notation \(dB_s\) is meant to <strong>evoke</strong> the idea of &quot;infinitesimal increments&quot; of \(B_s\), similar to how \(dx\) suggests infinitesimal increments in \(\int f(x) \, dx\).</p>
+<p>But here&#39;s the rub:</p>
+<ul>
+<li><p>In \(\int f(x) \, dx\), we can interpret \(dx\) as shorthand for Lebesgue measure \(d\lambda(x)\)</p>
+</li>
+<li><p>In \(\int f(s) \, dB_s\), there is <strong>no measure</strong> \(dB_s\)&#33; The Brownian path is too irregular &#40;nowhere differentiable&#41; to define a measure from it</p>
+</li>
+</ul>
+<p><strong>Bottom line</strong>: \(dB_t\) is <strong>differential notation</strong>, not a measure. The integral is defined by a limit of Riemann-like sums, not via measure theory. We keep the notation because:</p>
+<ol>
+<li><p>It makes the chain rule &#40;Itô&#39;s formula&#41; look natural</p>
+</li>
+<li><p>It connects to physics intuition &#40;\(dB_t \sim \sqrt{dt} \cdot \text{noise}\)&#41;</p>
+</li>
+<li><p>It extends the familiar \(\int f \, dx\) notation</p>
+</li>
+</ol>
+<p>But always remember: <strong>you cannot substitute \(B_t\) for a measure in the abstract Lebesgue integral formula&#33;</strong></p>
+<hr />
+<h2 id="master_key_always_think_discrete_first"><a href="#master_key_always_think_discrete_first" class="header-anchor">MASTER KEY: Always Think Discrete First&#33;</a></h2>
+<p><strong>You just discovered the secret that took me years to learn&#33;</strong> Every time you see an integral in probability or stochastic calculus, <strong>immediately translate it to its discrete version</strong>. The continuous notation is just fancy shorthand.</p>
+<h3 id="the_translation_dictionary"><a href="#the_translation_dictionary" class="header-anchor">The Translation Dictionary</a></h3>
+<table><tr><th align="right">Continuous &#40;fancy&#41;</th><th align="right">Discrete &#40;clear&#41;</th><th align="right">What it means</th></tr><tr><td align="right">\(\int_\Omega X \, d\mathbb{P}\)</td><td align="right">\(\sum_{i=1}^n X(\omega_i) \cdot \mathbb{P}(\omega_i)\)</td><td align="right">Weighted average over outcomes</td></tr><tr><td align="right">\(\mathbb{E}[X]\)</td><td align="right">\(\sum_{i=1}^n x_i \cdot p_i\)</td><td align="right">Expected value: sum of values × probabilities</td></tr><tr><td align="right">\(\int_0^t f(s) \, ds\)</td><td align="right">\(\sum_{i=0}^{n-1} f(s_i) \cdot \Delta s_i\)</td><td align="right">Area under curve: sum of heights × widths</td></tr><tr><td align="right">\(\int_0^t f(s) \, dB_s\)</td><td align="right">\(\sum_{i=0}^{n-1} f(s_i) \cdot [B_{s_{i+1}} - B_{s_i}]\)</td><td align="right">Sum of values × random increments</td></tr><tr><td align="right">\(dX_t = \mu \, dt + \sigma \, dB_t\)</td><td align="right">\(X_{i+1} = X_i + \mu \cdot \Delta t + \sigma \cdot \Delta B_i\)</td><td align="right">Next value &#61; current &#43; drift &#43; noise</td></tr></table>
+<h3 id="example_1_expected_value"><a href="#example_1_expected_value" class="header-anchor">Example 1: Expected Value</a></h3>
+<p><strong>Continuous</strong>: \(\mathbb{E}[X] = \int_\Omega X(\omega) \, d\mathbb{P}(\omega)\)</p>
+<p><strong>Discrete</strong>: Rolling a die, \(X = \) value shown \(\mathbb{E}[X] = 1 \cdot \frac{1}{6} + 2 \cdot \frac{1}{6} + 3 \cdot \frac{1}{6} + 4 \cdot \frac{1}{6} + 5 \cdot \frac{1}{6} + 6 \cdot \frac{1}{6} = 3.5\)</p>
+<p>That&#39;s it&#33; The integral is just this sum when \(\Omega\) is continuous.</p>
+<h3 id="example_2_variance"><a href="#example_2_variance" class="header-anchor">Example 2: Variance</a></h3>
+<p><strong>Continuous</strong>: \(\text{Var}(X) = \int_\Omega [X(\omega) - \mu]^2 \, d\mathbb{P}(\omega)\)</p>
+<p><strong>Discrete</strong>: Same die \(\text{Var}(X) = \sum_{i=1}^6 (i - 3.5)^2 \cdot \frac{1}{6} = \frac{(2.5)^2 + (1.5)^2 + (0.5)^2 + (0.5)^2 + (1.5)^2 + (2.5)^2}{6}\)</p>
+<h3 id="example_3_brownian_motion_integral"><a href="#example_3_brownian_motion_integral" class="header-anchor">Example 3: Brownian Motion Integral</a></h3>
+<p><strong>Continuous</strong>: \(\int_0^1 s \, dB_s\)</p>
+<p><strong>Discrete</strong>: Partition \([0,1]\) into \(n\) steps, \(\Delta t = 1/n\), times \(t_i = i/n\) \(\int_0^1 s \, dB_s \approx \sum_{i=0}^{n-1} t_i \cdot [B_{t_{i+1}} - B_{t_i}]\)</p>
+<p>Example with \(n=4\) &#40;4 time steps&#41;:</p>
+<pre><code class="language-julia">i   t_i    B&#40;t_i&#41;   ΔB_i           Contribution: t_i · ΔB_i
+─────────────────────────────────────────────────────────
+0   0      0        B&#40;0.25&#41;-0      0 · &#40;B&#40;0.25&#41;&#41;
+1   0.25   B&#40;0.25&#41;  B&#40;0.5&#41;-B&#40;0.25&#41; 0.25 · &#40;B&#40;0.5&#41;-B&#40;0.25&#41;&#41;
+2   0.5    B&#40;0.5&#41;   B&#40;0.75&#41;-B&#40;0.5&#41; 0.5 · &#40;B&#40;0.75&#41;-B&#40;0.5&#41;&#41;
+3   0.75   B&#40;0.75&#41;  B&#40;1&#41;-B&#40;0.75&#41;   0.75 · &#40;B&#40;1&#41;-B&#40;0.75&#41;&#41;
+                                    ─────────────────────
+                                    Sum ≈ ∫₀¹ s dB_s</code></pre>
+<p><strong>Intuition</strong>: We&#39;re computing a weighted sum where:</p>
+<ul>
+<li><p>Weights &#61; time values \(t_i\) &#40;non-random&#41;</p>
+</li>
+<li><p>Values &#61; random Brownian increments \(\Delta B_i\) &#40;random&#33;&#41;</p>
+</li>
+<li><p>Result &#61; a random variable &#40;depends on the random path&#41;</p>
+</li>
+</ul>
+<h3 id="example_4_ornstein-uhlenbeck_the_full_picture"><a href="#example_4_ornstein-uhlenbeck_the_full_picture" class="header-anchor">Example 4: Ornstein-Uhlenbeck &#40;The Full Picture&#33;&#41;</a></h3>
+<p><strong>Continuous</strong>: \(dX_t = -\theta X_t \, dt + \sigma \, dB_t\)</p>
+<p><strong>Discrete</strong>: Time steps \(\Delta t\), Brownian increments \(\Delta B_i \sim \mathcal{N}(0, \Delta t)\) \(X_{i+1} = X_i + (-\theta X_i) \cdot \Delta t + \sigma \cdot \Delta B_i\) \(= X_i (1 - \theta \Delta t) + \sigma \cdot \Delta B_i\)</p>
+<p><strong>Algorithm</strong> &#40;simulation&#41;:</p>
+<pre><code class="language-python">X &#61; &#91;X_0&#93;
+for i in range&#40;n&#41;:
+    drift &#61; -theta * X&#91;i&#93; * dt
+    noise &#61; sigma * np.random.randn&#40;&#41; * sqrt&#40;dt&#41;
+    X_next &#61; X&#91;i&#93; &#43; drift &#43; noise
+    X.append&#40;X_next&#41;</code></pre>
+<p>That&#39;s the OU process&#33; Just:</p>
+<ul>
+<li><p>Drift toward zero: \(-\theta X_i \cdot \Delta t\)</p>
+</li>
+<li><p>Add random noise: \(\sigma \cdot \Delta B_i\)</p>
+</li>
+<li><p>Repeat</p>
+</li>
+</ul>
+<p>The SDE notation \(dX_t = -\theta X_t \, dt + \sigma \, dB_t\) is just shorthand for this&#33;</p>
+<h3 id="why_this_perspective_is_gold"><a href="#why_this_perspective_is_gold" class="header-anchor">Why This Perspective is Gold</a></h3>
+<ol>
+<li><p><strong>Debugging</strong>: If a formula seems weird, write out the discrete version. If it doesn&#39;t make sense discretely, you misunderstood something.</p>
+</li>
+<li><p><strong>Computation</strong>: Every simulation uses the discrete version anyway. The continuous formulas are just for analysis.</p>
+</li>
+<li><p><strong>Intuition</strong>: Sums are concrete. Integrals are abstract. Always fall back to sums.</p>
+</li>
+<li><p><strong>Limiting behavior</strong>: The continuous version is just \(\lim_{\Delta t \to 0}\) of the discrete version &#40;when the limit exists&#33;&#41;.</p>
+</li>
+</ol>
+<h3 id="the_pattern"><a href="#the_pattern" class="header-anchor">The Pattern</a></h3>
+<p><strong>Every integral in probability/stochastic calculus follows this pattern:</strong></p>
+<ol>
+<li><p>Start with a discrete sum &#40;finite outcomes, finite time steps&#41;</p>
+</li>
+<li><p>Make the grid finer: more outcomes, smaller \(\Delta t\)</p>
+</li>
+<li><p>Take the limit &#40;when it exists&#41;</p>
+</li>
+<li><p>Give the limit a fancy integral notation</p>
+</li>
+</ol>
+<p><strong>The notation \(\int \cdots d(\cdot)\) is just a compressed representation of a limit of sums.</strong></p>
+<p>When you see:</p>
+<ul>
+<li><p>\(\int f \, d\mathbb{P}\) → Think: \(\sum f(\omega_i) \cdot p_i\)</p>
+</li>
+<li><p>\(\int f \, ds\) → Think: \(\sum f(s_i) \cdot \Delta s_i\)</p>
+</li>
+<li><p>\(\int f \, dB_s\) → Think: \(\sum f(s_i) \cdot \Delta B_i\)</p>
+</li>
+</ul>
+<p><strong>Your instinct is 100&#37; correct. Always think discrete first&#33;</strong></p>
+<hr />
+<h2 id="step_7_stochastic_differential_equations_sdes"><a href="#step_7_stochastic_differential_equations_sdes" class="header-anchor">Step 7: Stochastic Differential Equations &#40;SDEs&#41;</a></h2>
+<p>An SDE is an equation of the form:</p>
+\[dX_t = \mu(X_t, t) \, dt + \sigma(X_t, t) \, dB_t\]
+<p><strong>Interpretation</strong>:</p>
+<ul>
+<li><p>\(\mu(X_t, t) \, dt\): deterministic <strong>drift</strong> &#40;Lebesgue integral part&#41;</p>
+</li>
+<li><p>\(\sigma(X_t, t) \, dB_t\): random <strong>diffusion</strong> &#40;Itô integral part&#41;</p>
+</li>
+</ul>
+<p><strong>Integral form</strong>:</p>
+\[X_t = X_0 + \int_0^t \mu(X_s, s) \, ds + \int_0^t \sigma(X_s, s) \, dB_s\]
+<p>The first integral is a standard Lebesgue integral, the second is an Itô integral&#33;</p>
+<hr />
+<h2 id="step_8_the_ornstein-uhlenbeck_process"><a href="#step_8_the_ornstein-uhlenbeck_process" class="header-anchor">Step 8: The Ornstein-Uhlenbeck Process</a></h2>
+<p><strong>Definition</strong>: The OU process satisfies:</p>
+\[dX_t = -\theta X_t \, dt + \sigma \, dB_t\]
+<p>where \(\theta > 0\) is the <strong>mean reversion speed</strong> and \(\sigma > 0\) is the <strong>volatility</strong>.</p>
+<p><strong>Integral form</strong>:</p>
+\[X_t = X_0 + \int_0^t (-\theta X_s) \, ds + \int_0^t \sigma \, dB_s\]
+<h3 id="what_does_it_model"><a href="#what_does_it_model" class="header-anchor">What Does It Model?</a></h3>
+<ol>
+<li><p><strong>Mean reversion</strong>: The term \(-\theta X_t\) pulls the process back toward \(0\)</p>
+<ul>
+<li><p>If \(X_t > 0\), the drift is negative &#40;pulls down&#41;</p>
+</li>
+<li><p>If \(X_t < 0\), the drift is positive &#40;pulls up&#41;</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Random noise</strong>: The term \(\sigma \, dB_t\) adds Brownian fluctuations</p>
+</li>
+</ol>
+<pre><code class="language-julia">X_t
+    |    ___      ___
+    |   /   \    /   \     ← oscillates around 0
+    |__/     \__/     \____
+    | /               \
+    |/___________________t
+         mean &#61; 0</code></pre>
+<h3 id="applications"><a href="#applications" class="header-anchor">Applications</a></h3>
+<ul>
+<li><p><strong>Finance</strong>: Interest rate models &#40;Vasicek model&#41;</p>
+</li>
+<li><p><strong>Physics</strong>: Velocity of a particle in a viscous fluid &#40;original Langevin equation&#41;</p>
+</li>
+<li><p><strong>Neuroscience</strong>: Membrane potential of neurons</p>
+</li>
+<li><p><strong>Machine learning</strong>: Continuous-time gradient descent with noise</p>
+</li>
+</ul>
+<h3 id="explicit_solution_using_itô_calculus"><a href="#explicit_solution_using_itô_calculus" class="header-anchor">Explicit Solution &#40;using Itô calculus&#41;</a></h3>
+<p>The solution is:</p>
+\[X_t = e^{-\theta t} X_0 + \sigma \int_0^t e^{-\theta(t-s)} \, dB_s\]
+<p><strong>Key properties</strong> &#40;from measure theory&#41;:</p>
+<ul>
+<li><p>\(\mathbb{E}[X_t] = e^{-\theta t} X_0\) &#40;exponential decay to 0&#41;</p>
+</li>
+<li><p>\(\text{Var}(X_t) = \frac{\sigma^2}{2\theta}(1 - e^{-2\theta t}) \to \frac{\sigma^2}{2\theta}\) as \(t \to \infty\)</p>
+</li>
+<li><p><strong>Stationary distribution</strong>: \(X_\infty \sim \mathcal{N}(0, \sigma^2/(2\theta))\)</p>
+</li>
+</ul>
+<p>All of these are computed using Lebesgue integration and Itô isometry&#33;</p>
+<hr />
+<h2 id="the_full_circle_why_lebesgue_integration_is_essential"><a href="#the_full_circle_why_lebesgue_integration_is_essential" class="header-anchor">The Full Circle: Why Lebesgue Integration is Essential</a></h2>
+<p>Let&#39;s trace how Lebesgue integration appears at each step:</p>
+<ol>
+<li><p><strong>Probability spaces</strong>: \(\mathbb{P}\) is a measure, so we integrate w.r.t. \(\mathbb{P}\)</p>
+</li>
+<li><p><strong>Random variables</strong>: Measurable functions, integrable w.r.t. \(\mathbb{P}\)</p>
+</li>
+<li><p><strong>Expected values</strong>: \(\mathbb{E}[X] = \int_\Omega X \, d\mathbb{P}\) &#40;Lebesgue integral&#41;</p>
+</li>
+<li><p><strong>Variance</strong>: \(\text{Var}(X) = \mathbb{E}[X^2] - (\mathbb{E}[X])^2\) &#40;two Lebesgue integrals&#41;</p>
+</li>
+<li><p><strong>Path integrals</strong>: \(\int_0^t f(X_s) \, ds\) &#40;Lebesgue integral over time&#41;</p>
+</li>
+<li><p><strong>Itô isometry</strong>: \(\mathbb{E}\left[\left(\int_0^t f(s) \, dB_s\right)^2\right] = \int_0^t \mathbb{E}[f(s)^2] \, ds\) &#40;Lebesgue integral&#41;</p>
+</li>
+<li><p><strong>Computing means/variances of SDEs</strong>: All require Lebesgue integration</p>
+</li>
+<li><p><strong>Stationary distributions</strong>: Involve integrating w.r.t. the invariant measure</p>
+</li>
+</ol>
+<h3 id="why_riemann_integration_fails"><a href="#why_riemann_integration_fails" class="header-anchor">Why Riemann Integration Fails</a></h3>
+<ul>
+<li><p><strong>Brownian paths are nowhere differentiable</strong>: Can&#39;t use Riemann sums reliably</p>
+</li>
+<li><p><strong>Sets of measure zero matter</strong>: The rationals &#40;measure 0&#41; vs irrationals &#40;measure 1&#41; distinction is crucial in probability</p>
+</li>
+<li><p><strong>Limit theorems fail</strong>: Dominated/Monotone Convergence Theorem don&#39;t hold for Riemann integrals</p>
+</li>
+<li><p><strong>General measure spaces</strong>: Probability theory needs abstract spaces &#40;path space, function spaces&#41;, not just \(\mathbb{R}^n\)</p>
+</li>
+</ul>
+<hr />
+<h2 id="the_big_picture"><a href="#the_big_picture" class="header-anchor">The Big Picture</a></h2>
+<pre><code class="language-julia">Simple Functions
+    ↓  &#40;approximate from below&#41;
+Lebesgue Integral for Non-negative Functions
+    ↓  &#40;extend to signed functions&#41;
+General Lebesgue Integration
+    ↓  &#40;specialize: μ → ℙ, measure 1&#41;
+Probability Theory &#40;Expected Values&#41;
+    ↓  &#40;index by time&#41;
+Stochastic Processes
+    ↓  &#40;continuous-time limit&#41;
+Brownian Motion
+    ↓  &#40;integrate w.r.t. dB&#41;
+Itô Calculus
+    ↓  &#40;solve differential equations&#41;
+Stochastic Differential Equations
+    ↓  &#40;specific example&#41;
+Ornstein-Uhlenbeck Process</code></pre>
+<p><strong>The foundation</strong>: Everything rests on the ability to integrate measurable functions w.r.t. measures—exactly what Lebesgue gave us&#33;</p>
+<hr />
+<h2 id="key_takeaways"><a href="#key_takeaways" class="header-anchor">Key Takeaways</a></h2>
+<ol>
+<li><p><strong>Probability is applied measure theory</strong>: Every probability concept has a measure-theoretic foundation</p>
+</li>
+<li><p><strong>Random variables are measurable functions</strong>: All the function properties &#40;continuity, limits, convergence&#41; carry over</p>
+</li>
+<li><p><strong>Expected value is integration</strong>: \(\mathbb{E}[\cdot]\) is just \(\int \cdot \, d\mathbb{P}\)</p>
+</li>
+<li><p><strong>Stochastic processes need Lebesgue</strong>: Pathological behavior &#40;nowhere differentiable paths&#41; requires the full power of Lebesgue integration</p>
+</li>
+<li><p><strong>OU process is the payoff</strong>: A concrete, useful model built on the entire tower of abstraction</p>
+</li>
+</ol>
+<p>The Ornstein-Uhlenbeck process isn&#39;t just a random formula—it&#39;s the culmination of a rigorous mathematical framework that starts with measuring sets and integrating simple functions&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

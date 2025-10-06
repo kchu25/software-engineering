@@ -3,19 +3,13 @@
 
 <url>
     <loc>https://kchu25.github.io/blog/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/tags/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
-    <loc>https://kchu25.github.io/blog/zf_edit/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/test1/logdet_zygote/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
@@ -26,26 +20,14 @@
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/logdet_zygote/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
     <loc>https://kchu25.github.io/blog/softthreshold_nonneg/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/cdl/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
-    <loc>https://kchu25.github.io/blog/conv/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/measure_theory/ito_integral_history/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
@@ -56,38 +38,44 @@
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/cdl_cnn_dff/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/measure_theory/2_integration/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
     <loc>https://kchu25.github.io/menu2/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <lastmod>2025-10-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/dist_rep/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/measure_theory/3_convergence_thms/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/binding_modes/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/measure_theory/1_measure/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/hash_fcn/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <loc>https://kchu25.github.io/blog/measure_theory/to_OU_process/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+</url>
+<url>
+    <loc>https://kchu25.github.io/blog/measure_theory/to_OU_process2/index.html</loc>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
 <url>
     <loc>https://kchu25.github.io/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>

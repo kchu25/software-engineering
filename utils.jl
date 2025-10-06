@@ -29,15 +29,25 @@ Plug in the list of blog posts contained in the `/blog/` folder.
     curmonth = month(today)
     curday = day(today)
 
-    list = readdir("blog")
-    filter!(f -> endswith(f, ".md"), list)
+    # Recursively find all .md files in blog directory and subdirectories
+    list = String[]
+    for (root, dirs, files) in walkdir("blog")
+        for file in files
+            if endswith(file, ".md") && file != "index.md"
+                # Get relative path from blog directory
+                relpath_from_blog = relpath(joinpath(root, file), "blog")
+                push!(list, relpath_from_blog)
+            end
+        end
+    end
+    
     sorter(p) = begin
         ps  = splitext(p)[1]
         url = "/blog/$ps/"
         surl = strip(url, '/')
         pubdate = pagevar(surl, :published)
         if isnothing(pubdate)
-            return Date(Dates.unix2datetime(stat(surl * ".md").ctime))
+            return Date(Dates.unix2datetime(stat(joinpath("blog", p)).ctime))
         end
         return Date(pubdate, dateformat"d U Y")
     end
@@ -46,9 +56,6 @@ Plug in the list of blog posts contained in the `/blog/` folder.
     io = IOBuffer()
     write(io, """<ul class="blog-posts">""")
     for (i, post) in enumerate(list)
-        if post == "index.md"
-            continue
-        end
         ps  = splitext(post)[1]
         write(io, "<li><span><i>")
         url = "/blog/$ps/"

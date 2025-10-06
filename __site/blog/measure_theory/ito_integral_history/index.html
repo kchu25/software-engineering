@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Measure Theory: Ito integral history</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="why_did_mathematicians_define_the_itô_integral_this_way"><a href="#why_did_mathematicians_define_the_itô_integral_this_way" class="header-anchor">Why Did Mathematicians Define the Itô Integral This Way?</a></h1>
+<h2 id="a_historical_detective_story"><a href="#a_historical_detective_story" class="header-anchor">A Historical Detective Story</a></h2>
+<p>The Itô integral wasn&#39;t designed in a vacuum. It emerged from a specific set of problems that classical calculus <strong>couldn&#39;t solve</strong>. Let&#39;s trace the motivation step by step.</p>
+<hr />
+<h2 id="the_problem_modeling_reality_with_randomness"><a href="#the_problem_modeling_reality_with_randomness" class="header-anchor">The Problem: Modeling Reality with Randomness</a></h2>
+<h3 id="scene_1_physics_1827"><a href="#scene_1_physics_1827" class="header-anchor">Scene 1: Physics, 1827</a></h3>
+<p><strong>Robert Brown</strong> &#40;botanist, not a mathematician&#33;&#41; looks at pollen grains suspended in water under a microscope. They jiggle around randomly. He can&#39;t explain it.</p>
+<p><strong>The phenomenon</strong>: Tiny particles are constantly bombarded by water molecules, causing erratic, unpredictable motion.</p>
+<pre><code class="language-julia">Particle path &#40;what Brown saw&#41;:
+     
+  •    •
+   \  / \    •
+    •    \ /
+         •  •
+        /
+       •
+
+Not smooth&#33; Highly irregular, looks random</code></pre>
+<p><strong>The question</strong>: How do we write an equation of motion for something that moves randomly?</p>
+<h3 id="scene_2_physics_1905"><a href="#scene_2_physics_1905" class="header-anchor">Scene 2: Physics, 1905</a></h3>
+<p><strong>Einstein</strong> &#40;working on his PhD&#41; wants to explain Brownian motion mathematically. He realizes:</p>
+<ul>
+<li><p>Classical mechanics: \(\frac{dx}{dt} = v(x,t)\) &#40;velocity is a well-defined function&#41;</p>
+</li>
+<li><p>Brownian motion: The particle has <strong>no well-defined velocity</strong>&#33; It&#39;s getting knocked around randomly at every instant.</p>
+</li>
+</ul>
+<p><strong>Einstein&#39;s insight</strong>: The particle&#39;s displacement over time \(t\) should be:</p>
+\[x(t) - x(0) \sim \mathcal{N}(0, \sigma^2 t)\]
+<p>The longer you wait, the farther it drifts, but the <strong>direction is completely random</strong>.</p>
+<p><strong>The mathematical challenge</strong>: How do you write differential equations when there&#39;s no derivative?</p>
+<hr />
+<h2 id="the_classical_tools_fail"><a href="#the_classical_tools_fail" class="header-anchor">The Classical Tools Fail</a></h2>
+<h3 id="why_cant_we_use_ordinary_calculus"><a href="#why_cant_we_use_ordinary_calculus" class="header-anchor">Why Can&#39;t We Use Ordinary Calculus?</a></h3>
+<p><strong>Attempt 1</strong>: Maybe Brownian motion is just a very irregular function that&#39;s still differentiable?</p>
+<p><strong>Fail</strong>: Norbert Wiener &#40;1923&#41; proved that Brownian paths are <strong>continuous everywhere but differentiable nowhere</strong> &#40;with probability 1&#41;. </p>
+<pre><code class="language-julia">Typical Brownian path &#40;zoom in anywhere&#41;:
+
+Scale 1:        ___/\___
+                
+Scale 10:      _/\_/\/\_
+               
+Scale 100:    /\/\/\/\/\
+
+It&#39;s fractals all the way down&#33;
+Never smooths out, no tangent line exists</code></pre>
+<p>So \(\frac{dB_t}{dt}\)<strong>does not exist</strong>. We can&#39;t use \(B'(t)\) in our equations.</p>
+<p><strong>Attempt 2</strong>: Maybe we can integrate \(B_t\) using Riemann sums?</p>
+<p><strong>Fail</strong>: Consider \(\int_0^t B_s \, dB_s\). In Riemann integration, we need:</p>
+\[\int_0^t B_s \, dB_s = \lim_{n \to \infty} \sum_{i=0}^{n-1} B_{s_i^*} [B_{s_{i+1}} - B_{s_i}]\]
+<p>where \(s_i^* \in [s_i, s_{i+1}]\) is the sample point.</p>
+<p><strong>Problem</strong>: The answer <strong>depends on which \(s_i^*\) you choose</strong>&#33; </p>
+<ul>
+<li><p>Left endpoint: \(s_i^* = s_i\) gives one answer</p>
+</li>
+<li><p>Right endpoint: \(s_i^* = s_{i+1}\) gives a <strong>different</strong> answer</p>
+</li>
+<li><p>Midpoint: Yet another answer&#33;</p>
+</li>
+</ul>
+<p>For normal functions, these all converge to the same limit. For Brownian motion, <strong>they don&#39;t</strong>&#33; The path is too wild.</p>
+<p><strong>Attempt 3</strong>: Maybe we can use Lebesgue integration?</p>
+<p><strong>Partial success</strong>: Yes, for \(\int_0^t f(s) \, ds\) where \(f\) is well-behaved. But we can&#39;t integrate <strong>with respect to \(B_s\)</strong> using Lebesgue theory because \(B_s\) is not a measure—it&#39;s a random function&#33;</p>
+<p><strong>The impasse &#40;circa 1940&#41;</strong>: </p>
+<ul>
+<li><p>We need to write equations like \(dx = f(x,t) dt + g(x,t) \cdot \text{[random noise]}\)</p>
+</li>
+<li><p>But we have no rigorous way to define integrals involving random noise&#33;</p>
+</li>
+</ul>
+<hr />
+<h2 id="the_breakthrough_kiyosi_itô_1942-1944"><a href="#the_breakthrough_kiyosi_itô_1942-1944" class="header-anchor">The Breakthrough: Kiyosi Itô &#40;1942-1944&#41;</a></h2>
+<h3 id="itôs_insight"><a href="#itôs_insight" class="header-anchor">Itô&#39;s Insight</a></h3>
+<p><strong>Key observation</strong>: Even though \(B_t\) is nowhere differentiable, its <strong>increments</strong> \(\Delta B_t = B_{t+\Delta t} - B_t\) are well-defined random variables&#33;</p>
+<p><strong>Itô&#39;s strategy</strong>: </p>
+<ol>
+<li><p>Give up on derivatives &#40;they don&#39;t exist&#41;</p>
+</li>
+<li><p>Work directly with <strong>finite differences</strong> &#40;increments&#41;</p>
+</li>
+<li><p>Define integrals as limits of sums using increments</p>
+</li>
+<li><p>Make a <strong>canonical choice</strong> of sample points to avoid ambiguity</p>
+</li>
+</ol>
+<h3 id="itôs_definition"><a href="#itôs_definition" class="header-anchor">Itô&#39;s Definition</a></h3>
+<p>For \(\int_0^t f(s) \, dB_s\), always use the <strong>left endpoint</strong> in the Riemann sum:</p>
+\[\int_0^t f(s) \, dB_s := \lim_{n \to \infty} \sum_{i=0}^{n-1} f(s_i) [B_{s_{i+1}} - B_{s_i}]\]
+<p>where the limit is taken in \(L^2(\mathbb{P})\) &#40;mean-square convergence&#41;.</p>
+<p><strong>Why left endpoint?</strong> Two reasons:</p>
+<ol>
+<li><p><strong>Causality</strong>: At time \(s_i\), we only know the past: \(B_0, B_{s_1}, \ldots, B_{s_i}\). Using \(f(s_i)\) &#40;which can depend on the path up to \(s_i\)&#41; respects <strong>causality</strong>—no peeking into the future&#33;</p>
+</li>
+<li><p><strong>Martingale property</strong>: With the left endpoint choice, \(\mathbb{E}[\int_0^t f(s) \, dB_s | \mathcal{F}_s] = 0\) for \(s < t\). This makes stochastic integrals <strong>martingales</strong>, which have beautiful mathematical properties.</p>
+</li>
+</ol>
+<h3 id="why_not_use_the_right_endpoint"><a href="#why_not_use_the_right_endpoint" class="header-anchor">Why Not Use the Right Endpoint?</a></h3>
+<p>If we used \(f(s_{i+1})\):</p>
+\[\sum_{i=0}^{n-1} f(s_{i+1}) [B_{s_{i+1}} - B_{s_i}]\]
+<p><strong>Problem</strong>: \(f(s_{i+1})\) might depend on \(B_{s_{i+1}}\), which means we&#39;re using <strong>future information</strong> at time \(s_i\). This violates causality and breaks the martingale property.</p>
+<p><strong>Example</strong>: Suppose \(f(s) = B_s\). Then:</p>
+<ul>
+<li><p>Itô &#40;left&#41;: \(\sum B_{s_i} \cdot \Delta B_i\) ✓ &#40;knows \(B_{s_i}\) at time \(s_i\)&#41;</p>
+</li>
+<li><p>Right: \(\sum B_{s_{i+1}} \cdot \Delta B_i\) ✗ &#40;uses \(B_{s_{i+1}}\) before observing it&#33;&#41;</p>
+</li>
+</ul>
+<p>This is called the <strong>Stratonovich integral</strong> &#40;uses midpoint&#41;, and it&#39;s used in physics, but loses the martingale property.</p>
+<hr />
+<h2 id="why_define_it_as_a_random_variable"><a href="#why_define_it_as_a_random_variable" class="header-anchor">Why Define It as a Random Variable?</a></h2>
+<h3 id="the_natural_consequence"><a href="#the_natural_consequence" class="header-anchor">The Natural Consequence</a></h3>
+<p>Once Itô decided to use increments \(\Delta B_i\), which are <strong>random</strong>, the sum itself must be random:</p>
+\[\sum_{i=0}^{n-1} f(s_i) \underbrace{[B_{s_{i+1}} - B_{s_i}]}_{\text{random!}} = \text{random sum}\]
+<p><strong>You can&#39;t escape it</strong>: If your building blocks are random variables, the sum is a random variable&#33;</p>
+<h3 id="the_practical_reason"><a href="#the_practical_reason" class="header-anchor">The Practical Reason</a></h3>
+<p><strong>What we&#39;re trying to model</strong>: Systems with random forcing:</p>
+\[\frac{dx}{dt} = f(x,t) + g(x,t) \cdot \text{[white noise]}\]
+<p>The solution \(x(t)\) must be <strong>random</strong> because the forcing is random&#33; At each time \(t\):</p>
+<ul>
+<li><p>If you run the experiment once, you get \(x(t, \omega_1)\)</p>
+</li>
+<li><p>Run it again, you get \(x(t, \omega_2)\) &#40;different noise realization&#41;</p>
+</li>
+</ul>
+<p>So \(x(t)\) is naturally a random variable: \(x(t): \Omega \to \mathbb{R}\).</p>
+<h3 id="the_mathematical_beauty"><a href="#the_mathematical_beauty" class="header-anchor">The Mathematical Beauty</a></h3>
+<p>Making the integral a random variable unlocks powerful tools:</p>
+<ol>
+<li><p><strong>Martingale theory</strong>: \(\mathbb{E}[\int_0^t f \, dB_s] = 0\)</p>
+</li>
+<li><p><strong>Itô isometry</strong>: \(\mathbb{E}[(\int f \, dB_s)^2] = \mathbb{E}[\int f^2 \, ds]\)</p>
+</li>
+<li><p><strong>Itô&#39;s formula</strong>: A chain rule for random processes</p>
+</li>
+<li><p><strong>Markov property</strong>: Future evolution depends only on current state, not history</p>
+</li>
+</ol>
+<p>All of these would <strong>fail</strong> if the integral were just a number&#33;</p>
+<hr />
+<h2 id="the_design_philosophy"><a href="#the_design_philosophy" class="header-anchor">The Design Philosophy</a></h2>
+<h3 id="principle_1_respect_physical_reality"><a href="#principle_1_respect_physical_reality" class="header-anchor">Principle 1: Respect Physical Reality</a></h3>
+<p><strong>Nature is random</strong>. The path of a pollen grain isn&#39;t deterministic. So our mathematical model must produce <strong>random trajectories</strong>, not fixed curves.</p>
+<p>Decision: ✓ Integral must be a random variable</p>
+<h3 id="principle_2_respect_causality"><a href="#principle_2_respect_causality" class="header-anchor">Principle 2: Respect Causality</a></h3>
+<p><strong>Information flows forward in time</strong>. At time \(s\), you can&#39;t know \(B_t\) for \(t > s\).</p>
+<p>Decision: ✓ Use left endpoints in Riemann sums &#40;no future peeking&#41;</p>
+<h3 id="principle_3_make_it_computable"><a href="#principle_3_make_it_computable" class="header-anchor">Principle 3: Make It Computable</a></h3>
+<p>We need to actually <strong>calculate</strong> these integrals &#40;numerically if not analytically&#41;.</p>
+<p>Decision: ✓ Define via limits of discrete sums &#40;can simulate on a computer&#33;&#41;</p>
+<h3 id="principle_4_preserve_mathematical_structure"><a href="#principle_4_preserve_mathematical_structure" class="header-anchor">Principle 4: Preserve Mathematical Structure</a></h3>
+<p>We want nice theorems: convergence, linearity, orthogonality.</p>
+<p>Decision: ✓ Take limits in \(L^2\) &#40;Hilbert space theory applies&#41;</p>
+<h3 id="principle_5_connect_to_classical_calculus"><a href="#principle_5_connect_to_classical_calculus" class="header-anchor">Principle 5: Connect to Classical Calculus</a></h3>
+<p>When randomness → 0, we should recover ordinary calculus.</p>
+<p>Decision: ✓ Use notation \(\int f \, dB_s\) that parallels \(\int f \, dx\)</p>
+<hr />
+<h2 id="alternative_approaches_and_why_they_were_rejected_or_modified"><a href="#alternative_approaches_and_why_they_were_rejected_or_modified" class="header-anchor">Alternative Approaches &#40;and Why They Were Rejected or Modified&#41;</a></h2>
+<h3 id="stratonovich_integral_1966"><a href="#stratonovich_integral_1966" class="header-anchor"><ol>
+<li><p>Stratonovich Integral &#40;1966&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Definition</strong>: Use <strong>midpoints</strong> in the Riemann sum:</p>
+\[\int_0^t f(s) \circ dB_s := \lim_{n \to \infty} \sum_{i=0}^{n-1} f\left(\frac{s_i + s_{i+1}}{2}\right) [B_{s_{i+1}} - B_{s_i}]\]
+<p><strong>Advantage</strong>: Ordinary chain rule works&#33; If \(Y_t = g(B_t)\), then:</p>
+\[dY_t = g'(B_t) \circ dB_t\]
+<p><strong>Disadvantage</strong>: Not a martingale. Harder to prove theorems. Violates causality slightly.</p>
+<p><strong>When it&#39;s used</strong>: Physics &#40;where the chain rule intuition is more important than martingale properties&#41;</p>
+<h3 id="ol_start2_skorokhod_integral_1975"><a href="#ol_start2_skorokhod_integral_1975" class="header-anchor"><ol start="2">
+<li><p>Skorokhod Integral &#40;1975&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Definition</strong>: Uses advanced functional analysis &#40;Malliavin calculus&#41; to define integrals where \(f\) can be <strong>anticipating</strong> &#40;depends on future&#33;&#41;.</p>
+<p><strong>Advantage</strong>: Most general, allows time-reversal, quantum mechanics applications</p>
+<p><strong>Disadvantage</strong>: Very abstract, hard to compute</p>
+<p><strong>When it&#39;s used</strong>: Mathematical finance &#40;exotic derivatives&#41;, quantum probability</p>
+<h3 id="ol_start3_rough_path_theory_1998_terry_lyons"><a href="#ol_start3_rough_path_theory_1998_terry_lyons" class="header-anchor"><ol start="3">
+<li><p>Rough Path Theory &#40;1998, Terry Lyons&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Definition</strong>: Represents paths by their <strong>higher-order increments</strong> &#40;a &quot;signature&quot;&#41;:</p>
+\[(B_t, \int_0^t B_s \, dB_s, \int_0^t \int_0^s B_u \, dB_u \, dB_s, \ldots)\]
+<p><strong>Advantage</strong>: Works for paths much rougher than Brownian motion&#33; Deterministic theory &#40;no probability needed&#33;&#41;</p>
+<p><strong>Disadvantage</strong>: Requires heavy algebra &#40;tensor products, geometric structures&#41;</p>
+<p><strong>When it&#39;s used</strong>: Machine learning &#40;neural controlled differential equations&#41;, robust statistics</p>
+<hr />
+<h2 id="the_historical_timeline"><a href="#the_historical_timeline" class="header-anchor">The Historical Timeline</a></h2>
+<table><tr><th align="right">Year</th><th align="right">Person</th><th align="right">Contribution</th></tr><tr><td align="right">1827</td><td align="right">Robert Brown</td><td align="right">Observes random motion of pollen grains</td></tr><tr><td align="right">1905</td><td align="right">Albert Einstein</td><td align="right">Mathematical model of Brownian motion &#40;physics perspective&#41;</td></tr><tr><td align="right">1923</td><td align="right">Norbert Wiener</td><td align="right">Rigorous construction of Brownian motion &#40;measure theory&#41;</td></tr><tr><td align="right">1942-44</td><td align="right">Kiyosi Itô</td><td align="right"><strong>Defines the Itô integral</strong> and stochastic differential equations</td></tr><tr><td align="right">1951</td><td align="right">Itô</td><td align="right">Proves Itô&#39;s formula &#40;chain rule for stochastic calculus&#41;</td></tr><tr><td align="right">1966</td><td align="right">Ruslan Stratonovich</td><td align="right">Alternative integral &#40;midpoint rule&#41;</td></tr><tr><td align="right">1969</td><td align="right">Robert Merton, Fischer Black, Myron Scholes</td><td align="right">Apply Itô calculus to option pricing &#40;Nobel Prize 1997&#41;</td></tr><tr><td align="right">1975</td><td align="right">Anatoliy Skorokhod</td><td align="right">Anticipating stochastic integrals</td></tr><tr><td align="right">1998</td><td align="right">Terry Lyons</td><td align="right">Rough path theory &#40;deterministic approach&#41;</td></tr></table>
+<hr />
+<h2 id="why_this_definition_won"><a href="#why_this_definition_won" class="header-anchor">Why This Definition &quot;Won&quot;</a></h2>
+<h3 id="it_worked"><a href="#it_worked" class="header-anchor"><ol>
+<li><p>It Worked</p>
+</li>
+</ol>
+</a></h3>
+<p>Itô&#39;s definition allowed mathematicians to:</p>
+<ul>
+<li><p>Prove existence/uniqueness of solutions to SDEs</p>
+</li>
+<li><p>Compute expectations, variances, distributions</p>
+</li>
+<li><p>Connect to partial differential equations &#40;Feynman-Kac formula&#41;</p>
+</li>
+</ul>
+<h3 id="ol_start2_its_computable"><a href="#ol_start2_its_computable" class="header-anchor"><ol start="2">
+<li><p>It&#39;s Computable</p>
+</li>
+</ol>
+</a></h3>
+<p>You can simulate \(\int_0^t f(s) \, dB_s\) on a computer:</p>
+<pre><code class="language-julia">dt &#61; 0.001
+t &#61; 0:dt:T
+dB &#61; randn&#40;length&#40;t&#41;&#41; * sqrt&#40;dt&#41;
+integral &#61; sum&#40;f.&#40;t&#91;1:end-1&#93;&#41; .* dB&#91;1:end-1&#93;&#41;</code></pre>
+<p>This is just the discrete sum from Itô&#39;s definition&#33;</p>
+<h3 id="ol_start3_it_unified_fields"><a href="#ol_start3_it_unified_fields" class="header-anchor"><ol start="3">
+<li><p>It Unified Fields</p>
+</li>
+</ol>
+</a></h3>
+<p>The same framework applies to:</p>
+<ul>
+<li><p>Physics &#40;Langevin equation&#41;</p>
+</li>
+<li><p>Finance &#40;Black-Scholes equation&#41;</p>
+</li>
+<li><p>Biology &#40;population dynamics&#41;</p>
+</li>
+<li><p>Engineering &#40;signal processing, control theory&#41;</p>
+</li>
+<li><p>Machine learning &#40;stochastic gradient descent&#41;</p>
+</li>
+</ul>
+<h3 id="ol_start4_its_elegant"><a href="#ol_start4_its_elegant" class="header-anchor"><ol start="4">
+<li><p>It&#39;s Elegant</p>
+</li>
+</ol>
+</a></h3>
+<p>Once you accept the setup:</p>
+<ul>
+<li><p>Random variables live in \(L^2(\Omega, \mathbb{P})\) &#40;Hilbert space&#41;</p>
+</li>
+<li><p>Stochastic integrals are orthogonal projections</p>
+</li>
+<li><p>Martingales are &quot;fair games&quot; &#40;expected future &#61; present&#41;</p>
+</li>
+</ul>
+<p>The theory becomes <strong>beautiful</strong>—full of symmetries and deep connections.</p>
+<hr />
+<h2 id="the_philosophical_point"><a href="#the_philosophical_point" class="header-anchor">The Philosophical Point</a></h2>
+<h3 id="mathematics_follows_need"><a href="#mathematics_follows_need" class="header-anchor">Mathematics Follows Need</a></h3>
+<p>Itô didn&#39;t define the integral this way because it was &quot;obvious&quot; or &quot;natural&quot; in isolation. He defined it this way because:</p>
+<ol>
+<li><p><strong>Physical systems</strong> are buffeted by random forces</p>
+</li>
+<li><p><strong>Classical calculus</strong> couldn&#39;t handle non-differentiable randomness</p>
+</li>
+<li><p><strong>A definition was needed</strong> that:</p>
+<ul>
+<li><p>Respected causality</p>
+</li>
+<li><p>Was computable</p>
+</li>
+<li><p>Led to tractable theorems</p>
+</li>
+<li><p>Unified disparate applications</p>
+</li>
+</ul>
+</li>
+</ol>
+<p><strong>The integral is a random variable because reality is random.</strong> The definition emerged from <strong>necessity</strong>, not abstract preference.</p>
+<h3 id="the_lesson"><a href="#the_lesson" class="header-anchor">The Lesson</a></h3>
+<p>When you see a weird mathematical definition, ask:</p>
+<ul>
+<li><p>What problem was it trying to solve?</p>
+</li>
+<li><p>What approaches failed before this?</p>
+</li>
+<li><p>What properties do we need the definition to have?</p>
+</li>
+<li><p>What applications drove the development?</p>
+</li>
+</ul>
+<p>In this case:</p>
+<ul>
+<li><p><strong>Problem</strong>: Model random continuous-time processes</p>
+</li>
+<li><p><strong>Failed approaches</strong>: Ordinary derivatives/integrals don&#39;t work</p>
+</li>
+<li><p><strong>Needed properties</strong>: Causality, computability, martingale structure</p>
+</li>
+<li><p><strong>Driving application</strong>: Physics &#40;Brownian motion&#41; → Finance &#40;option pricing&#41;</p>
+</li>
+</ul>
+<p><strong>Mathematics is a tool</strong>. The Itô integral is a <strong>very carefully designed tool</strong> to solve a very specific class of problems. That&#39;s why it has the form it does&#33;</p>
+<hr />
+<h2 id="conclusion"><a href="#conclusion" class="header-anchor">Conclusion</a></h2>
+<p>The Itô integral is defined as a random variable because:</p>
+<ol>
+<li><p><strong>That&#39;s what the physics demands</strong> &#40;random noise → random solutions&#41;</p>
+</li>
+<li><p><strong>Classical tools fail</strong> &#40;nowhere differentiable paths&#41;</p>
+</li>
+<li><p><strong>It&#39;s the natural limit</strong> of random Riemann sums</p>
+</li>
+<li><p><strong>It preserves causality</strong> &#40;left endpoints, no future peeking&#41;</p>
+</li>
+<li><p><strong>It enables powerful theorems</strong> &#40;martingales, Itô isometry, Itô&#39;s formula&#41;</p>
+</li>
+<li><p><strong>It&#39;s computable</strong> &#40;simulate via discrete sums&#41;</p>
+</li>
+</ol>
+<p>When Itô made his choice in 1942, he was solving a <strong>real problem</strong>: How do we write differential equations for systems with continuous random forcing? </p>
+<p>His answer reshaped probability theory, launched modern mathematical finance, and gave us a unified language for randomness across science and engineering.</p>
+<p><strong>The definition wasn&#39;t arbitrary—it was inevitable.</strong></p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Measure Theory 1: from sigma algebra to measurable functions</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="intuitive_guide_to_measure_theory_from_simple_functions_to_dct"><a href="#intuitive_guide_to_measure_theory_from_simple_functions_to_dct" class="header-anchor">Intuitive Guide to Measure Theory: From Simple Functions to DCT</a></h1>
+<h2 id="why_should_you_care_about_measure_theory"><a href="#why_should_you_care_about_measure_theory" class="header-anchor">Why Should You Care About Measure Theory?</a></h2>
+<p>Here&#39;s the big picture: measure theory gives us a rigorous way to answer &quot;How big is this set?&quot; It generalizes length, area, and volume to much weirder sets, and lets us integrate functions that Riemann integration just can&#39;t handle.</p>
+<p><strong>Here&#39;s the key insight</strong> &#40;especially relevant with your CS background&#41;: Riemann integration is like approximating a function with a fixed grid - think of it as using a fixed time-step discretization. Lebesgue integration is adaptive - it groups together all the points where the function takes similar values, no matter where those points are located. This turns out to be way more powerful&#33;</p>
+<hr />
+<h2 id="sigma-algebras_deciding_what_you_can_measure"><a href="#sigma-algebras_deciding_what_you_can_measure" class="header-anchor"><ol>
+<li><p>Sigma-Algebras: Deciding What You Can Measure</p>
+</li>
+</ol>
+</a></h2>
+<h3 id="the_basic_idea"><a href="#the_basic_idea" class="header-anchor">The Basic Idea</a></h3>
+<p>Before we can measure anything, we need to decide <em>which</em> sets we&#39;re allowed to measure. That&#39;s what a σ-algebra does.</p>
+<p>A <strong>σ-algebra</strong> \(\mathcal{F}\) on a set \(X\) is just a collection of subsets of \(X\) that plays nicely with the operations we care about:</p>
+<ol>
+<li><p>\(X \in \mathcal{F}\) - the whole space is in there</p>
+</li>
+<li><p>If \(A \in \mathcal{F}\), then \(A^c \in \mathcal{F}\) - complements are in there</p>
+</li>
+<li><p>If \(A_1, A_2, \ldots \in \mathcal{F}\), then \(\bigcup_{i=1}^{\infty} A_i \in \mathcal{F}\) - countable unions are in there</p>
+</li>
+</ol>
+<p><strong>Why these rules?</strong> Well, if you can measure a set \(A\), you should be able to measure &quot;everything not in \(A\)&quot; &#40;that&#39;s the complement&#41;. And if you can measure a bunch of sets individually, you should be able to measure their union. Makes sense, right?</p>
+<h3 id="definitions_measurable_set_and_borel_set"><a href="#definitions_measurable_set_and_borel_set" class="header-anchor">Definitions: Measurable Set and Borel Set</a></h3>
+<p><strong>Measurable set:</strong></p>
+<blockquote>
+<p>A <strong>measurable set</strong> is any set that belongs to your chosen σ-algebra \(\mathcal{F}\). In other words, if \(A \in \mathcal{F}\), then \(A\) is called measurable. The collection of all measurable sets depends on which σ-algebra you are working with.</p>
+</blockquote>
+<p><strong>Borel set:</strong></p>
+<blockquote>
+<p>A <strong>Borel set</strong> is any set that belongs to the Borel σ-algebra \(\mathcal{B}(\mathbb{R})\). The Borel σ-algebra is the smallest σ-algebra containing all open intervals in \(\mathbb{R}\). Borel sets include all open sets, all closed sets, and any set you can build from open intervals using countable unions, countable intersections, and complements.</p>
+</blockquote>
+<h4 id="note_what_does_smallest_σ-algebra_mean"><a href="#note_what_does_smallest_σ-algebra_mean" class="header-anchor">Note: What Does &quot;Smallest σ-algebra&quot; Mean?</a></h4>
+<h5 id="why_the_borel_σ-algebra_stands_out"><a href="#why_the_borel_σ-algebra_stands_out" class="header-anchor">Why the Borel σ-algebra Stands Out</a></h5>
+<h5 id="examples_of_larger_σ-algebras_containing_all_open_intervals"><a href="#examples_of_larger_σ-algebras_containing_all_open_intervals" class="header-anchor">Examples of Larger σ-algebras Containing All Open Intervals</a></h5>
+<h5 id="what_does_smallest_mean_order_on_σ-algebras"><a href="#what_does_smallest_mean_order_on_σ-algebras" class="header-anchor">What Does &quot;Smallest&quot; Mean? &#40;Order on σ-algebras&#41;</a></h5>
+<p>The word &quot;smallest&quot; here refers to inclusion: we can compare σ-algebras by set containment. If \(\mathcal{A}\) and \(\mathcal{B}\) are σ-algebras on the same set \(X\), we say \(\mathcal{A}\) is smaller than \(\mathcal{B}\) if \(\mathcal{A} \subseteq \mathcal{B}\) &#40;that is, every set in \(\mathcal{A}\) is also in \(\mathcal{B}\)&#41;.</p>
+<p>So, the &quot;smallest σ-algebra containing a collection of sets&quot; is the one that is contained in every other σ-algebra that contains those sets. It&#39;s minimal with respect to inclusion—no extra sets except those required by the σ-algebra properties.</p>
+<p>When we say the Borel σ-algebra is the &quot;smallest σ-algebra containing all open intervals,&quot; we mean:</p>
+<ul>
+<li><p>It contains every open interval &#40;and thus every open set&#41;,</p>
+</li>
+<li><p>It is a σ-algebra &#40;closed under complements and countable unions&#41;,</p>
+</li>
+<li><p>And if any other σ-algebra contains all open intervals, it must also contain every set in the Borel σ-algebra.</p>
+</li>
+</ul>
+<p>In other words, the Borel σ-algebra is the intersection of all σ-algebras that contain the open intervals. It&#39;s the minimal collection that is a σ-algebra and includes the sets you started with—nothing extra except what closure under the σ-algebra operations forces you to include.</p>
+<p><hr /> The Borel σ-algebra is not the only σ-algebra containing all open intervals—it&#39;s just the smallest. There are many larger σ-algebras that also contain all open intervals. Two important examples:</p>
+<ul>
+<li><p><strong>The power set σ-algebra:</strong> This is the collection of all subsets of \(\mathbb{R}\) &#40;the power set&#41;. It is a σ-algebra, contains all open intervals, and is much larger than the Borel σ-algebra. However, it includes many &quot;wild&quot; sets that are not Borel. Examples of &quot;wild&quot; sets:</p>
+<ul>
+<li><p><strong>Vitali set:</strong> Imagine picking one number from every possible &quot;shift&quot; of the rationals inside \([0,1]\), but never picking two numbers that differ by a rational. It turns out you can&#39;t assign a sensible length to this set—no matter how you try, it breaks the rules of what &quot;length&quot; should mean. &#40;It&#39;s not Lebesgue measurable.&#41;</p>
+</li>
+<li><p><strong>Non-measurable subsets of \([0,1]\):</strong> Using a lot of mathematical &quot;magic&quot; &#40;the Axiom of Choice&#41;, you can build sets inside \([0,1]\) that are so scrambled up, you can&#39;t say how long they are—not even zero or infinity&#33; There&#39;s no way to measure them consistently.</p>
+</li>
+<li><p><strong>Sets with non-measurable characteristic functions:</strong> For some of these wild sets, even the function that just says &quot;is \(x\) in the set or not?&quot; &#40;the characteristic function&#41; is so weird that you can&#39;t integrate it using Lebesgue measure. It&#39;s like asking for the area under a curve that can&#39;t even be drawn&#33;</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> The Borel σ-algebra does <strong>not</strong> contain these wild sets&#33; Sets like the Vitali set are so strange that they can&#39;t be built from open or closed sets using countable unions, intersections, and complements. That&#39;s why they&#39;re not Borel—they only show up in much bigger σ-algebras like the power set or the Lebesgue σ-algebra.</p>
+</blockquote>
+</li>
+</ul>
+<ul>
+<li><p><strong>The Lebesgue σ-algebra:</strong> This is the collection of all Lebesgue measurable sets. It strictly contains the Borel σ-algebra, because it includes all Borel sets plus additional sets that can be constructed using the Lebesgue measure &#40;for example, by adding subsets of Borel sets of measure zero&#41;.</p>
+</li>
+</ul>
+<p>In summary: any σ-algebra that contains the Borel σ-algebra &#40;and thus all open intervals&#41; is &quot;larger&quot; in the sense of set inclusion. The Borel σ-algebra is the minimal one, but there are many larger ones, each with their own uses in analysis and probability.</p>
+<p>The phrase &quot;containing all open intervals&quot; by itself does not uniquely specify a single σ-algebra—there are many σ-algebras that contain all open intervals &#40;for example, the power set of \(\mathbb{R}\) is one&#41;. What makes the Borel σ-algebra special is that it is the <strong>smallest</strong> such σ-algebra: it contains all open intervals, but nothing more than what is forced by the σ-algebra properties &#40;closure under complements and countable unions/intersections&#41;.</p>
+<p>In other words, every other σ-algebra that contains all open intervals must also contain every Borel set, but the Borel σ-algebra doesn&#39;t include any &quot;extra&quot; sets beyond those required. This &quot;minimality&quot; is what makes the Borel σ-algebra stand out: it is the intersection of all σ-algebras containing the open intervals, so it is the most economical or &quot;tightest&quot; σ-algebra that still allows you to measure all open sets and anything you can build from them using σ-algebra operations.</p>
+<p><strong>Standard example</strong>: On \(\mathbb{R}\), the Borel σ-algebra \(\mathcal{B}(\mathbb{R})\) is the smallest σ-algebra containing all open intervals. Once you throw in all the intervals and close up under complements and countable unions, you get a huge collection that includes all intervals, all open sets, all closed sets, and many more bizarre sets.</p>
+<h3 id="visualizing_σ-algebras_the_resolution_metaphor"><a href="#visualizing_σ-algebras_the_resolution_metaphor" class="header-anchor">Visualizing σ-algebras: The Resolution Metaphor</a></h3>
+<p>Think of a σ-algebra as the <strong>&quot;resolution&quot; or &quot;granularity&quot;</strong> at which you can observe your space.</p>
+<p>Imagine \(X\) is a rectangular region, like a photograph:</p>
+<pre><code class="language-julia">┌─────────────────────────────┐
+│                             │
+│            X                │
+│       &#40;full space&#41;          │
+│                             │
+└─────────────────────────────┘</code></pre>
+<p><strong>Example 1: Trivial σ-algebra</strong> \(\mathcal{F} = \{\emptyset, X\}\)</p>
+<p>You have zero resolution - you can only see the entire space or nothing at all.</p>
+<pre><code class="language-julia">Either:  ┌───────────┐     or:   ┌───────────┐
+         │///////////│            │           │
+         │/// X /////│            │  empty    │
+         │///////////│            │           │
+         └───────────┘            └───────────┘</code></pre>
+<p><strong>Example 2: Partition σ-algebra</strong></p>
+<p>Say \(X = A \cup B\) where \(A\) and \(B\) are disjoint. Then \(\mathcal{F} = \{\emptyset, A, B, X\}\).</p>
+<p>Now you have &quot;one bit of resolution&quot; - you can distinguish between two regions:</p>
+<pre><code class="language-julia">┌─────────────┬───────────────┐
+│             │               │
+│      A      │       B       │
+│   &#40;left&#41;    │    &#40;right&#41;    │
+│             │               │
+└─────────────┴───────────────┘
+
+You can measure:  ∅, A, B, or A∪B&#61;X</code></pre>
+<p><strong>Example 3: Finer partition</strong></p>
+<p>Divide \(X\) into four quadrants. Now \(\mathcal{F}\) contains \(\emptyset\), each quadrant, all possible unions of quadrants, and \(X\). That&#39;s 16 sets total.</p>
+<pre><code class="language-julia">┌──────────┬──────────┐
+│    A     │    B     │
+│          │          │
+├──────────┼──────────┤
+│    C     │    D     │
+│          │          │
+└──────────┴──────────┘
+
+You can measure any union: A, B, A∪C, A∪B∪D, etc.</code></pre>
+<p><strong>The key insight</strong>: A σ-algebra determines which subsets you can distinguish. Coarser σ-algebras give you less information. Finer σ-algebras give you more information.</p>
+<p><strong>CS analogy</strong>: Think of σ-algebras as different levels of <strong>access control</strong> or <strong>observability</strong>:</p>
+<ul>
+<li><p>Trivial σ-algebra: You can only query &quot;is the set empty or not?&quot;</p>
+</li>
+<li><p>Partition σ-algebra: You can query &quot;which partition class does a point belong to?&quot;</p>
+</li>
+<li><p>Borel σ-algebra on \(\mathbb{R}\): You can query very detailed geometric properties</p>
+</li>
+</ul>
+<p><strong>How do you build a σ-algebra?</strong> You start with some &quot;basic&quot; sets you want to measure &#40;like intervals&#41;, then you:</p>
+<ol>
+<li><p>Throw in all complements</p>
+</li>
+<li><p>Throw in all countable unions</p>
+</li>
+<li><p>Keep repeating until you&#39;re closed under these operations</p>
+</li>
+</ol>
+<p>This generates the σ-algebra &quot;generated by&quot; those basic sets.</p>
+<hr />
+<h2 id="ol_start2_measures_actually_assigning_sizes"><a href="#ol_start2_measures_actually_assigning_sizes" class="header-anchor"><ol start="2">
+<li><p>Measures: Actually Assigning Sizes</p>
+</li>
+</ol>
+</a></h2>
+<p>Okay, so a σ-algebra tells us <em>which</em> sets we can measure. A <strong>measure</strong> tells us <em>how big</em> they are.</p>
+<p>A measure \(\mu\) on \((X, \mathcal{F})\) is a function \(\mu: \mathcal{F} \to [0, \infty]\) that satisfies:</p>
+<ol>
+<li><p>\(\mu(\emptyset) = 0\) - the empty set has size zero &#40;obviously&#33;&#41;</p>
+</li>
+<li><p><strong>Countable additivity</strong>: If \(A_1, A_2, \ldots\) are disjoint sets in \(\mathcal{F}\), then:</p>
+</li>
+</ol>
+\[\mu\left(\bigcup_{i=1}^{\infty} A_i\right) = \sum_{i=1}^{\infty} \mu(A_i)\]
+<p>That second property is the crucial one - if sets don&#39;t overlap, their total measure is just the sum of their individual measures.</p>
+<p><strong>Common examples</strong>:</p>
+<ul>
+<li><p><strong>Lebesgue measure</strong> on \(\mathbb{R}\): \(\mu([a,b]) = b - a\) &#40;just the length&#33;&#41;</p>
+</li>
+<li><p><strong>Counting measure</strong>: \(\mu(A) = |A|\) &#40;how many elements? possibly infinite&#41;</p>
+</li>
+<li><p><strong>Dirac measure</strong> at point \(x_0\): \(\delta_{x_0}(A) = 1\) if \(x_0 \in A\), else \(0\) &#40;all the &quot;mass&quot; is at one point&#41;</p>
+</li>
+</ul>
+<p><strong>Connection to discrete math</strong>: Counting measure on discrete sets turns integration into summation&#33; Many results have discrete analogs.</p>
+<hr />
+<h2 id="ol_start3_measurable_functions_functions_that_play_nice"><a href="#ol_start3_measurable_functions_functions_that_play_nice" class="header-anchor"><ol start="3">
+<li><p>Measurable Functions: Functions That Play Nice</p>
+</li>
+</ol>
+</a></h2>
+<p>Now we get to functions. Not every function is &quot;measurable&quot; - we need functions that respect the measurable structure.</p>
+<p>A function \(f: X \to \mathbb{R}\) is <strong>measurable</strong> if for every Borel set \(B\) in \(\mathbb{R}\):</p>
+\[f^{-1}(B) \in \mathcal{F}\]
+<p>In other words, pre-images of measurable sets in the range are measurable sets in the domain.</p>
+<p><strong>Practical shortcut</strong>: You don&#39;t need to check all Borel sets&#33; Just check that \(f^{-1}((a, \infty)) \in \mathcal{F}\) for all real numbers \(a\). If that works, the function is measurable.</p>
+<p><strong>Why do we care?</strong> Because measurable functions are exactly the ones we can integrate. If \(f\) isn&#39;t measurable, the whole integration machinery breaks down.</p>
+<p><strong>Good news</strong>: Almost every function you encounter in practice is measurable:</p>
+<ul>
+<li><p>All continuous functions ✓</p>
+</li>
+<li><p>All piecewise continuous functions ✓</p>
+</li>
+<li><p>Limits of measurable functions ✓</p>
+</li>
+<li><p>Sums, products, compositions of measurable functions ✓</p>
+</li>
+</ul>
+<p>You have to work really hard &#40;using the Axiom of Choice&#41; to construct a non-measurable function&#33;</p>
+<h3 id="visualizing_measurable_functions"><a href="#visualizing_measurable_functions" class="header-anchor">Visualizing Measurable Functions</a></h3>
+<p>Think of it this way: a function \(f: X \to \mathbb{R}\) maps your domain to the real line.</p>
+<pre><code class="language-julia">Domain X                          Range ℝ
+┌───────────┐                    ───────────────────►
+│           │                        
+│     •     │ ───f──►  •        
+│   •   •   │ ───f──►    •      
+│     •     │ ───f──►      •    
+│           │                    
+└───────────┘</code></pre>
+<p>For \(f\) to be measurable: whenever you pick a measurable set \(B\) in the range &#40;on the right&#41;, the pre-image \(f^{-1}(B)\) &#40;the points in \(X\) that map into \(B\)&#41; must be measurable in \(X\).</p>
+<p><strong>Here&#39;s a concrete example</strong>: Let \(X = [0, 2]\) with Lebesgue measure, and consider this step function:</p>
+<pre><code class="language-julia">f&#40;x&#41;
+        │
+      3 │     ┌─────────
+        │     │
+      2 │   ──┤
+        │   │
+      1 │ ──┤
+        │
+      0 └─┴─┴─┴────────► x
+        0 1 2 3
+        
+f&#40;x&#41; &#61; 1 on &#91;0,1&#41;
+f&#40;x&#41; &#61; 2 on &#91;1,2&#41;
+f&#40;x&#41; &#61; 3 on &#91;2,3&#41;</code></pre>
+<p>Is \(f\) measurable? Let&#39;s use the practical test. For any threshold \(a\), is \(f^{-1}((a, \infty))\) measurable?</p>
+<ul>
+<li><p>\(f^{-1}((0.5, \infty)) = [0, 3)\) ✓ &#40;interval, so measurable&#41;</p>
+</li>
+<li><p>\(f^{-1}((1.5, \infty)) = [1, 3)\) ✓ &#40;interval, so measurable&#41;</p>
+</li>
+<li><p>\(f^{-1}((2.5, \infty)) = [2, 3)\) ✓ &#40;interval, so measurable&#41;</p>
+</li>
+</ul>
+<p>Yes&#33; All pre-images are intervals, which are definitely in the Borel σ-algebra. So \(f\) is measurable.</p>
+<h3 id="the_threshold_visualization"><a href="#the_threshold_visualization" class="header-anchor">The Threshold Visualization</a></h3>
+<p>Here&#39;s another way to think about measurability that connects directly to image processing. For any threshold \(a\), you can color the domain based on whether \(f(x) > a\):</p>
+<pre><code class="language-julia">Threshold a &#61; 1.5:
+
+       f&#40;x&#41;                          Domain colored by f &gt; 1.5
+        │
+      3 │     ┌─────────            ┌─────────┐
+        │     │                     │░░░░░░░░░│  ← f &gt; 1.5 here
+      2 │   ──┤                     ├─────────┤
+        │   │                       │░░░░░░░░░│  ← f &gt; 1.5 here
+      1 │ ──┤                       ├─────────┤
+        │                           │         │  ← f ≤ 1.5 here
+      0 └─┴─┴─┴────────► x         └─────────┘
+        0 1 2 3                      0   1   2   3
+
+The shaded region &#123;x : f&#40;x&#41; &gt; 1.5&#125; &#61; &#91;1, 3&#41; must be measurable&#33;</code></pre>
+<p>\(f\) is measurable if and only if these &quot;level sets&quot; \(\{x : f(x) > a\}\) are measurable for every threshold \(a\).</p>
+<p>This is exactly what image segmentation or binary classification does - you threshold a function and ask if the resulting region is something you can measure&#33;</p>
+<hr />
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

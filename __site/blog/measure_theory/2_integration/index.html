@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Measure Theory 2: from simple functions to Lebesgue Integral</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h2 id="ol_start4_simple_functions_the_building_blocks"><a href="#ol_start4_simple_functions_the_building_blocks" class="header-anchor"><ol start="4">
+<li><p>Simple Functions: The Building Blocks</p>
+</li>
+</ol>
+</a></h2>
+<p>Alright, now we&#39;re getting to the good stuff. Simple functions are the foundation of Lebesgue integration.</p>
+<p>A <strong>simple function</strong> takes only finitely many values:</p>
+\[s(x) = \sum_{i=1}^{n} a_i \mathbf{1}_{A_i}(x)\]
+<p>where:</p>
+<ul>
+<li><p>\(a_i \in \mathbb{R}\) are distinct values</p>
+</li>
+<li><p>\(A_i \in \mathcal{F}\) are disjoint measurable sets</p>
+</li>
+<li><p>\(\mathbf{1}_{A_i}\) is the indicator function: equals 1 if \(x \in A_i\), else 0</p>
+</li>
+</ul>
+<p><strong>Think of simple functions like this</strong>: They&#39;re quantized or discretized versions of continuous functions. Like a histogram or a step function in image processing. Each &quot;bin&quot; is a measurable set \(A_i\), and the function value is constant &#40;\(a_i\)&#41; on that bin.</p>
+<p><strong>Why do simple functions matter so much?</strong> Because of this beautiful theorem:</p>
+<p><strong>Any non-negative measurable function \(f: X \to [0, \infty]\) can be approximated from below by an increasing sequence of simple functions:</strong></p>
+\[0 \leq s_1 \leq s_2 \leq \cdots \leq f\]
+<p>with \(s_n(x) \to f(x)\) pointwise for all \(x\).</p>
+<p><strong>How do you construct this sequence?</strong> For \(f \geq 0\), define:</p>
+<p>Define \(s_n(x)\) for \(f \geq 0\) as follows &#40;in GitHub-friendly format&#41;:</p>
+<ul>
+<li><p>If \(f(x) < n\), let \(k\) be the unique integer such that \(\frac{k}{2^n} \leq f(x) < \frac{k+1}{2^n}\), and set \(s_n(x) = \frac{k}{2^n}\).</p>
+</li>
+<li><p>If \(f(x) \geq n\), set \(s_n(x) = n\).</p>
+</li>
+</ul>
+<p>This discretizes the range of \(f\) into bins of width \(1/2^n\). As \(n\) increases, the bins get finer and \(s_n\) gets closer to \(f\).</p>
+<hr />
+<h2 id="ol_start5_integrating_simple_functions"><a href="#ol_start5_integrating_simple_functions" class="header-anchor"><ol start="5">
+<li><p>Integrating Simple Functions</p>
+</li>
+</ol>
+</a></h2>
+<p>Here&#39;s where it all pays off. For a simple function \(s(x) = \sum_{i=1}^{n} a_i \mathbf{1}_{A_i}(x)\), we define:</p>
+\[\int_X s  d\mu = \sum_{i=1}^{n} a_i \mu(A_i)\]
+<p>This is completely natural&#33; The integral is just a weighted sum: the value \(a_i\) times the &quot;size&quot; of the set where \(s\) takes value \(a_i\).</p>
+<p><strong>Example</strong>: If \(s(x) = 3 \cdot \mathbf{1}([0,1]) + 5 \cdot \mathbf{1}([1,2])\) and \(\mu\) is Lebesgue measure on \(\mathbb{R}\):</p>
+\[\int s  d\mu = 3 \cdot 1 + 5 \cdot 1 = 8\]
+<p>The function has value 3 on an interval of length 1, and value 5 on an interval of length 1, so the total integral is \(3 + 5 = 8\).</p>
+<p><strong>Discrete connection</strong>: For counting measure on a finite set \(\{x_1, \ldots, x_n\}\):</p>
+\[\int s  d\mu = \sum_{i=1}^{n} s(x_i)\]
+<p>Integration literally becomes summation&#33;</p>
+<hr />
+<h1 id="the_lebesgue_integral_for_non-negative_functions"><a href="#the_lebesgue_integral_for_non-negative_functions" class="header-anchor">The Lebesgue Integral for Non-negative Functions</a></h1>
+<h2 id="riemann_vs_lebesgue_two_ways_to_measure_area"><a href="#riemann_vs_lebesgue_two_ways_to_measure_area" class="header-anchor">Riemann vs Lebesgue: Two Ways to Measure Area</a></h2>
+<h3 id="the_coin-sorting_analogy"><a href="#the_coin-sorting_analogy" class="header-anchor">The Coin-Sorting Analogy</a></h3>
+<p>Imagine you have a pile of coins of different values and you want to know the total value.</p>
+<p><strong>Riemann&#39;s approach</strong> &#40;sort by position&#41;:</p>
+<ul>
+<li><p>Line up all coins in a row</p>
+</li>
+<li><p>Divide the row into sections</p>
+</li>
+<li><p>In each section, approximate: &quot;these coins are worth about \(X\)&quot;</p>
+</li>
+<li><p>Sum up: &#40;number of coins in section 1&#41; × &#40;approximate value&#41; &#43; ...</p>
+</li>
+</ul>
+<p><strong>Lebesgue&#39;s approach</strong> &#40;sort by value&#41;:</p>
+<ul>
+<li><p>Sort coins by value first: all pennies together, all nickels together, all dimes together</p>
+</li>
+<li><p>Count how many of each type you have</p>
+</li>
+<li><p>Multiply: &#40;number of pennies&#41; × &#40;1¢&#41; &#43; &#40;number of nickels&#41; × &#40;5¢&#41; &#43; ...</p>
+</li>
+</ul>
+<h3 id="applied_to_integration"><a href="#applied_to_integration" class="header-anchor">Applied to Integration</a></h3>
+<p><strong>Riemann</strong>: Partition the <strong>domain</strong> &#40;x-axis&#41;</p>
+<pre><code class="language-julia">y
+     |     function f&#40;x&#41;
+   4 |        ___
+   3 |    ___/   \___
+   2 |   /           \
+   1 |  /             \
+   0 |_/_________________x
+       |  |  |  |  |  |
+       x₁ x₂ x₃ x₄ x₅ x₆  ← slice the x-axis</code></pre>
+<ul>
+<li><p>Cut the x-axis into small intervals &#91;x₁,x₂&#93;, &#91;x₂,x₃&#93;, ...</p>
+</li>
+<li><p>On each interval, pick a height &#40;say, the function&#39;s value somewhere in that interval&#41;</p>
+</li>
+<li><p>Area ≈ &#40;width of interval&#41; × &#40;height&#41; for each piece</p>
+</li>
+</ul>
+<p><strong>Lebesgue</strong>: Partition the <strong>range</strong> &#40;y-axis&#41;</p>
+<pre><code class="language-julia">y
+   4 |--------  y₄        ← horizontal slices
+   3 |--------  y₃
+   2 |--------  y₂
+   1 |--------  y₁
+   0 |_________________x
+       
+   Ask: &quot;Where is f&#40;x&#41; between y₁ and y₂?&quot;
+        &quot;Where is f&#40;x&#41; between y₂ and y₃?&quot;</code></pre>
+<ul>
+<li><p>Cut the y-axis into small intervals &#91;y₁,y₂&#93;, &#91;y₂,y₃&#93;, ...</p>
+</li>
+<li><p>For each y-interval, find <strong>all x-values where f&#40;x&#41; lands in that interval</strong></p>
+</li>
+<li><p>Measure the <strong>size</strong> &#40;length, area, volume, etc.&#41; of those x-values</p>
+</li>
+<li><p>Area ≈ &#40;height of y-interval&#41; × &#40;measure of &#123;x : y₁ ≤ f&#40;x&#41; &lt; y₂&#125;&#41;</p>
+</li>
+</ul>
+<h3 id="a_concrete_example"><a href="#a_concrete_example" class="header-anchor">A Concrete Example</a></h3>
+<p>Let \(f(x) = \begin{cases} 2 & x \in [0, 0.3] \cup [0.7, 1] \\ 3 & x \in (0.3, 0.7) \end{cases}\)</p>
+<pre><code class="language-julia">y
+ 3 |        ___________
+ 2 |________|         |______
+ 1 |
+ 0 |________________________x
+   0      0.3       0.7    1</code></pre>
+<p><strong>Riemann thinking</strong> &#40;slice by x&#41;:</p>
+<ul>
+<li><p>&quot;From x&#61;0 to x&#61;0.3 &#40;width 0.3&#41;, height is 2&quot; → contributes \(0.3 \times 2 = 0.6\)</p>
+</li>
+<li><p>&quot;From x&#61;0.3 to x&#61;0.7 &#40;width 0.4&#41;, height is 3&quot; → contributes \(0.4 \times 3 = 1.2\)</p>
+</li>
+<li><p>&quot;From x&#61;0.7 to x&#61;1 &#40;width 0.3&#41;, height is 2&quot; → contributes \(0.3 \times 2 = 0.6\)</p>
+</li>
+<li><p>Total: \(0.6 + 1.2 + 0.6 = 2.4\)</p>
+</li>
+</ul>
+<p><strong>Lebesgue thinking</strong> &#40;group by y-value&#41;:</p>
+<ul>
+<li><p>&quot;Where is f equal to 2? On two disjoint pieces: &#91;0, 0.3&#93; and &#91;0.7, 1&#93;&quot;</p>
+<ul>
+<li><p>Total measure: \(0.3 + 0.3 = 0.6\)</p>
+</li>
+<li><p>Contributes: \(2 \times 0.6 = 1.2\)</p>
+</li>
+</ul>
+</li>
+<li><p>&quot;Where is f equal to 3? On one piece: &#40;0.3, 0.7&#41;&quot;</p>
+<ul>
+<li><p>Total measure: \(0.4\)</p>
+</li>
+<li><p>Contributes: \(3 \times 0.4 = 1.2\)</p>
+</li>
+</ul>
+</li>
+<li><p>Total: \(1.2 + 1.2 = 2.4\)</p>
+</li>
+</ul>
+<p><strong>Key difference</strong>: </p>
+<ul>
+<li><p>Riemann processes each x-interval separately, even if they have the same height</p>
+</li>
+<li><p>Lebesgue <strong>collects all x-values with the same height</strong>, no matter where they are&#33;</p>
+</li>
+</ul>
+<p>This is the power of &quot;sorting by value&quot;: even if f&#40;x&#41;&#61;2 appears in scattered, disjoint pieces across the domain, Lebesgue groups them together by their common y-value.</p>
+<h3 id="why_lebesgue_handles_pathology_better"><a href="#why_lebesgue_handles_pathology_better" class="header-anchor">Why Lebesgue Handles Pathology Better</a></h3>
+<p><strong>The Dirichlet function</strong>:</p>
+<p>Dirichlet function &#40;GitHub-friendly&#41;:</p>
+<p>f&#40;x&#41; &#61; 1 if x is rational   f&#40;x&#41; &#61; 0 if x is irrational</p>
+<p><strong>Riemann fails</strong>: </p>
+<ul>
+<li><p>Pick any interval &#91;a, b&#93;</p>
+</li>
+<li><p>It contains both rationals AND irrationals &#40;densely&#33;&#41;</p>
+</li>
+<li><p>You can&#39;t approximate f consistently on any interval</p>
+</li>
+<li><p>Every Riemann sum oscillates wildly between 0 and 1</p>
+</li>
+</ul>
+<p><strong>Lebesgue succeeds</strong>:</p>
+<ul>
+<li><p>&quot;Where does f equal 0?&quot; → on all irrationals in &#91;0,1&#93;</p>
+</li>
+<li><p>&quot;Where does f equal 1?&quot; → on all rationals in &#91;0,1&#93;</p>
+</li>
+<li><p>The irrationals have measure 1, the rationals have measure 0</p>
+</li>
+<li><p>Integral &#61; \((0 \times \mu(\text{irrationals})) + (1 \times \mu(\text{rationals})) = 0 \times 1 + 1 \times 0 = 0\)</p>
+</li>
+</ul>
+<p>By sorting by <strong>value</strong> rather than <strong>position</strong>, Lebesgue can separate the &quot;good&quot; set &#40;irrationals, measure 1&#41; from the &quot;bad&quot; set &#40;rationals, measure 0&#41;, even though they&#39;re hopelessly intermingled on the x-axis&#33;</p>
+<h3 id="the_key_insight"><a href="#the_key_insight" class="header-anchor">The Key Insight</a></h3>
+<ul>
+<li><p><strong>Riemann</strong>: &quot;Partition the input space, measure output&quot;</p>
+</li>
+<li><p><strong>Lebesgue</strong>: &quot;Partition the output space, measure input&quot;</p>
+</li>
+</ul>
+<p>This is why Lebesgue integration naturally extends to weird measure spaces &#40;probability spaces, infinite-dimensional spaces, fractal sets&#41; while Riemann is stuck on nice intervals.</p>
+<hr />
+<h2 id="definition"><a href="#definition" class="header-anchor">Definition</a></h2>
+<p>Here, \(\mu\) is the <strong>measure</strong> on \((X, \mathcal{F})\)—it assigns a non-negative size to each measurable set in \(\mathcal{F}\). It is <em>not</em> a function you integrate, but rather the rule that tells you how to measure the size of sets &#40;like length, area, probability, etc.&#41;.</p>
+<p>&lt;sup&gt;<strong>Footnote:</strong> The measurable function \(f\) is what you put inside the integral &#40;the integrand&#41;—it&#39;s the thing you&#39;re &quot;measuring&quot;. The measure \(\mu\) is like the &quot;ruler&quot; or measuring system that tells you how big each set is. The Lebesgue integral \(\int f \, d\mu\) combines both: it sums up the values of \(f\) using \(\mu\) as the way to measure the domain.&lt;/sup&gt;</p>
+<p>For a <strong>non-negative measurable</strong> function \(f: X \to [0, \infty]\):</p>
+\[\int_X f \, d\mu = \sup \Set{\int_X s \, d\mu : s \text{ simple, } 0 \leq s \leq f }\]
+<h2 id="the_core_intuition"><a href="#the_core_intuition" class="header-anchor">The Core Intuition</a></h2>
+<p>Think of measuring the area under a complicated curve. You can&#39;t measure it directly, so instead you:</p>
+<ol>
+<li><p><strong>Build staircases underneath the curve</strong> &#40;simple functions \(s\) with \(s \leq f\)&#41;</p>
+</li>
+<li><p><strong>Make them taller and taller</strong>, getting closer to the actual curve</p>
+</li>
+<li><p><strong>Take the supremum</strong> as your staircases approach the space under \(f\)</p>
+</li>
+</ol>
+<p><strong>Key insight</strong>: Even if \(f\) is wildly complicated, we can always approximate it from below using simple functions, and these we <em>already know how to integrate</em>.</p>
+<hr />
+<h2 id="visual_picture_approximating_from_below"><a href="#visual_picture_approximating_from_below" class="header-anchor">Visual Picture: Approximating from Below</a></h2>
+<p>Imagine \(f\) is a bumpy, continuous function. We approximate it with increasingly fine simple functions that <strong>always stay below</strong> \(f\):</p>
+<pre><code class="language-julia">Target function f&#40;x&#41;:
+    |     ___
+    |    /   \___
+    |   /        \___
+    |  /             \
+    |_/___________________
+
+
+Step 1: Rough approximation s₁ &#40;2 steps&#41;
+    |     ___
+    |    /   \___        ← f is here &#40;target&#41;
+    |   /____    \___
+    |  |    |        |   ← s₁ stays below
+    |__|____|________|___
+       a₁   a₂
+
+
+Step 2: Better approximation s₂ &#40;4 steps&#41;
+    |     ___
+    |    /   \___        ← f is here
+    |   /____|___|\___
+    |  | ___|   | \__|  ← s₂ gets closer, still ≤ f
+    |__|_|__|___|__|_|__
+       b₁ b₂ b₃  b₄
+
+
+Step 3: Even finer s₃ &#40;8 steps&#41;
+    |     ___
+    |    /   \___        ← f is here
+    |   /_|__|__|\___
+    |  |_||_||__||_\||  ← s₃ even closer, still ≤ f
+    |__|_||_||__|_|_||_
+       &#40;8 intervals&#41;</code></pre>
+<p><strong>The key relationship</strong>: At every point \(x\), we have:</p>
+\[s_1(x) \leq s_2(x) \leq s_3(x) \leq \cdots \leq f(x)\]
+<p>As the steps get finer: \(s_n \uparrow f\) &#40;pointwise&#41;, and therefore:</p>
+\[\int s_1 \, d\mu \leq \int s_2 \, d\mu \leq \int s_3 \, d\mu \leq \cdots \to \int f \, d\mu\]
+<hr />
+<h2 id="alternative_formulation"><a href="#alternative_formulation" class="header-anchor">Alternative Formulation</a></h2>
+<p>If \((s_n)\) is any sequence of simple functions with \(s_n \uparrow f\) &#40;meaning \(s_n(x)\) increases to \(f(x)\) at each point&#41;, then:</p>
+\[\int_X f \, d\mu = \lim_{n \to \infty} \int_X s_n \, d\mu\]
+<p>This limit always exists &#40;though it might be \(\infty\)&#41; because the sequence of integrals is <strong>monotone increasing</strong> and bounded above by \(\sup\).</p>
+<hr />
+<h2 id="example_1_a_simple_case"><a href="#example_1_a_simple_case" class="header-anchor">Example 1: A Simple Case</a></h2>
+<p>Let \(f(x) = x\) on \([0, 1]\) with Lebesgue measure.</p>
+<p><strong>Simple function approximations</strong> &#40;one possible sequence&#41;:</p>
+<ul>
+<li><p>\(s_1(x) = \begin{cases} 0 & x \in [0, 1/2) \\ 1/2 & x \in [1/2, 1] \end{cases}\)</p>
+</li>
+<li><p>\(s_2(x) = \frac{k}{4}\) for \(x \in [k/4, (k+1)/4)\), \(k = 0, 1, 2, 3\)</p>
+</li>
+<li><p>\(s_3(x) = \frac{k}{8}\) for \(x \in [k/8, (k+1)/8)\), \(k = 0, 1, \ldots, 7\)</p>
+</li>
+</ul>
+<p><strong>The connection</strong>: At any point \(x \in [0,1]\):</p>
+<ul>
+<li><p>\(s_1(x) \leq x\) &#40;the staircase is below the line&#41;</p>
+</li>
+<li><p>\(s_2(x) \leq x\) &#40;finer staircase, still below&#41;</p>
+</li>
+<li><p>\(s_3(x) \leq x\) &#40;even finer, still below&#41;</p>
+</li>
+<li><p>As \(n \to \infty\): \(s_n(x) \to x\) from below</p>
+</li>
+</ul>
+<p>Therefore:</p>
+\[\int_0^1 s_n \, dx \to \int_0^1 x \, dx = \frac{1}{2}\]
+<hr />
+<h2 id="example_2_an_unbounded_function"><a href="#example_2_an_unbounded_function" class="header-anchor">Example 2: An Unbounded Function</a></h2>
+<p>Let \(f(x) = \frac{1}{\sqrt{x}}\) on \((0, 1]\) with Lebesgue measure.</p>
+<p><strong>Approximation from below</strong>:</p>
+\[s_n(x) = \min\left(\frac{1}{\sqrt{x}}, n\right)\]
+<p><strong>The connection</strong>: </p>
+<ul>
+<li><p>Each \(s_n\)<strong>truncates</strong> \(f\) at height \(n\)</p>
+</li>
+<li><p>\(s_n(x) \leq f(x)\) for all \(x\) &#40;we&#39;re capping the height&#41;</p>
+</li>
+<li><p>\(s_1(x) \leq s_2(x) \leq s_3(x) \leq \cdots\) &#40;increasing caps&#41;</p>
+</li>
+<li><p>As \(n \to \infty\): \(s_n(x) \to f(x)\) at every point</p>
+</li>
+</ul>
+<p>Each \(s_n\) is bounded, so we can integrate it:</p>
+\[\int_0^1 s_n \, dx \to \int_0^1 \frac{1}{\sqrt{x}} \, dx = 2\]
+<p>Even though \(f\) blows up at \(0\), the integral exists and equals \(2\).</p>
+<hr />
+<h2 id="example_3_when_the_integral_is_infinite"><a href="#example_3_when_the_integral_is_infinite" class="header-anchor">Example 3: When the Integral is Infinite</a></h2>
+<p>Let \(f(x) = \frac{1}{x}\) on \((0, 1]\) with Lebesgue measure.</p>
+<p><strong>Truncated approximations</strong>:</p>
+\[s_n(x) = \min\left(\frac{1}{x}, n\right)\]
+<p><strong>The connection</strong>:</p>
+<ul>
+<li><p>\(s_n(x) \leq f(x)\) everywhere &#40;truncating at height \(n\)&#41;</p>
+</li>
+<li><p>\(s_n \uparrow f\) as \(n \to \infty\)</p>
+</li>
+</ul>
+<p>Computing:</p>
+\[\int_0^1 s_n \, dx = \int_{1/n}^1 \frac{1}{x} \, dx + \int_0^{1/n} n \, dx = \ln(n) + \frac{1}{n} \to \infty\]
+<p>So \(\int_0^1 \frac{1}{x} \, dx = \infty\) in the Lebesgue sense.</p>
+<p><strong>Interpretation</strong>: Even our best simple approximations from below have infinite integral, so \(f\) itself has infinite integral.</p>
+<hr />
+<h2 id="why_this_definition_works"><a href="#why_this_definition_works" class="header-anchor">Why This Definition Works</a></h2>
+<p>✓ <strong>Monotonicity</strong>: If \(f \leq g\), then \(\int f \leq \int g\) &#40;every simple function under \(f\) is also under \(g\)&#41;</p>
+<p>✓ <strong>Linearity for sums</strong>: \(\int (f + g) = \int f + \int g\) &#40;when both sides make sense&#41;</p>
+<p>✓ <strong>Matches Riemann</strong>: For nice functions like polynomials, this gives the same answer as Riemann integration</p>
+<p>✓ <strong>Handles pathology</strong>: Works even when \(f\) is discontinuous everywhere&#33;</p>
+<p>✓ <strong>Defines integral uniquely</strong>: The supremum gives a single well-defined value &#40;possibly \(\infty\)&#41;</p>
+<hr />
+<h2 id="the_big_picture"><a href="#the_big_picture" class="header-anchor">The Big Picture</a></h2>
+<pre><code class="language-julia">Simple functions s with s ≤ f
+         ↓
+    ∫ s dμ  &#40;we know how to compute this&#41;
+         ↓
+    Take supremum over all such s
+         ↓
+    ∫ f dμ  &#40;defines the integral of f&#41;</code></pre>
+<p>The beauty: we&#39;ve reduced integrating <em>any</em> non-negative measurable function to integrating simple functions, which we already understand&#33; The beauty: we&#39;ve reduced integrating <em>any</em> non-negative measurable function to integrating simple functions, which we already understand&#33;</p>
+<h3 id="riemann_vs_lebesgue_the_big_picture"><a href="#riemann_vs_lebesgue_the_big_picture" class="header-anchor">Riemann vs Lebesgue: The Big Picture</a></h3>
+<p><strong>Riemann integration</strong>: You partition the domain &#40;the x-axis&#41; into little intervals and approximate the function&#39;s height on each interval.</p>
+<p><strong>Lebesgue integration</strong>: You partition the range &#40;the y-axis&#41; into little intervals and measure the sets where the function takes those values.</p>
+<p><strong>From a CS perspective</strong>: </p>
+<ul>
+<li><p>Riemann asks: &quot;For each x-bucket, what&#39;s f&#40;x&#41;?&quot;</p>
+</li>
+<li><p>Lebesgue asks: &quot;For each y-value, what&#39;s the size of the set &#123;x : f&#40;x&#41; ≈ y&#125;?&quot;</p>
+</li>
+</ul>
+<p>The Lebesgue approach handles discontinuities way better. For example, the Dirichlet function &#40;equals 1 on rationals, 0 on irrationals&#41; is Lebesgue integrable &#40;with integral 0&#41; but not Riemann integrable at all&#33;</p>
+<hr />
+<h2 id="ol_start7_general_functions_including_negative_values"><a href="#ol_start7_general_functions_including_negative_values" class="header-anchor"><ol start="7">
+<li><p>General Functions &#40;Including Negative Values&#41;</p>
+</li>
+</ol>
+</a></h2>
+<p>What about functions that can be negative? Easy - split them into positive and negative parts.</p>
+<p>For any measurable function \(f: X \to \mathbb{R}\), define:</p>
+<ul>
+<li><p>\(f^+(x) = \max(f(x), 0)\) &#40;the positive part&#41;</p>
+</li>
+<li><p>\(f^-(x) = \max(-f(x), 0)\) &#40;the negative part&#41;</p>
+</li>
+</ul>
+<p>Note that \(f = f^+ - f^-\) and both \(f^+\) and \(f^-\) are non-negative.</p>
+<p>If at least one of \(\int f^+ d\mu\) or \(\int f^- d\mu\) is finite, we can define:</p>
+\[\int_X f   d\mu = \int_X f^+   d\mu - \int_X f^-   d\mu\]
+<p>If <strong>both</strong> are finite, we say \(f\) is <strong>integrable</strong> &#40;or \(f \in L^1\), which is the space of integrable functions&#41;.</p>
+<hr />
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

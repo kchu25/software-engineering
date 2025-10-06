@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Measure Theory 3: convergence theorems</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">Mathematics</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h2 id="ol_start8_the_big_three_convergence_theorems"><a href="#ol_start8_the_big_three_convergence_theorems" class="header-anchor"><ol start="8">
+<li><p>The Big Three: Convergence Theorems</p>
+</li>
+</ol>
+</a></h2>
+<p>Alright, here&#39;s where measure theory really shines. These convergence theorems let you interchange limits and integrals, which is something you can&#39;t always do with Riemann integration. These are absolutely essential for analysis, probability, and optimization.</p>
+<h3 id="monotone_convergence_theorem_mct"><a href="#monotone_convergence_theorem_mct" class="header-anchor">Monotone Convergence Theorem &#40;MCT&#41;</a></h3>
+<p><strong>Statement</strong>: If \(0 \leq f_1 \leq f_2 \leq \cdots\) are measurable functions and \(f_n \to f\) pointwise, then:</p>
+\[\int f \, d\mu = \lim_{n \to \infty} \int f_n \, d\mu\]
+<p><strong>Translation</strong>: For increasing sequences of non-negative functions, the limit of integrals equals the integral of the limit. You can pass the limit through the integral sign&#33;</p>
+<p><strong>Why it&#39;s awesome</strong>: You don&#39;t need any dominating function or boundedness condition. Just monotonicity and non-negativity.</p>
+<p><strong>Common use case</strong>: Proving that \(\sum_{n=1}^{\infty} \int f_n = \int \sum_{n=1}^{\infty} f_n\) for non-negative functions \(f_n\). You let the partial sums be your increasing sequence&#33;</p>
+<h3 id="fatous_lemma"><a href="#fatous_lemma" class="header-anchor">Fatou&#39;s Lemma</a></h3>
+<p><strong>Statement</strong>: For any sequence of non-negative measurable functions \(f_n \geq 0\):</p>
+\[\int \liminf_{n \to \infty} f_n \, d\mu \leq \liminf_{n \to \infty} \int f_n \, d\mu\]
+<p><strong>Translation</strong>: The integral of the limit inferior is at most the limit inferior of the integrals.</p>
+<p><strong>Mnemonic</strong>: &quot;Integral of liminf ≤ liminf of integrals&quot;</p>
+<p><strong>When to use it</strong>: This is your fallback when you can&#39;t use MCT &#40;because the sequence isn&#39;t monotone&#41; but you still need some inequality to work with. It&#39;s a &quot;one-way&quot; inequality that often comes in handy.</p>
+<h3 id="dominated_convergence_theorem_dct"><a href="#dominated_convergence_theorem_dct" class="header-anchor">Dominated Convergence Theorem &#40;DCT&#41;</a></h3>
+<p>This is the workhorse of measure theory. You&#39;ll use this one constantly.</p>
+<p><strong>Statement</strong>: Suppose \(f_n\) are measurable functions with \(f_n \to f\) pointwise. If there exists an integrable function \(g\) such that \(|f_n(x)| \leq g(x)\) for all \(n\) and all \(x\) &#40;the <strong>domination condition</strong>&#41;, then:</p>
+\[\lim_{n \to \infty} \int f_n \, d\mu = \int f \, d\mu\]
+<p>Moreover, \(\int |f_n - f| \, d\mu \to 0\) &#40;which means convergence in the \(L^1\) norm&#41;.</p>
+<p><strong>What&#39;s really going on</strong>: If your sequence of functions is &quot;controlled&quot; by an integrable function and converges pointwise, then:</p>
+<ol>
+<li><p>The limit is integrable</p>
+</li>
+<li><p>You can interchange the limit and the integral</p>
+</li>
+<li><p>The functions actually converge in \(L^1\) norm &#40;not just pointwise&#41;</p>
+</li>
+</ol>
+<p><strong>Why &quot;dominated&quot;?</strong> The dominating function \(g\) prevents &quot;mass from escaping to infinity.&quot; It keeps everything bounded in a way that ensures the convergence is well-behaved.</p>
+<p><strong>Optimization analogy</strong>: Think of gradient descent with a Lipschitz constraint. The Lipschitz constant &#40;like a dominating function&#41; ensures gradients don&#39;t blow up, which lets you prove convergence. Same idea here&#33;</p>
+<h3 id="when_to_use_which_theorem"><a href="#when_to_use_which_theorem" class="header-anchor">When to Use Which Theorem</a></h3>
+<p>Here&#39;s a quick decision guide:</p>
+<table><tr><th align="right">Theorem</th><th align="right">What You Need</th><th align="right">When to Use It</th></tr><tr><td align="right"><strong>MCT</strong></td><td align="right">\(0 \leq f_1 \leq f_2 \leq \cdots\)</td><td align="right">Monotone increasing sequences, series of non-negative terms</td></tr><tr><td align="right"><strong>Fatou</strong></td><td align="right">\(f_n \geq 0\)</td><td align="right">When you only need a one-sided inequality</td></tr><tr><td align="right"><strong>DCT</strong></td><td align="right">\(\|f_n\| \leq g\), \(g\) integrable</td><td align="right">Most general case, but you need domination</td></tr></table>
+<hr />
+<h2 id="ol_start9_dct_in_action_classic_applications"><a href="#ol_start9_dct_in_action_classic_applications" class="header-anchor"><ol start="9">
+<li><p>DCT in Action: Classic Applications</p>
+</li>
+</ol>
+</a></h2>
+<p>Let me show you where DCT really shines.</p>
+<h3 id="application_1_differentiating_under_the_integral_sign"><a href="#application_1_differentiating_under_the_integral_sign" class="header-anchor">Application 1: Differentiating Under the Integral Sign</a></h3>
+<p>Suppose you have \(f(x, t)\) that&#39;s integrable in \(x\) for each \(t\), and \(\frac{\partial f}{\partial t}\) exists and is dominated by an integrable function \(g(x)\):</p>
+\[\left|\frac{\partial f}{\partial t}(x, t)\right| \leq g(x)\]
+<p>Then you can differentiate under the integral:</p>
+\[\frac{d}{dt} \int f(x, t) \, dx = \int \frac{\partial f}{\partial t}(x, t) \, dx\]
+<p><strong>Proof sketch</strong>: Apply DCT to the difference quotient \(\frac{f(x, t+h) - f(x, t)}{h}\) as \(h \to 0\).</p>
+<p>This is huge in optimization and physics&#33;</p>
+<h3 id="application_2_interchanging_limit_and_integral"><a href="#application_2_interchanging_limit_and_integral" class="header-anchor">Application 2: Interchanging Limit and Integral</a></h3>
+<p>Want to show that \(\lim_{n \to \infty} \int f_n = \int \lim_{n \to \infty} f_n\)?</p>
+<p>Here&#39;s your checklist:</p>
+<ol>
+<li><p>✓ Check pointwise convergence: \(f_n(x) \to f(x)\)</p>
+</li>
+<li><p>✓ Find a dominating function: \(|f_n(x)| \leq g(x)\) with \(\int g < \infty\)</p>
+</li>
+<li><p>✓ Apply DCT</p>
+</li>
+</ol>
+<p><strong>Classic mistake</strong>: Forgetting to verify domination&#33; Without it, mass can &quot;escape&quot; and the theorem fails.</p>
+<p><strong>Counterexample</strong>: Consider \(f_n(x) = n \cdot \mathbf{1}_{[0, 1/n]}(x)\) on \([0, 1]\).</p>
+<ul>
+<li><p>\(f_n(x) \to 0\) pointwise for all \(x > 0\) ✓</p>
+</li>
+<li><p>But \(\int_0^1 f_n \, dx = 1\) for all \(n\) ✗</p>
+</li>
+<li><p>So \(\lim \int f_n = 1 \neq 0 = \int \lim f_n\)</p>
+</li>
+</ul>
+<p>What went wrong? There&#39;s no integrable dominating function&#33; The &quot;mass&quot; is concentrating near zero as \(n\) increases, essentially escaping our control.</p>
+<h3 id="application_3_series_and_integration"><a href="#application_3_series_and_integration" class="header-anchor">Application 3: Series and Integration</a></h3>
+<p>For non-negative functions \(f_n\), MCT gives you:</p>
+\[\int \sum_{n=1}^{\infty} f_n = \sum_{n=1}^{\infty} \int f_n\]
+<p>For general \(f_n\), if \(\sum_{n=1}^{\infty} \int |f_n| < \infty\), then you can use DCT with \(g = \sum |f_n|\) to get:</p>
+\[\int \sum_{n=1}^{\infty} f_n = \sum_{n=1}^{\infty} \int f_n\]
+<p>This is incredibly useful when working with infinite series&#33;</p>
+<hr />
+<h2 id="ol_start10_how_dct_actually_works_proof_sketch"><a href="#ol_start10_how_dct_actually_works_proof_sketch" class="header-anchor"><ol start="10">
+<li><p>How DCT Actually Works &#40;Proof Sketch&#41;</p>
+</li>
+</ol>
+</a></h2>
+<p>Let me show you the key idea behind DCT without getting too bogged down in details.</p>
+<p><strong>Given</strong>: \(f_n \to f\) pointwise, \(|f_n| \leq g\), \(\int g < \infty\).</p>
+<p><strong>Goal</strong>: Show \(\int |f_n - f| \to 0\).</p>
+<p><strong>Here&#39;s the clever trick</strong>:</p>
+<ol>
+<li><p>Since \(f_n \to f\) pointwise, we have \(|f_n - f| \to 0\) pointwise.</p>
+</li>
+<li><p>By the triangle inequality: \(|f_n - f| \leq |f_n| + |f| \leq 2g\) &#40;using domination&#41;.</p>
+</li>
+<li><p>Now apply Fatou&#39;s Lemma to the non-negative functions \(2g - |f_n - f| \geq 0\):</p>
+</li>
+</ol>
+\[\int \liminf (2g - |f_n - f|) \leq \liminf \int (2g - |f_n - f|)\]
+<ol start="4">
+<li><p>The left side becomes \(\int 2g\) &#40;since \(|f_n - f| \to 0\)&#41;.</p>
+</li>
+<li><p>The right side is \(\int 2g - \limsup \int |f_n - f|\).</p>
+</li>
+<li><p>Therefore: \(\int 2g \leq \int 2g - \limsup \int |f_n - f|\)</p>
+</li>
+<li><p>Which means: \(\limsup \int |f_n - f| \leq 0\)</p>
+</li>
+<li><p>Since \(\int |f_n - f| \geq 0\) always, we get \(\int |f_n - f| \to 0\) ✓</p>
+</li>
+</ol>
+<p><strong>The key insight</strong>: Fatou&#39;s Lemma provides the technical machinery, but the domination condition \(|f_n| \leq g\) is what makes everything work. Without it, step 2 fails and the whole proof collapses&#33;</p>
+<hr />
+<h2 id="ol_start11_connecting_to_your_background"><a href="#ol_start11_connecting_to_your_background" class="header-anchor"><ol start="11">
+<li><p>Connecting to Your Background</p>
+</li>
+</ol>
+</a></h2>
+<h3 id="discrete_math_connection"><a href="#discrete_math_connection" class="header-anchor">Discrete Math Connection</a></h3>
+<p>Here&#39;s something cool: on a countable set with counting measure, Lebesgue integration is literally just summation:</p>
+\[\int f \, d\mu = \sum_{x} f(x)\]
+<p>All the convergence theorems become theorems about interchanging limits and sums:</p>
+<ul>
+<li><p><strong>MCT</strong>: \(\sum \lim f_n = \lim \sum f_n\) for monotone \(f_n \geq 0\)</p>
+</li>
+<li><p><strong>DCT</strong>: \(\sum \lim f_n = \lim \sum f_n\) if \(|f_n| \leq g\) with \(\sum g < \infty\)</p>
+</li>
+</ul>
+<p>So all the measure theory you&#39;re learning has direct discrete analogs&#33;</p>
+<h3 id="optimization_connection"><a href="#optimization_connection" class="header-anchor">Optimization Connection</a></h3>
+<p><strong>Gradient descent convergence</strong>: If \(\nabla f_n \to \nabla f\) pointwise and the gradients are uniformly bounded &#40;dominated&#41;, DCT guarantees that:</p>
+\[\lim_{n \to \infty} \int \nabla f_n = \int \nabla f\]
+<p>The integrated cost function behaves nicely&#33;</p>
+<p><strong>Expectations in stochastic optimization</strong>: Computing \(\mathbb{E}[f(X)]\) is just integration with respect to a probability measure. DCT justifies interchanging limits and expectations when you have uniform integrability &#40;which is basically domination&#41;.</p>
+<p><strong>Variational problems</strong>: Many problems in calculus of variations require you to show:</p>
+\[\frac{d}{dt} \int L(x, u(x, t), u'(x, t)) \, dx = \int \frac{\partial L}{\partial t} \, dx\]
+<p>This uses DCT &#40;or closely related results&#41; to differentiate under the integral sign.</p>
+<hr />
+<h2 id="summary_the_big_picture"><a href="#summary_the_big_picture" class="header-anchor">Summary: The Big Picture</a></h2>
+<p>Here&#39;s how everything fits together:</p>
+<pre><code class="language-julia">Measurable spaces &#40;X, 𝓕&#41;
+         ↓
+    Measures μ
+         ↓
+Measurable functions f
+         ↓
+  Simple functions
+  &#40;building blocks&#41;
+         ↓
+Integration via approximation
+         ↓
+  Convergence theorems
+   MCT → Fatou → DCT</code></pre>
+<p><strong>Key takeaways</strong>:</p>
+<ol>
+<li><p><strong>Simple functions</strong> are the building blocks - integration is defined naturally on them as a weighted sum</p>
+</li>
+<li><p><strong>Lebesgue integration</strong> extends to general functions by approximating from below with simple functions</p>
+</li>
+<li><p><strong>Convergence theorems</strong> are what make measure theory powerful - they let you interchange limits and integrals under appropriate conditions</p>
+</li>
+<li><p><strong>DCT is your best friend</strong> - whenever you have domination and pointwise convergence, you can freely interchange limits and integrals</p>
+</li>
+<li><p><strong>The framework is universal</strong> - it works for discrete sums, continuous integrals, and everything in between&#33;</p>
+</li>
+</ol>
+<p>The real power of measure theory is that it provides a rigorous, unified framework for integration that handles all the pathological cases that Riemann integration chokes on, while giving you powerful convergence theorems that are absolutely essential in analysis, probability, and optimization.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 06, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
