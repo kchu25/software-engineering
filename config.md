@@ -18,6 +18,8 @@ website_descr = "Shane Chu's website"
 website_url   = "https://kchu25.github.io/"
 +++
 
+@def nojekyll = true
+
 @def prepath=""
 <!-- @def div_content = "container" -->
 
