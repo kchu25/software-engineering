@@ -48,7 +48,7 @@ jobs:
         julia --project=. -e 'using Pkg; Pkg.add("Franklin")'
       
     - name: Build site
-      run: julia --project=. -e 'using Franklin; optimize()'
+      run: julia --project=. -e 'using Franklin; optimize(prepath="mathematics")'
       
     - name: Setup Pages
       uses: actions/configure-pages@v4
