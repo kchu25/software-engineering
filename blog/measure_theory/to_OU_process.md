@@ -1,3 +1,8 @@
+@def title = "Measure Theory: from Lebesgue Integration to Ornstein-Uhlenbeck process"
+@def published = "5 October 2025"
+@def tags = ["measure-theory"]
+
+
 # From Lebesgue Integration to Stochastic Processes
 
 ## The Bridge: Why We Need Measure Theory for Stochastic Calculus
@@ -528,3 +533,152 @@ Ornstein-Uhlenbeck Process
 5. **OU process is the payoff**: A concrete, useful model built on the entire tower of abstraction
 
 The Ornstein-Uhlenbeck process isn't just a random formula—it's the culmination of a rigorous mathematical framework that starts with measuring sets and integrating simple functions!
+
+
+---
+
+## CRITICAL INSIGHT: Itô Integrals are Random Variables, Not Numbers!
+
+**This is the mind-bending part**: When you compute $\int_0^t f(s) \, dB_s$, the result is **not a number**—it's a **random variable**!
+
+### The Type Hierarchy
+
+Let's be crystal clear about what kind of mathematical object each thing is:
+
+| Expression | Type | Domain | Output |
+|-----------|------|--------|--------|
+| $\mathbb{P}$ | Measure | Sets $A \subseteq \Omega$ | Numbers in $[0,1]$ |
+| $B_t$ | Random variable (RV) | Outcomes $\omega \in \Omega$ | Numbers in $\mathbb{R}$ |
+| $\int_\Omega X \, d\mathbb{P}$ | Number | — | A single real number |
+| $\int_0^t f(s) \, ds$ | Number | — | A single real number |
+| $\int_0^t f(s) \, dB_s$ | **Random variable!** | Outcomes $\omega \in \Omega$ | Numbers in $\mathbb{R}$ |
+
+### Why is $\int_0^t f(s) \, dB_s$ a Random Variable?
+
+**Because the Brownian path $B_s(\omega)$ is random!**
+
+Remember the discrete version:
+$\int_0^t f(s) \, dB_s \approx \sum_{i=0}^{n-1} f(s_i) \cdot [B_{s_{i+1}}(\omega) - B_{s_i}(\omega)]$
+
+Each increment $B_{s_{i+1}}(\omega) - B_{s_i}(\omega)$ depends on the outcome $\omega$. Different $\omega$ give different Brownian paths, which give different values of the sum!
+
+### Concrete Example
+
+Take $\int_0^1 dB_s = B_1 - B_0 = B_1$ (since $B_0 = 0$).
+
+This is **not** a number! It's the random variable $B_1$, which:
+- Has distribution $\mathcal{N}(0, 1)$
+- Takes different values for different $\omega$:
+  - If $\omega_1$ gives a path that ends at $B_1(\omega_1) = 0.7$, then $\int_0^1 dB_s(\omega_1) = 0.7$
+  - If $\omega_2$ gives a path that ends at $B_1(\omega_2) = -1.3$, then $\int_0^1 dB_s(\omega_2) = -1.3$
+  - etc.
+
+**The integral itself is a function $\omega \mapsto \text{number}$, i.e., a random variable!**
+
+### Visual Intuition
+
+```
+Different random outcomes ω:
+
+Outcome ω₁:
+   B_s
+    |     /\
+    |   /    \___     ← Path 1
+    |  /         \
+    |/_____________s
+   0              1
+   ∫₀¹ f(s)dB_s(ω₁) = (some number, say 0.45)
+
+Outcome ω₂:
+   B_s
+    | \
+    |  \_     /\      ← Path 2 (different!)
+    |    \___/  \
+    |____________\s
+   0              1
+   ∫₀¹ f(s)dB_s(ω₂) = (different number, say -0.73)
+
+Outcome ω₃:
+   B_s
+    |   ___/\___
+    |  /        \     ← Path 3
+    | /          \___
+    |/_____________s
+   0              1
+   ∫₀¹ f(s)dB_s(ω₃) = (yet another number, say 0.12)
+
+The integral is the random variable:
+I(ω) = ∫₀¹ f(s)dB_s(ω)
+
+which maps outcomes to numbers!
+```
+
+### How to Get Numbers from Itô Integrals
+
+To get an actual **number**, you need to either:
+
+1. **Fix an outcome $\omega$** (one realization):
+   $\int_0^t f(s) \, dB_s(\omega) = \text{a specific number}$
+
+2. **Take expectation** (average over all $\omega$):
+   $\mathbb{E}\left[\int_0^t f(s) \, dB_s\right] = \int_\Omega \left[\int_0^t f(s) \, dB_s(\omega)\right] d\mathbb{P}(\omega)$
+   This is often $0$ for Itô integrals!
+
+3. **Compute variance**:
+   $\text{Var}\left(\int_0^t f(s) \, dB_s\right) = \mathbb{E}\left[\left(\int_0^t f(s) \, dB_s\right)^2\right]$
+   By Itô isometry: $= \mathbb{E}\left[\int_0^t f(s)^2 \, ds\right]$
+
+4. **Compute probability**:
+   $\mathbb{P}\left(\int_0^t f(s) \, dB_s > 0\right) = \text{a number in } [0,1]$
+
+### The Nested Structure
+
+This is why the notation can be so confusing! We have **integrals within integrals**:
+
+$\mathbb{E}\left[\int_0^t f(s) \, dB_s\right] = \int_\Omega \underbrace{\left[\int_0^t f(s) \, dB_s(\omega)\right]}_{\text{random variable: } \omega \mapsto \text{number}} d\mathbb{P}(\omega)$
+
+- **Inner integral** $\int_0^t f(s) \, dB_s$: Itô integral, produces a **random variable**
+- **Outer integral** $\int_\Omega \cdots d\mathbb{P}$: Lebesgue integral, produces a **number** (the expected value)
+
+### Contrast with Regular Lebesgue Integrals
+
+**Lebesgue integral** $\int_0^t f(s) \, ds$:
+- Input: a function $f: [0,t] \to \mathbb{R}$
+- Output: **a number** (the area under the curve)
+- No randomness! Same answer every time.
+
+**Itô integral** $\int_0^t f(s) \, dB_s$:
+- Input: a function $f$ and a **random path** $B_s(\omega)$
+- Output: **a random variable** (depends on $\omega$)
+- Different answer for each realization!
+
+### Ornstein-Uhlenbeck Example
+
+When we write:
+$X_t = X_0 + \int_0^t (-\theta X_s) \, ds + \int_0^t \sigma \, dB_s$
+
+- First integral: $\int_0^t (-\theta X_s) \, ds$ is **complicated** (depends on the path $X_s$), but once you know the path, it's a **number**
+- Second integral: $\int_0^t \sigma \, dB_s$ is a **random variable** equal to $\sigma B_t$
+
+So $X_t$ itself is a random variable! For each outcome $\omega$:
+$X_t(\omega) = X_0 + \int_0^t (-\theta X_s(\omega)) \, ds + \sigma B_t(\omega)$
+
+### The Mental Model
+
+Think of it this way:
+
+1. **Before you run the experiment** ($\omega$ not chosen yet):
+   - $\int_0^t f(s) \, dB_s$ is a random variable (function of $\omega$)
+   - You can talk about its distribution, mean, variance
+
+2. **After you run the experiment** ($\omega$ chosen, one path realized):
+   - $\int_0^t f(s) \, dB_s(\omega)$ is a number
+   - This is what you'd see in a simulation
+
+3. **When you simulate**:
+   - Generate one Brownian path $B_s(\omega_1)$
+   - Compute the sum $\sum f(s_i) \cdot [B_{s_{i+1}}(\omega_1) - B_{s_i}(\omega_1)]$
+   - This gives you **one sample** from the random variable
+   - Run it 1000 times to get the distribution!
+
+**Bottom line**: $\int_0^t f(s) \, dB_s$ is a random variable—a function that maps random outcomes to numbers. It's fundamentally different from $\int_0^t f(s) \, ds$, which is just a number.
