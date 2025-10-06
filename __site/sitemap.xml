@@ -8,20 +8,8 @@
     <priority>0.5</priority>
 </url>
 <url>
-    <loc>https://kchu25.github.io/blog/test1/logdet_zygote/index.html</loc>
-    <lastmod>2025-10-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
     <loc>https://kchu25.github.io/menu1/index.html</loc>
     <lastmod>2024-08-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
-    <loc>https://kchu25.github.io/blog/softthreshold_nonneg/index.html</loc>
-    <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
@@ -45,7 +33,7 @@
 </url>
 <url>
     <loc>https://kchu25.github.io/menu2/index.html</loc>
-    <lastmod>2024-08-16</lastmod>
+    <lastmod>2025-10-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
@@ -63,12 +51,6 @@
 </url>
 <url>
     <loc>https://kchu25.github.io/blog/measure_theory/to_OU_process/index.html</loc>
-    <lastmod>2025-10-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-</url>
-<url>
-    <loc>https://kchu25.github.io/blog/measure_theory/to_OU_process2/index.html</loc>
     <lastmod>2025-10-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
