@@ -15,10 +15,10 @@ ignore = ["node_modules/"]
 generate_rss = true
 website_title = "Shane Chu's website"
 website_descr = "Shane Chu's website"
-website_url   = "https://kchu25.github.io/mathematics/"
+website_url   = "https://kchu25.github.io"
 +++
 
-@def prepath=""
+@def prepath="/mathematics"
 <!-- @def div_content = "container" -->
 
 <!--
