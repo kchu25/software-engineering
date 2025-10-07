@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Understanding Val in Julia: From Values to Types</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="understanding_val_in_julia_from_values_to_types"><a href="#understanding_val_in_julia_from_values_to_types" class="header-anchor">Understanding Val in Julia: From Values to Types</a></h1>
+<h2 id="the_big_idea_in_one_sentence"><a href="#the_big_idea_in_one_sentence" class="header-anchor">The Big Idea in One Sentence</a></h2>
+<p><code>Val</code> lets you move runtime decisions to compile time by turning values into types, enabling zero-overhead dispatch on specific values.</p>
+<h2 id="the_problem_runtime_vs_compile_time"><a href="#the_problem_runtime_vs_compile_time" class="header-anchor">The Problem: Runtime vs Compile Time</a></h2>
+<h3 id="normal_dispatch_on_types"><a href="#normal_dispatch_on_types" class="header-anchor">Normal Dispatch on Types</a></h3>
+<p>In Julia, multiple dispatch normally works on <strong>types</strong>:</p>
+<pre><code class="language-julia">greet&#40;x::Int&#41; &#61; &quot;You gave me a number&#33;&quot;
+greet&#40;x::String&#41; &#61; &quot;You gave me text&#33;&quot;
+
+greet&#40;42&#41;      # &quot;You gave me a number&#33;&quot;
+greet&#40;&quot;hello&quot;&#41; # &quot;You gave me text&#33;&quot;</code></pre>
+<p>The function picks the right method based on what <strong>type</strong> you pass in. This choice happens at <strong>compile time</strong> - Julia generates different machine code for each type.</p>
+<h3 id="what_if_you_want_to_dispatch_on_specific_values"><a href="#what_if_you_want_to_dispatch_on_specific_values" class="header-anchor">What If You Want to Dispatch on Specific Values?</a></h3>
+<p>Sometimes you want different behavior for specific <strong>values</strong>, not types:</p>
+<pre><code class="language-julia"># I want different behavior for :fast vs :slow
+# But they&#39;re both Symbols - same type&#33;
+
+function compute&#40;mode::Symbol, data&#41;
+    if mode &#61;&#61; :fast
+        # Use fast algorithm
+        return simple_computation&#40;data&#41;
+    elseif mode &#61;&#61; :accurate
+        # Use accurate algorithm
+        return complex_computation&#40;data&#41;
+    else
+        error&#40;&quot;Unknown mode&quot;&#41;
+    end
+end</code></pre>
+<p><strong>The problem</strong>: That <code>if</code> statement runs every single time. That&#39;s <strong>runtime overhead</strong>.</p>
+<h2 id="enter_val_values_disguised_as_types"><a href="#enter_val_values_disguised_as_types" class="header-anchor">Enter Val: Values Disguised as Types</a></h2>
+<p><code>Val</code> is a simple type that wraps a value:</p>
+<pre><code class="language-julia">Val&#40;:fast&#41;      # Type: Val&#123;:fast&#125;
+Val&#40;:accurate&#41;  # Type: Val&#123;:accurate&#125;
+Val&#40;3&#41;          # Type: Val&#123;3&#125;
+Val&#40;true&#41;       # Type: Val&#123;true&#125;</code></pre>
+<p>The crucial insight: <code>Val&#123;:fast&#125;</code> and <code>Val&#123;:accurate&#125;</code> are <strong>different types</strong>, even though <code>:fast</code> and <code>:accurate</code> are just values&#33;</p>
+<p>Now you can dispatch on them:</p>
+<pre><code class="language-julia">compute&#40;::Val&#123;:fast&#125;, data&#41; &#61; simple_computation&#40;data&#41;
+compute&#40;::Val&#123;:accurate&#125;, data&#41; &#61; complex_computation&#40;data&#41;
+
+# Use it
+result &#61; compute&#40;Val&#40;:fast&#41;, my_data&#41;</code></pre>
+<blockquote>
+<p><strong>Side note on <code>::Val&#123;:fast&#125;</code> syntax</strong>: The <code>::</code> means &quot;has type&quot;. When you write <code>compute&#40;::Val&#123;:fast&#125;, data&#41;</code>, you&#39;re saying &quot;the first argument has type <code>Val&#123;:fast&#125;</code>, but I don&#39;t care about the actual value, just its type.&quot; Notice there&#39;s no variable name before the <code>::</code> - that&#39;s intentional&#33; We&#39;re not using the value, only dispatching on its type. If you needed to access it, you&#39;d write <code>compute&#40;mode::Val&#123;:fast&#125;, data&#41;</code> and then use <code>mode</code> in the function body. But since <code>Val</code> instances are empty &#40;zero bytes&#41;, there&#39;s nothing to access anyway - the type is all that matters.</p>
+</blockquote>
+<h2 id="why_this_is_magical"><a href="#why_this_is_magical" class="header-anchor">Why This Is Magical</a></h2>
+<p>When Julia sees <code>compute&#40;Val&#40;:fast&#41;, my_data&#41;</code>, it:</p>
+<ol>
+<li><p>Recognizes the type is <code>Val&#123;:fast&#125;</code> at <strong>compile time</strong></p>
+</li>
+<li><p>Picks the first method at <strong>compile time</strong></p>
+</li>
+<li><p>Generates machine code that calls <code>simple_computation</code> directly</p>
+</li>
+<li><p><strong>No if-statements in the generated code&#33;</strong></p>
+</li>
+</ol>
+<h3 id="the_performance_difference"><a href="#the_performance_difference" class="header-anchor">The Performance Difference</a></h3>
+<p>Let&#39;s see the difference with a benchmark-style example:</p>
+<pre><code class="language-julia"># Runtime branching &#40;slower&#41;
+function sum_strategy_runtime&#40;arr, mode::Symbol&#41;
+    if mode &#61;&#61; :simple
+        total &#61; 0.0
+        for x in arr
+            total &#43;&#61; x
+        end
+        return total
+    elseif mode &#61;&#61; :squared
+        total &#61; 0.0
+        for x in arr
+            total &#43;&#61; x^2
+        end
+        return total
+    end
+end
+
+# Compile-time dispatch &#40;faster&#41;
+function sum_strategy_compiled&#40;arr, ::Val&#123;:simple&#125;&#41;
+    total &#61; 0.0
+    for x in arr
+        total &#43;&#61; x
+    end
+    return total
+end
+
+function sum_strategy_compiled&#40;arr, ::Val&#123;:squared&#125;&#41;
+    total &#61; 0.0
+    for x in arr
+        total &#43;&#61; x^2
+    end
+    return total
+end
+
+# Usage
+data &#61; rand&#40;1000&#41;
+sum_strategy_runtime&#40;data, :simple&#41;           # Has if-check overhead
+sum_strategy_compiled&#40;data, Val&#40;:simple&#41;&#41;     # No if-check, direct call</code></pre>
+<p>The second version compiles to tighter, faster machine code.</p>
+<h2 id="anatomy_of_val"><a href="#anatomy_of_val" class="header-anchor">Anatomy of Val</a></h2>
+<p>Let&#39;s look at what Val actually is:</p>
+<pre><code class="language-julia"># This is &#40;roughly&#41; how Val is defined in Base Julia
+struct Val&#123;T&#125; end
+
+# When you write Val&#40;:fast&#41;, you&#39;re creating an instance of Val&#123;:fast&#125;
+# The type parameter T is the value you&#39;re wrapping</code></pre>
+<p>The clever part: the value <code>:fast</code> becomes part of the <strong>type signature</strong> <code>Val&#123;:fast&#125;</code>, so Julia&#39;s dispatch mechanism can see it.</p>
+<h2 id="real-world_example_matrix_storage_layouts"><a href="#real-world_example_matrix_storage_layouts" class="header-anchor">Real-World Example: Matrix Storage Layouts</a></h2>
+<pre><code class="language-julia"># Define a matrix type with configurable storage
+struct Matrix2D&#123;T, Layout&#125;
+    data::Vector&#123;T&#125;
+    rows::Int
+    cols::Int
+end
+
+# Different indexing strategies based on layout
+function Base.getindex&#40;m::Matrix2D&#123;T, Val&#123;:row_major&#125;&#125;, i::Int, j::Int&#41; where T
+    idx &#61; &#40;i - 1&#41; * m.cols &#43; j
+    return m.data&#91;idx&#93;
+end
+
+function Base.getindex&#40;m::Matrix2D&#123;T, Val&#123;:col_major&#125;&#125;, i::Int, j::Int&#41; where T
+    idx &#61; &#40;j - 1&#41; * m.rows &#43; i
+    return m.data&#91;idx&#93;
+end
+
+# Create matrices with different layouts
+A &#61; Matrix2D&#123;Float64, Val&#123;:row_major&#125;&#125;&#40;zeros&#40;100&#41;, 10, 10&#41;
+B &#61; Matrix2D&#123;Float64, Val&#123;:col_major&#125;&#125;&#40;zeros&#40;100&#41;, 10, 10&#41;
+
+# The right indexing method is chosen at compile time&#33;
+A&#91;5, 3&#93;  # Uses row-major indexing, no runtime check
+B&#91;5, 3&#93;  # Uses col-major indexing, no runtime check</code></pre>
+<h2 id="another_example_dimension-specific_operations"><a href="#another_example_dimension-specific_operations" class="header-anchor">Another Example: Dimension-Specific Operations</a></h2>
+<pre><code class="language-julia"># Sum along different dimensions
+function sum_along&#40;arr::Array&#123;T, N&#125;, ::Val&#123;:rows&#125;&#41; where &#123;T, N&#125;
+    # Sum each row &#40;dimension 1&#41;
+    return &#91;sum&#40;arr&#91;i, :&#93;&#41; for i in 1:size&#40;arr, 1&#41;&#93;
+end
+
+function sum_along&#40;arr::Array&#123;T, N&#125;, ::Val&#123;:cols&#125;&#41; where &#123;T, N&#125;
+    # Sum each column &#40;dimension 2&#41;
+    return &#91;sum&#40;arr&#91;:, j&#93;&#41; for j in 1:size&#40;arr, 2&#41;&#93;
+end
+
+function sum_along&#40;arr::Array&#123;T, N&#125;, ::Val&#123;:all&#125;&#41; where &#123;T, N&#125;
+    # Sum everything
+    return sum&#40;arr&#41;
+end
+
+# Usage
+matrix &#61; rand&#40;5, 4&#41;
+sum_along&#40;matrix, Val&#40;:rows&#41;&#41;  # &#91;sum of row 1, sum of row 2, ...&#93;
+sum_along&#40;matrix, Val&#40;:cols&#41;&#41;  # &#91;sum of col 1, sum of col 2, ...&#93;
+sum_along&#40;matrix, Val&#40;:all&#41;&#41;   # single number</code></pre>
+<h2 id="practical_example_algorithm_selection"><a href="#practical_example_algorithm_selection" class="header-anchor">Practical Example: Algorithm Selection</a></h2>
+<pre><code class="language-julia">abstract type SortStrategy end
+
+# Different sorting algorithms
+function sort_data&#40;data, ::Val&#123;:quick&#125;&#41;
+    println&#40;&quot;Using quicksort&quot;&#41;
+    return sort&#40;data, alg&#61;QuickSort&#41;
+end
+
+function sort_data&#40;data, ::Val&#123;:merge&#125;&#41;
+    println&#40;&quot;Using mergesort&quot;&#41;
+    return sort&#40;data, alg&#61;MergeSort&#41;
+end
+
+function sort_data&#40;data, ::Val&#123;:insertion&#125;&#41;
+    println&#40;&quot;Using insertion sort&quot;&#41;
+    return sort&#40;data, alg&#61;InsertionSort&#41;
+end
+
+# The user picks once, then no overhead
+my_data &#61; rand&#40;1000&#41;
+sorted &#61; sort_data&#40;my_data, Val&#40;:quick&#41;&#41;</code></pre>
+<h2 id="when_should_you_use_val"><a href="#when_should_you_use_val" class="header-anchor">When Should You Use Val?</a></h2>
+<h3 id="good_use_cases"><a href="#good_use_cases" class="header-anchor">✅ Good Use Cases</a></h3>
+<ol>
+<li><p><strong>Configuration that rarely changes</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia"># Set at initialization, never changes
+   model &#61; NeuralNetwork&#123;Val&#123;:gpu&#125;&#125;&#40;...&#41;</code></pre>
+<ol start="2">
+<li><p><strong>Compile-time optimization flags</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia">compute&#40;data, Val&#40;:use_simd&#41;&#41;</code></pre>
+<ol start="3">
+<li><p><strong>Enabling/disabling features at compile time</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia">struct Container&#123;T, Val&#123;:thread_safe&#125;&#125;
+       # Thread-safe version uses locks
+   end
+   
+   struct Container&#123;T, Val&#123;:fast&#125;&#125;
+       # Fast version has no locks
+   end</code></pre>
+<ol start="4">
+<li><p><strong>Dimension specifications</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia">reduce_along&#40;array, Val&#40;1&#41;&#41;  # Reduce along dimension 1</code></pre>
+<h3 id="bad_use_cases"><a href="#bad_use_cases" class="header-anchor">❌ Bad Use Cases</a></h3>
+<ol>
+<li><p><strong>Values that change frequently</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia"># DON&#39;T DO THIS
+   for mode in &#91;:fast, :slow, :medium&#93;
+       compute&#40;Val&#40;mode&#41;, data&#41;  # Creates new types constantly&#33;
+   end</code></pre>
+<ol start="2">
+<li><p><strong>User input at runtime</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia"># DON&#39;T DO THIS
+   user_choice &#61; readline&#40;&#41;  # User types &quot;fast&quot; or &quot;slow&quot;
+   compute&#40;Val&#40;Symbol&#40;user_choice&#41;&#41;, data&#41;  # Just use if-statements&#33;</code></pre>
+<ol start="3">
+<li><p><strong>Large or complex values</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia"># DON&#39;T DO THIS
+   Val&#40;&#91;1, 2, 3, 4, 5, 6, 7, 8, 9, 10&#93;&#41;  # Type signatures get huge&#33;</code></pre>
+<ol start="4">
+<li><p><strong>When the overhead doesn&#39;t matter</strong></p>
+</li>
+</ol>
+<pre><code class="language-julia"># If this only runs once, Val is overkill
+   initialize_system&#40;Val&#40;:mode&#41;&#41;  # Just use an if-statement</code></pre>
+<h2 id="the_technical_details"><a href="#the_technical_details" class="header-anchor">The Technical Details</a></h2>
+<h3 id="how_val_creates_types"><a href="#how_val_creates_types" class="header-anchor">How Val Creates Types</a></h3>
+<p>When you write <code>Val&#40;:fast&#41;</code>, Julia:</p>
+<ol>
+<li><p>Takes the value <code>:fast</code></p>
+</li>
+<li><p>Creates a type <code>Val&#123;:fast&#125;</code> where <code>:fast</code> is a <strong>type parameter</strong></p>
+</li>
+<li><p>Constructs an instance of that type &#40;which is empty, just a marker&#41;</p>
+</li>
+</ol>
+<pre><code class="language-julia">julia&gt; typeof&#40;Val&#40;:fast&#41;&#41;
+Val&#123;:fast&#125;
+
+julia&gt; Val&#40;:fast&#41; &#61;&#61;&#61; Val&#40;:fast&#41;
+true  # Same singleton instance
+
+julia&gt; sizeof&#40;Val&#40;:fast&#41;&#41;
+0  # Takes no memory&#33; Just a type marker</code></pre>
+<h3 id="type_parameters_arent_just_for_types"><a href="#type_parameters_arent_just_for_types" class="header-anchor">Type Parameters Aren&#39;t Just For Types</a></h3>
+<p>Normally, type parameters hold types:</p>
+<pre><code class="language-julia">Array&#123;Int, 2&#125;      # Int is a type
+Dict&#123;String, Int&#125;  # String and Int are types</code></pre>
+<p>But Julia allows <strong>any bits type</strong> as a type parameter:</p>
+<pre><code class="language-julia">Val&#123;:symbol&#125;       # A symbol
+Val&#123;42&#125;            # An integer
+Val&#123;true&#125;          # A boolean
+Val&#123;&#40;1, 2, 3&#41;&#125;     # A tuple &#40;if all elements are bits types&#41;</code></pre>
+<p>This is the loophole that Val exploits&#33;</p>
+<h3 id="the_cost_of_val"><a href="#the_cost_of_val" class="header-anchor">The Cost of Val</a></h3>
+<p>Each unique <code>Val&#123;x&#125;</code> creates a new type, which means:</p>
+<ul>
+<li><p>A new method gets compiled for each value</p>
+</li>
+<li><p>More code generation and compilation time</p>
+</li>
+<li><p>Larger binaries</p>
+</li>
+</ul>
+<p>So use Val judiciously - for things that have a small, fixed set of possible values.</p>
+<h2 id="comparing_approaches"><a href="#comparing_approaches" class="header-anchor">Comparing Approaches</a></h2>
+<p>Let&#39;s see the same functionality implemented three ways:</p>
+<h3 id="approach_1_runtime_if-statement"><a href="#approach_1_runtime_if-statement" class="header-anchor">Approach 1: Runtime If-Statement</a></h3>
+<pre><code class="language-julia">function process&#40;mode::Symbol, data&#41;
+    if mode &#61;&#61; :fast
+        return fast_algo&#40;data&#41;
+    elseif mode &#61;&#61; :accurate
+        return accurate_algo&#40;data&#41;
+    end
+end
+
+# Pros: Simple, flexible, works with any runtime value
+# Cons: Runtime overhead, branch mispredictions possible</code></pre>
+<h3 id="approach_2_val_dispatch"><a href="#approach_2_val_dispatch" class="header-anchor">Approach 2: Val Dispatch</a></h3>
+<pre><code class="language-julia">process&#40;::Val&#123;:fast&#125;, data&#41; &#61; fast_algo&#40;data&#41;
+process&#40;::Val&#123;:accurate&#125;, data&#41; &#61; accurate_algo&#40;data&#41;
+
+# Usage: process&#40;Val&#40;:fast&#41;, data&#41;
+
+# Pros: Zero runtime overhead, compiler optimizes perfectly
+# Cons: Must know value at compile time, creates multiple compiled methods</code></pre>
+<h3 id="approach_3_type_dispatch_manual"><a href="#approach_3_type_dispatch_manual" class="header-anchor">Approach 3: Type Dispatch &#40;Manual&#41;</a></h3>
+<pre><code class="language-julia">abstract type Mode end
+struct Fast &lt;: Mode end
+struct Accurate &lt;: Mode end
+
+process&#40;::Fast, data&#41; &#61; fast_algo&#40;data&#41;
+process&#40;::Accurate, data&#41; &#61; accurate_algo&#40;data&#41;
+
+# Usage: process&#40;Fast&#40;&#41;, data&#41;
+
+# Pros: Same performance as Val, more explicit
+# Cons: More boilerplate, need to define types manually</code></pre>
+<p>Val is essentially approach 3 with automatic type generation&#33;</p>
+<h2 id="advanced_pattern_val_with_type_parameters"><a href="#advanced_pattern_val_with_type_parameters" class="header-anchor">Advanced Pattern: Val with Type Parameters</a></h2>
+<p>You can combine Val with other type parameters:</p>
+<pre><code class="language-julia">struct Optimizer&#123;Algo, T&#125;
+    learning_rate::T
+end
+
+function step&#33;&#40;opt::Optimizer&#123;Val&#123;:sgd&#125;&#125;, grads&#41;
+    # Standard SGD
+    return grads .* opt.learning_rate
+end
+
+function step&#33;&#40;opt::Optimizer&#123;Val&#123;:adam&#125;&#125;, grads&#41;
+    # Adam optimizer
+    return complex_adam_computation&#40;grads, opt.learning_rate&#41;
+end
+
+# Create optimizers
+sgd_opt &#61; Optimizer&#123;Val&#123;:sgd&#125;, Float64&#125;&#40;0.01&#41;
+adam_opt &#61; Optimizer&#123;Val&#123;:adam&#125;, Float64&#125;&#40;0.001&#41;</code></pre>
+<h2 id="the_bottom_line"><a href="#the_bottom_line" class="header-anchor">The Bottom Line</a></h2>
+<p><code>Val</code> is Julia&#39;s way of saying: &quot;If you know something at compile time, tell me, and I&#39;ll generate the fastest possible code.&quot;</p>
+<p>It&#39;s a bridge between the flexibility of dynamic values and the performance of static types. Use it when:</p>
+<ul>
+<li><p>You have a small, fixed set of configuration options</p>
+</li>
+<li><p>The choice doesn&#39;t change frequently</p>
+</li>
+<li><p>You want zero-cost abstraction</p>
+</li>
+<li><p>Performance matters in that code path</p>
+</li>
+</ul>
+<p>Don&#39;t use it when:</p>
+<ul>
+<li><p>The value comes from user input or changes dynamically</p>
+</li>
+<li><p>You&#39;re just calling a function once &#40;overhead doesn&#39;t matter&#41;</p>
+</li>
+<li><p>The set of possible values is large or unbounded</p>
+</li>
+</ul>
+<p>When used correctly, <code>Val</code> is one of Julia&#39;s most elegant performance tricks - turning what would be runtime conditionals into compile-time specialization.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 07, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

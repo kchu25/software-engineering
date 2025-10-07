@@ -5,4 +5,5 @@
 ~~~
 
 - [plotting](tag/plotting)
+- [julia](tag/julia)
 

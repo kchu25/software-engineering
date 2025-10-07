@@ -1,6 +1,6 @@
 @def title = "Understanding Plot Recipes in Julia Plots.jl"
 @def published = "6 October 2025"
-@def tags = ["plotting"]
+@def tags = ["plotting", "julia"]
 
 
 # Understanding Plot Recipes in Julia Plots.jl
