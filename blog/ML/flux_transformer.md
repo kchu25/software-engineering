@@ -1,6 +1,6 @@
 @def title = "Transformer Architecture in Flux.jl"
 @def published = "7 October 2025"
-@def tags = ["ML", "julia"]
+@def tags = ["neural-nets", "julia"]
 
 # Transformer Architecture in Flux.jl
 
