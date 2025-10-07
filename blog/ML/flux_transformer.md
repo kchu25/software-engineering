@@ -4,7 +4,7 @@
 
 # Transformer Architecture in Flux.jl
 
-**Note:** This implementation is fully compatible with Flux.jl's automatic differentiation and training utilities. All custom structs use `Flux.@functor` to make their parameters trainable, and the code uses Flux-native operations throughout.
+**Note:** This implementation is fully compatible with Flux.jl's automatic differentiation and training utilities. All custom structs use `Flux.@layer` to make their parameters trainable, and the code uses Flux-native operations throughout.
 
 ## Setup and Imports
 

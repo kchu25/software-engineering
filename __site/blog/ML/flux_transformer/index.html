@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Transformer Architecture in Flux.jl</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="transformer_architecture_in_fluxjl"><a href="#transformer_architecture_in_fluxjl" class="header-anchor">Transformer Architecture in Flux.jl</a></h1>
+<p><strong>Note:</strong> This implementation is fully compatible with Flux.jl&#39;s automatic differentiation and training utilities. All custom structs use <code>Flux.@layer</code> to make their parameters trainable, and the code uses Flux-native operations throughout.</p>
+<h2 id="setup_and_imports"><a href="#setup_and_imports" class="header-anchor">Setup and Imports</a></h2>
+<pre><code class="language-julia">using Flux
+using Flux: glorot_uniform
+using LinearAlgebra</code></pre>
+<p>We&#39;re using Flux for the neural network layers, and LinearAlgebra for matrix operations in the attention mechanism.</p>
+<hr />
+<h2 id="multi-head_attention_layer"><a href="#multi-head_attention_layer" class="header-anchor">Multi-Head Attention Layer</a></h2>
+<pre><code class="language-julia">struct MultiHeadAttention
+    num_heads::Int
+    head_dim::Int
+    W_q::Dense
+    W_k::Dense
+    W_v::Dense
+    W_o::Dense
+    dropout::Dropout
+end
+
+Flux.@layer MultiHeadAttention
+
+function MultiHeadAttention&#40;d_model::Int, num_heads::Int; dropout&#61;0.1&#41;
+    @assert d_model &#37; num_heads &#61;&#61; 0 &quot;d_model must be divisible by num_heads&quot;
+    head_dim &#61; d_model ÷ num_heads
+    
+    MultiHeadAttention&#40;
+        num_heads,
+        head_dim,
+        Dense&#40;d_model, d_model&#41;,
+        Dense&#40;d_model, d_model&#41;,
+        Dense&#40;d_model, d_model&#41;,
+        Dense&#40;d_model, d_model&#41;,
+        Dropout&#40;dropout&#41;
+    &#41;
+end</code></pre>
+<p>This is the heart of the transformer - the multi-head attention mechanism. We split the model dimension into multiple heads, each learning different attention patterns. The four dense layers project our input into queries &#40;Q&#41;, keys &#40;K&#41;, values &#40;V&#41;, and then combine the multi-head outputs back together.</p>
+<hr />
+<h2 id="attention_forward_pass"><a href="#attention_forward_pass" class="header-anchor">Attention Forward Pass</a></h2>
+<pre><code class="language-julia">function &#40;mha::MultiHeadAttention&#41;&#40;x&#41;
+    # x: &#40;d_model, L, batch&#41;
+    d_model, L, batch &#61; size&#40;x&#41;
+    
+    # Linear projections
+    Q &#61; mha.W_q&#40;x&#41;  # &#40;d_model, L, batch&#41;
+    K &#61; mha.W_k&#40;x&#41;
+    V &#61; mha.W_v&#40;x&#41;
+    
+    # Reshape for multi-head: &#40;head_dim, num_heads, L, batch&#41;
+    Q &#61; reshape&#40;Q, mha.head_dim, mha.num_heads, L, batch&#41;
+    K &#61; reshape&#40;K, mha.head_dim, mha.num_heads, L, batch&#41;
+    V &#61; reshape&#40;V, mha.head_dim, mha.num_heads, L, batch&#41;
+    
+    # Scaled dot-product attention
+    # scores: &#40;L, L, num_heads, batch&#41;
+    scores &#61; batched_mul&#40;permutedims&#40;Q, &#40;3, 1, 2, 4&#41;&#41;, 
+                         permutedims&#40;K, &#40;1, 3, 2, 4&#41;&#41;&#41;
+    scores &#61; scores ./ sqrt&#40;Float32&#40;mha.head_dim&#41;&#41;
+    
+    attn_weights &#61; softmax&#40;scores, dims&#61;1&#41;
+    attn_weights &#61; mha.dropout&#40;attn_weights&#41;
+    
+    # Apply attention to values
+    # output: &#40;head_dim, L, num_heads, batch&#41;
+    output &#61; batched_mul&#40;permutedims&#40;V, &#40;1, 3, 2, 4&#41;&#41;, 
+                         permutedims&#40;attn_weights, &#40;2, 1, 3, 4&#41;&#41;&#41;
+    
+    # Concatenate heads and project
+    output &#61; reshape&#40;output, d_model, L, batch&#41;
+    output &#61; mha.W_o&#40;output&#41;
+    
+    return output
+end</code></pre>
+<p>Here&#39;s where the magic happens. We compute attention scores between all positions in the sequence &#40;how much each amino acid should &quot;attend to&quot; every other amino acid&#41;, then use those scores to create a weighted combination of the values. The division by sqrt&#40;head_dim&#41; prevents the dot products from getting too large, which would make gradients unstable.</p>
+<p><strong>Note on permutedims - the math:</strong> We want to compute attention scores as Q·Kᵀ for each head in each batch. Starting with:</p>
+<ul>
+<li><p>Q has shape &#40;head<em>dim, num</em>heads, L, batch&#41;</p>
+</li>
+<li><p>K has shape &#40;head<em>dim, num</em>heads, L, batch&#41;</p>
+</li>
+</ul>
+<p>For the attention computation Q·Kᵀ, we need to compute the dot product between every pair of positions. Mathematically, we want:</p>
+<p>scores&#91;i,j&#93; &#61; Σ_d Q&#91;d,h,i,b&#93; × K&#91;d,h,j,b&#93;</p>
+<p>This gives us an &#40;L×L&#41; matrix where scores&#91;i,j&#93; tells us how much position i attends to position j.</p>
+<p>So we rearrange:</p>
+<ul>
+<li><p><code>permutedims&#40;Q, &#40;3,1,2,4&#41;&#41;</code> → &#40;L, head<em>dim, num</em>heads, batch&#41;</p>
+</li>
+<li><p><code>permutedims&#40;K, &#40;1,3,2,4&#41;&#41;</code> → &#40;head<em>dim, L, num</em>heads, batch&#41;</p>
+</li>
+</ul>
+<p>Now <code>batched_mul</code> gives us &#40;L, L, num<em>heads, batch&#41;, where for each head and batch, we have an L×L attention matrix. The permutations essentially set up the matrix multiply so the head</em>dim gets contracted &#40;summed over&#41;, leaving us with position-to-position scores.</p>
+<p><strong>Good news:</strong> <code>permutedims</code> is fully differentiable and Flux-compatible - gradients flow through it just fine during backpropagation&#33;</p>
+<hr />
+<h2 id="feed-forward_network"><a href="#feed-forward_network" class="header-anchor">Feed-Forward Network</a></h2>
+<pre><code class="language-julia">function FeedForward&#40;d_model::Int, d_ff::Int; dropout&#61;0.1&#41;
+    Chain&#40;
+        Dense&#40;d_model, d_ff, gelu&#41;,
+        Dropout&#40;dropout&#41;,
+        Dense&#40;d_ff, d_model&#41;
+    &#41;
+end</code></pre>
+<p>This is a simple two-layer MLP that processes each position independently. It expands the representation to a higher dimension &#40;d_ff&#41;, applies a non-linearity, then projects back down. Think of it as giving the model more capacity to transform the representations after attention has mixed information between positions.</p>
+<hr />
+<h2 id="transformer_block_structure"><a href="#transformer_block_structure" class="header-anchor">Transformer Block Structure</a></h2>
+<pre><code class="language-julia">struct TransformerBlock
+    attention::MultiHeadAttention
+    norm1::LayerNorm
+    ffn::Chain
+    norm2::LayerNorm
+    dropout::Dropout
+end
+
+Flux.@layer TransformerBlock
+
+function TransformerBlock&#40;d_model::Int, num_heads::Int, d_ff::Int; dropout&#61;0.1&#41;
+    TransformerBlock&#40;
+        MultiHeadAttention&#40;d_model, num_heads, dropout&#61;dropout&#41;,
+        LayerNorm&#40;d_model&#41;,
+        FeedForward&#40;d_model, d_ff, dropout&#61;dropout&#41;,
+        LayerNorm&#40;d_model&#41;,
+        Dropout&#40;dropout&#41;
+    &#41;
+end</code></pre>
+<p>A transformer block packages everything together: attention, feed-forward network, layer norms, and dropout. This is the basic repeating unit we&#39;ll stack multiple times. Each block has two sub-layers &#40;attention and FFN&#41; with their own normalization.</p>
+<hr />
+<h2 id="transformer_block_forward_pass"><a href="#transformer_block_forward_pass" class="header-anchor">Transformer Block Forward Pass</a></h2>
+<pre><code class="language-julia">function &#40;block::TransformerBlock&#41;&#40;x&#41;
+    # x: &#40;d_model, L, batch&#41;
+    
+    # Self-attention with residual
+    attn_out &#61; block.attention&#40;x&#41;
+    x &#61; x .&#43; block.dropout&#40;attn_out&#41;
+    x &#61; block.norm1&#40;x&#41;
+    
+    # Feed-forward with residual
+    ffn_out &#61; block.ffn&#40;x&#41;
+    x &#61; x .&#43; block.dropout&#40;ffn_out&#41;
+    x &#61; block.norm2&#40;x&#41;
+    
+    return x
+end</code></pre>
+<p>The residual connections &#40;adding the input back to the output&#41; are crucial - they let gradients flow directly through the network and make deep transformers trainable. We use &quot;post-norm&quot; architecture here where normalization happens after the residual addition, which tends to be more stable.</p>
+<hr />
+<h2 id="full_model_structure"><a href="#full_model_structure" class="header-anchor">Full Model Structure</a></h2>
+<pre><code class="language-julia">struct ProteinTransformer
+    embedding::Dense
+    pos_encoding::Array&#123;Float32, 2&#125;
+    encoder_blocks::Vector&#123;TransformerBlock&#125;
+    pool::Symbol  # :mean or :cls
+    head::Chain
+end
+
+Flux.@layer ProteinTransformer &#40;embedding, encoder_blocks, head&#41;
+
+function ProteinTransformer&#40;;
+    vocab_size&#61;20,
+    max_len&#61;512,
+    d_model&#61;128,
+    num_heads&#61;8,
+    d_ff&#61;512,
+    num_layers&#61;6,
+    dropout&#61;0.1,
+    pool&#61;:mean
+&#41;
+    # Embedding layer
+    embedding &#61; Dense&#40;vocab_size, d_model&#41;
+    
+    # Positional encoding &#40;fixed sinusoidal&#41;
+    pos_encoding &#61; make_positional_encoding&#40;max_len, d_model&#41;
+    
+    # Stack of transformer blocks
+    encoder_blocks &#61; &#91;TransformerBlock&#40;d_model, num_heads, d_ff, dropout&#61;dropout&#41; 
+                      for _ in 1:num_layers&#93;
+    
+    # Prediction head
+    head &#61; Chain&#40;
+        Dense&#40;d_model, d_model ÷ 2, relu&#41;,
+        Dropout&#40;dropout&#41;,
+        Dense&#40;d_model ÷ 2, 1&#41;
+    &#41;
+    
+    ProteinTransformer&#40;embedding, pos_encoding, encoder_blocks, pool, head&#41;
+end</code></pre>
+<p>This ties everything together. We start with an embedding to project our 20-dimensional one-hot vectors into a richer representation space. The positional encodings are fixed &#40;not learned&#41;, giving the model information about where each amino acid is in the sequence. Then we stack our transformer blocks and add a simple prediction head at the end to output a scalar.</p>
+<p><strong>Hyperparameter guide:</strong></p>
+<ul>
+<li><p><code>vocab_size&#61;20</code>: The 20 standard amino acids &#40;A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y&#41;</p>
+</li>
+<li><p><code>max_len&#61;512</code>: Maximum sequence length we can handle - proteins are typically 100-500 residues, so 512 gives headroom</p>
+</li>
+<li><p><code>d_model&#61;128</code>: The internal representation dimension - bigger captures more complex patterns but needs more data. 128-256 is typical for proteins</p>
+</li>
+<li><p><code>num_heads&#61;8</code>: Number of parallel attention mechanisms - each head can learn different types of relationships &#40;hydrophobic contacts, secondary structure, etc.&#41;</p>
+</li>
+<li><p><code>d_ff&#61;512</code>: Feed-forward hidden dimension - usually 2-4× the d_model. Gives the model capacity to transform representations</p>
+</li>
+<li><p><code>num_layers&#61;6</code>: Depth of the network - see the layer count note below</p>
+</li>
+<li><p><code>dropout&#61;0.1</code>: Regularization to prevent overfitting - randomly zeros 10&#37; of activations during training</p>
+</li>
+</ul>
+<p><strong>Note on layer count:</strong> How many layers should you use? It really depends on your data and task complexity. For protein sequences:</p>
+<ul>
+<li><p><strong>2-4 layers</strong>: Good starting point for smaller datasets or simpler tasks &#40;like predicting secondary structure&#41;</p>
+</li>
+<li><p><strong>6-8 layers</strong>: Sweet spot for most protein property prediction tasks with moderate datasets</p>
+</li>
+<li><p><strong>12&#43; layers</strong>: Only if you have lots of data &#40;100k&#43; sequences&#41; and computational resources - diminishing returns kick in</p>
+</li>
+</ul>
+<p>Start with 4-6 layers and monitor validation performance. More layers ≠ better if you&#39;re overfitting or running out of data diversity.</p>
+<hr />
+<h2 id="positional_encoding"><a href="#positional_encoding" class="header-anchor">Positional Encoding</a></h2>
+<pre><code class="language-julia">function make_positional_encoding&#40;max_len::Int, d_model::Int&#41;
+    pe &#61; zeros&#40;Float32, d_model, max_len&#41;
+    position &#61; Float32.&#40;0:max_len-1&#41;
+    
+    for i in 1:2:d_model
+        div_term &#61; exp&#40;&#40;i-1&#41; * -log&#40;10000.0f0&#41; / d_model&#41;
+        pe&#91;i, :&#93; &#61; sin.&#40;position .* div_term&#41;
+        if i &#43; 1 &lt;&#61; d_model
+            pe&#91;i&#43;1, :&#93; &#61; cos.&#40;position .* div_term&#41;
+        end
+    end
+    
+    return pe
+end</code></pre>
+<p>Transformers have no built-in notion of sequence order, so we add these sinusoidal patterns to give each position a unique signature. The alternating sin/cos waves at different frequencies create a smooth encoding where nearby positions have similar representations. It&#39;s like giving each position in your protein sequence a unique coordinate in representation space.</p>
+<hr />
+<h2 id="model_forward_pass"><a href="#model_forward_pass" class="header-anchor">Model Forward Pass</a></h2>
+<pre><code class="language-julia">function &#40;model::ProteinTransformer&#41;&#40;x&#41;
+    # x: &#40;20, L, batch&#41; - one-hot encoded amino acids
+    
+    # Embed
+    x &#61; model.embedding&#40;x&#41;  # &#40;d_model, L, batch&#41;
+    
+    # Add positional encoding
+    _, L, batch &#61; size&#40;x&#41;
+    pos_enc &#61; model.pos_encoding&#91;:, 1:L&#93;
+    x &#61; x .&#43; reshape&#40;pos_enc, size&#40;pos_enc, 1&#41;, size&#40;pos_enc, 2&#41;, 1&#41;
+    
+    # Pass through transformer blocks
+    for block in model.encoder_blocks
+        x &#61; block&#40;x&#41;
+    end
+    
+    # Pool sequence dimension
+    if model.pool &#61;&#61; :mean
+        x &#61; mean&#40;x, dims&#61;2&#41;  # &#40;d_model, 1, batch&#41;
+    else  # :cls token &#40;use first position&#41;
+        x &#61; x&#91;:, 1:1, :&#93;
+    end
+    
+    x &#61; dropdims&#40;x, dims&#61;2&#41;  # &#40;d_model, batch&#41;
+    
+    # Prediction head
+    x &#61; model.head&#40;x&#41;  # &#40;1, batch&#41;
+    
+    return dropdims&#40;x, dims&#61;1&#41;  # &#40;batch,&#41;
+end</code></pre>
+<p>The full forward pass: embed the amino acids, add positional information, run through all transformer layers, pool the sequence down to a single vector &#40;using mean pooling to aggregate information from all positions&#41;, and finally predict a scalar. Each sequence of any length gets compressed into a single prediction.</p>
+<hr />
+<h2 id="example_usage"><a href="#example_usage" class="header-anchor">Example Usage</a></h2>
+<pre><code class="language-julia"># Create the model
+model &#61; ProteinTransformer&#40;
+    vocab_size&#61;20,
+    max_len&#61;512,
+    d_model&#61;128,
+    num_heads&#61;8,
+    d_ff&#61;512,
+    num_layers&#61;6,
+    dropout&#61;0.1,
+    pool&#61;:mean
+&#41;
+
+# Example input: batch of 4 sequences, each length 50
+x &#61; Flux.onehotbatch&#40;rand&#40;1:20, 50, 4&#41;, 1:20&#41;  # &#40;20, 50, 4&#41;
+y &#61; model&#40;x&#41;  # &#40;4,&#41; - scalar output for each sequence
+
+# Training setup
+loss&#40;x, y_true&#41; &#61; Flux.mse&#40;model&#40;x&#41;, y_true&#41;
+opt &#61; Adam&#40;1e-4&#41;</code></pre>
+<p>Here&#39;s how you&#39;d actually use it. Create a model with your desired architecture, feed it batches of one-hot encoded sequences, and it spits out scalar predictions. The loss function here is mean squared error, which works great for regression tasks like predicting protein stability or binding affinity.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 07, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
