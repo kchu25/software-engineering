@@ -1,7 +1,6 @@
 @def title = "Julia DataFrames: Techniques & Ninja Tricks"
 @def published = "7 October 2025"
 @def tags = ["julia", "dataframe]
-
 # Julia DataFrames: Techniques & Ninja Tricks
 
 ## Installation
@@ -35,6 +34,58 @@ df = DataFrame(matrix, :auto)
 
 # Or with custom column names
 df = DataFrame(matrix, ["col1", "col2", "col3"])
+```
+
+### Method 2b: Horizontal Concatenation of Multiple Matrices (Space-Efficient!)
+
+```julia
+# Multiple matrices with same number of rows
+mat1 = [1 2; 3 4; 5 6]        # 3x2
+mat2 = [7 8 9; 10 11 12; 13 14 15]  # 3x3
+mat3 = [16; 17; 18]            # 3x1
+
+# Option 1: Use hcat to concatenate, then create DataFrame
+combined_matrix = hcat(mat1, mat2, mat3)
+df = DataFrame(combined_matrix, :auto)
+
+# Option 2: Create DataFrame from each matrix, then hcat DataFrames
+df = hcat(
+    DataFrame(mat1, [:A, :B]),
+    DataFrame(mat2, [:C, :D, :E]),
+    DataFrame(mat3, [:F])
+)
+
+# Option 3: Most efficient - build DataFrame column by column from matrix columns
+df = DataFrame()
+for (i, col) in enumerate(eachcol(mat1))
+    df[!, Symbol("mat1_col$i")] = col
+end
+for (i, col) in enumerate(eachcol(mat2))
+    df[!, Symbol("mat2_col$i")] = col
+end
+df[!, :mat3_col1] = mat3[:]
+
+# Option 4: Using Tables.jl interface (very efficient, no copying!)
+using Tables
+mat1 = [1 2; 3 4; 5 6]
+mat2 = [7 8; 9 10; 11 12]
+
+# Create a NamedTuple of columns (views, not copies!)
+columns = (
+    mat1_col1 = @view(mat1[:, 1]),
+    mat1_col2 = @view(mat1[:, 2]),
+    mat2_col1 = @view(mat2[:, 1]),
+    mat2_col2 = @view(mat2[:, 2])
+)
+df = DataFrame(columns)  # This copies the views into the DataFrame
+
+# Option 5: Most flexible - specify columns with custom names
+df = DataFrame(
+    feature1 = mat1[:, 1],
+    feature2 = mat1[:, 2],
+    feature3 = mat2[:, 1],
+    target = mat3[:]
+)
 ```
 
 ### Method 3: From a Dictionary
