@@ -1,4 +1,4 @@
-@def title = " Hidden Julia Tricks: The Uncommonly Known"
+@def title = "Hidden Julia Tricks: The Uncommonly Known"
 @def published = "7 October 2025"
 @def tags = ["julia"]
 
