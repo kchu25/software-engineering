@@ -4,5 +4,5 @@
 <h1>Tags</h1>
 ~~~
 
-- [measure-theory](tag/measure-theory)
+- [plotting](tag/plotting)
 

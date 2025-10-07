@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Understanding Plot Recipes in Julia Plots.jl</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="understanding_plot_recipes_in_julia_plotsjl"><a href="#understanding_plot_recipes_in_julia_plotsjl" class="header-anchor">Understanding Plot Recipes in Julia Plots.jl</a></h1>
+<h2 id="whats_a_plot_recipe_eli5_version"><a href="#whats_a_plot_recipe_eli5_version" class="header-anchor">What&#39;s a Plot Recipe? &#40;ELI5 Version&#41;</a></h2>
+<p>Imagine you want to teach your robot how to draw different things. Instead of telling it &quot;move pencil here, then there&quot; every single time, you give it a <strong>recipe</strong> - like a cooking recipe but for drawing&#33;</p>
+<p>A plot recipe says: &quot;When someone gives you THIS type of data, automatically turn it into THAT type of plot.&quot;</p>
+<h2 id="the_magic_behind_the_macros"><a href="#the_magic_behind_the_macros" class="header-anchor">The Magic Behind the Macros</a></h2>
+<p>Plots.jl uses macros &#40;the <code>@</code> symbols&#41; to generate a LOT of boring code for you. Let&#39;s unwrap what&#39;s actually happening.</p>
+<h3 id="example_1_the_simplest_recipe"><a href="#example_1_the_simplest_recipe" class="header-anchor">Example 1: The Simplest Recipe</a></h3>
+<pre><code class="language-julia">using Plots
+
+# This is what you write:
+@recipe function f&#40;::Type&#123;Val&#123;:myline&#125;&#125;, x, y, z&#41;
+    linewidth --&gt; 3
+    seriescolor --&gt; :blue
+    seriestype :&#61; :path
+    x, y
+end
+
+# What this ACTUALLY does behind the scenes:
+# 1. Creates a new plot type called :myline
+# 2. When someone uses plot&#40;x, y, seriestype&#61;:myline&#41;...
+# 3. Set linewidth to 3 &#40;if user didn&#39;t specify&#41;
+# 4. Set color to blue &#40;if user didn&#39;t specify&#41;
+# 5. Actually draw it as a :path &#40;line&#41;
+# 6. Return the x, y data to plot</code></pre>
+<p><strong>Key operators:</strong></p>
+<ul>
+<li><p><code>--&gt;</code> means &quot;use this DEFAULT if user didn&#39;t specify&quot;</p>
+</li>
+<li><p><code>:&#61;</code> means &quot;FORCE this value, ignore what user said&quot;</p>
+</li>
+<li><p><code>x, y</code> at the end &#61; &quot;here&#39;s the data to actually plot&quot;</p>
+</li>
+</ul>
+<h3 id="example_2_a_custom_type_recipe"><a href="#example_2_a_custom_type_recipe" class="header-anchor">Example 2: A Custom Type Recipe</a></h3>
+<p>Let&#39;s say you have a custom data type:</p>
+<pre><code class="language-julia"># Your custom data structure
+struct Histogram
+    edges::Vector&#123;Float64&#125;
+    counts::Vector&#123;Int&#125;
+end
+
+# Recipe tells Plots how to visualize it
+@recipe function f&#40;h::Histogram&#41;
+    # Set some defaults
+    seriestype :&#61; :bar
+    fillcolor --&gt; :lightblue
+    legend --&gt; false
+    
+    # Return x and y data
+    h.edges&#91;1:end-1&#93;, h.counts
+end
+
+# Now you can just do:
+my_hist &#61; Histogram&#40;&#91;0, 1, 2, 3&#93;, &#91;5, 3, 8&#93;&#41;
+plot&#40;my_hist&#41;  # Automatically knows how to draw it&#33;</code></pre>
+<p><strong>What happened:</strong></p>
+<ol>
+<li><p>You created a <code>Histogram</code> type</p>
+</li>
+<li><p>The recipe tells Plots: &quot;When you see a Histogram, draw it as bars&quot;</p>
+</li>
+<li><p>No need to manually extract edges and counts every time&#33;</p>
+</li>
+</ol>
+<h3 id="example_3_user_recipe_plot_layout"><a href="#example_3_user_recipe_plot_layout" class="header-anchor">Example 3: User Recipe &#40;Plot Layout&#41;</a></h3>
+<pre><code class="language-julia">@userplot CirclePlot
+
+@recipe function f&#40;cp::CirclePlot&#41;
+    # Extract the data &#40;CirclePlot wraps it in cp.args&#41;
+    x, y, radius &#61; cp.args
+    
+    # Create the circle points
+    θ &#61; range&#40;0, 2π, length&#61;100&#41;
+    circle_x &#61; x .&#43; radius .* cos.&#40;θ&#41;
+    circle_y &#61; y .&#43; radius .* sin.&#40;θ&#41;
+    
+    # Style it
+    aspect_ratio :&#61; :equal
+    seriestype :&#61; :path
+    linewidth --&gt; 2
+    
+    # Return the circle coordinates
+    circle_x, circle_y
+end
+
+# Usage:
+circleplot&#40;0, 0, 5&#41;  # Draws a circle at origin with radius 5</code></pre>
+<p><strong>What <code>@userplot</code> does:</strong></p>
+<ol>
+<li><p>Creates a function <code>circleplot&#40;args...&#41;</code></p>
+</li>
+<li><p>Wraps your arguments into <code>CirclePlot&#40;args&#41;</code></p>
+</li>
+<li><p>Passes it to your recipe</p>
+</li>
+<li><p>Your recipe processes it and returns plot data</p>
+</li>
+</ol>
+<h2 id="the_three_types_of_recipes"><a href="#the_three_types_of_recipes" class="header-anchor">The Three Types of Recipes</a></h2>
+<h3 id="type_recipes_-_convert_custom_types_to_plot_data"><a href="#type_recipes_-_convert_custom_types_to_plot_data" class="header-anchor"><ol>
+<li><p><strong>Type Recipes</strong> - Convert custom types to plot data</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">@recipe function f&#40;my_custom_type::MyType&#41;
+    # Extract x, y from your type
+    # Return: x_data, y_data
+end</code></pre>
+<h3 id="ol_start2_user_recipes_-_create_new_plot_commands"><a href="#ol_start2_user_recipes_-_create_new_plot_commands" class="header-anchor"><ol start="2">
+<li><p><strong>User Recipes</strong> - Create new plot commands</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">@userplot MyPlot
+@recipe function f&#40;mp::MyPlot&#41;
+    # Process mp.args
+    # Return: x_data, y_data
+end
+# Creates: myplot&#40;args...&#41; function</code></pre>
+<h3 id="ol_start3_series_recipes_-_create_new_plot_types"><a href="#ol_start3_series_recipes_-_create_new_plot_types" class="header-anchor"><ol start="3">
+<li><p><strong>Series Recipes</strong> - Create new plot types</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">@recipe function f&#40;::Type&#123;Val&#123;:mytype&#125;&#125;, x, y, z&#41;
+    # Transform data
+    # Return: x_data, y_data
+end
+# Use with: plot&#40;x, y, seriestype&#61;:mytype&#41;</code></pre>
+<h2 id="real_world_example_error_bars"><a href="#real_world_example_error_bars" class="header-anchor">Real World Example: Error Bars</a></h2>
+<pre><code class="language-julia">@userplot ErrorPlot
+
+@recipe function f&#40;ep::ErrorPlot&#41;
+    x, y, yerr &#61; ep.args
+    
+    # Main points
+    @series begin
+        seriestype :&#61; :scatter
+        markersize --&gt; 6
+        label --&gt; &quot;Data&quot;
+        x, y
+    end
+    
+    # Error bars
+    @series begin
+        seriestype :&#61; :path
+        linecolor --&gt; :black
+        label :&#61; &quot;&quot;
+        
+        # Create vertical lines for errors
+        xerr &#61; vec&#40;vcat&#40;x&#39;, x&#39;, fill&#40;NaN, 1, length&#40;x&#41;&#41;&#41;&#41;
+        yerr_plot &#61; vec&#40;vcat&#40;&#40;y .- yerr&#41;&#39;, &#40;y .&#43; yerr&#41;&#39;, fill&#40;NaN, 1, length&#40;x&#41;&#41;&#41;&#41;
+        xerr, yerr_plot
+    end
+end
+
+# Usage:
+errorplot&#40;&#91;1, 2, 3&#93;, &#91;2, 4, 3&#93;, &#91;0.5, 0.3, 0.7&#93;&#41;</code></pre>
+<p><strong>What <code>@series</code> does:</strong></p>
+<ul>
+<li><p>Lets you create MULTIPLE plot series in one recipe</p>
+</li>
+<li><p>Each <code>@series begin...end</code> block &#61; one thing drawn on the plot</p>
+</li>
+</ul>
+<h2 id="the_pattern_summarized"><a href="#the_pattern_summarized" class="header-anchor">The Pattern Summarized</a></h2>
+<ol>
+<li><p><strong>Define what triggers the recipe</strong> &#40;a type, a Val type, or @userplot&#41;</p>
+</li>
+<li><p><strong>Extract/process the data</strong> </p>
+</li>
+<li><p><strong>Set defaults with <code>--&gt;</code></strong> &#40;user can override&#41;</p>
+</li>
+<li><p><strong>Force settings with <code>:&#61;</code></strong> &#40;user cannot override&#41;</p>
+</li>
+<li><p><strong>Return x, y data</strong> to actually plot</p>
+</li>
+<li><p><strong>Use <code>@series</code></strong> if you need to draw multiple things</p>
+</li>
+</ol>
+<h2 id="why_is_the_function_always_called_f"><a href="#why_is_the_function_always_called_f" class="header-anchor">Why is the function always called <code>f</code>?</a></h2>
+<p><strong>YES, it&#39;s multiple dispatch&#33;</strong> The function name <code>f</code> is just a placeholder - the macro doesn&#39;t care what you call it. What matters is the <strong>type signature</strong>.</p>
+<pre><code class="language-julia"># These are ALL different functions due to multiple dispatch:
+
+@recipe function f&#40;::Type&#123;Val&#123;:myline&#125;&#125;, x, y, z&#41;
+    # Dispatch on Val&#123;:myline&#125;
+end
+
+@recipe function f&#40;h::Histogram&#41;
+    # Dispatch on Histogram type
+end
+
+@recipe function f&#40;cp::CirclePlot&#41;
+    # Dispatch on CirclePlot type
+end
+
+# Julia sees these as:
+# - f&#40;::Type&#123;Val&#123;:myline&#125;&#125;, ...&#41;
+# - f&#40;::Histogram&#41;
+# - f&#40;::CirclePlot&#41;
+# They&#39;re DIFFERENT functions&#33;</code></pre>
+<p><strong>The macro transforms your <code>f</code> into something like:</strong></p>
+<pre><code class="language-julia"># What you write:
+@recipe function f&#40;h::Histogram&#41;
+    # ... recipe code ...
+end
+
+# What the macro generates &#40;simplified&#41;:
+RecipesBase.apply_recipe&#40;plotattributes::Dict, h::Histogram&#41; &#61; begin
+    # ... your recipe code inserted here ...
+end</code></pre>
+<p>So <code>f</code> is just a <strong>temporary name during the macro</strong>. The macro:</p>
+<ol>
+<li><p>Looks at your function signature</p>
+</li>
+<li><p>Extracts the type information</p>
+</li>
+<li><p>Generates the real function name &#40;<code>apply_recipe</code>&#41;</p>
+</li>
+<li><p>Uses <strong>multiple dispatch</strong> on the type to route to your code</p>
+</li>
+</ol>
+<p><strong>You could call it <code>plot_me</code> or <code>banana</code> - doesn&#39;t matter:</strong></p>
+<pre><code class="language-julia">@recipe function banana&#40;h::Histogram&#41;  # Works fine&#33;
+    seriestype :&#61; :bar
+    h.edges&#91;1:end-1&#93;, h.counts
+end</code></pre>
+<p>The convention is <code>f</code> because:</p>
+<ul>
+<li><p>It&#39;s short</p>
+</li>
+<li><p>Everyone uses it &#40;convention&#41;</p>
+</li>
+<li><p>The name gets thrown away anyway</p>
+</li>
+</ul>
+<p><strong>The real magic is the type signature</strong>, which tells Julia &quot;when you see a Histogram, call THIS version of the recipe function.&quot;</p>
+<h2 id="why_macros"><a href="#why_macros" class="header-anchor">Why Macros?</a></h2>
+<p>The macros generate code that:</p>
+<ul>
+<li><p>Registers your recipe with Plots.jl</p>
+</li>
+<li><p>Handles argument passing</p>
+</li>
+<li><p>Manages attribute inheritance</p>
+</li>
+<li><p>Creates helper functions</p>
+</li>
+<li><p>Transforms your <code>f&#40;type_signature&#41;</code> into <code>apply_recipe&#40;::Dict, type_signature&#41;</code></p>
+</li>
+</ul>
+<p>Without macros, you&#39;d need to write ~50 lines of boilerplate for each recipe. With macros, you write 5-10 lines&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 07, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
