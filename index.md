@@ -6,5 +6,6 @@
 
 - [plotting](tag/plotting)
 - [julia](tag/julia)
+- [dataframe](tag/dataframe)
 - [neural-nets](tag/neural-nets)
 
