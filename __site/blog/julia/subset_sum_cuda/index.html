@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>GPU Subset Sum Sampling: Mathematical Explanation</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="gpu_subset_sum_sampling_mathematical_explanation"><a href="#gpu_subset_sum_sampling_mathematical_explanation" class="header-anchor">GPU Subset Sum Sampling: Mathematical Explanation</a></h1>
+<h2 id="overview"><a href="#overview" class="header-anchor">Overview</a></h2>
+<p>This Julia code implements a GPU-accelerated algorithm to sample subset sums from multiple vectors in parallel. It uses CUDA to efficiently compute sums of random subsets using bitmask representations.</p>
+<h2 id="problem_statement"><a href="#problem_statement" class="header-anchor">Problem Statement</a></h2>
+<p><strong>Input:</strong> A collection of \(M\) vectors \(\mathbf{v}_1, \mathbf{v}_2, \ldots, \mathbf{v}_M\) where vector \(\mathbf{v}_i \in \mathbb{R}^{n_i}\) has length \(n_i\).</p>
+<p><strong>Goal:</strong> For each vector \(\mathbf{v}_i\), approximate the set of all possible subset sums:</p>
+\[S_i = \left\{ \sum_{j \in S} v_{i,j} : S \subseteq \{1, 2, \ldots, n_i\} \right\}\]
+<p>Since \(|S_i| \leq 2^{n_i}\), computing all subset sums becomes intractable for large \(n_i\). Instead, we <strong>sample</strong> up to \(k\) random subsets per vector.</p>
+<hr />
+<h2 id="algorithm_components"><a href="#algorithm_components" class="header-anchor">Algorithm Components</a></h2>
+<h3 id="vector_padding"><a href="#vector_padding" class="header-anchor"><ol>
+<li><p>Vector Padding</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Mathematical Operation:</strong> Given vectors with lengths \(n_1, n_2, \ldots, n_M\), create matrix \(\mathbf{V} \in \mathbb{R}^{n_{\max} \times M}\) where \(n_{\max} = \max_i n_i\):</p>
+\[V_{j,i} = \begin{cases} 
+v_{i,j} & \text{if } j \leq n_i \\
+0 & \text{if } j > n_i
+\end{cases}\]
+<p>This enables <strong>column-major memory access</strong> which is optimal for GPU operations.</p>
+<p><strong>Code:</strong></p>
+<pre><code class="language-julia">function prepare_padded_vectors&#40;vectors::Vector&#123;Vector&#123;T&#125;&#125;&#41; where T
+    max_len &#61; maximum&#40;length.&#40;vectors&#41;&#41;
+    M &#61; length&#40;vectors&#41;
+    lengths &#61; Int32.&#40;length.&#40;vectors&#41;&#41;
+    
+    padded_matrix &#61; zeros&#40;T, max_len, M&#41;
+    for &#40;i, vec&#41; in enumerate&#40;vectors&#41;
+        padded_matrix&#91;1:length&#40;vec&#41;, i&#93; .&#61; vec
+    end
+    
+    return padded_matrix, lengths
+end</code></pre>
+<hr />
+<h3 id="ol_start2_random_mask_generation"><a href="#ol_start2_random_mask_generation" class="header-anchor"><ol start="2">
+<li><p>Random Mask Generation</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Mathematical Operation:</strong> Each subset \(S \subseteq \{1, 2, \ldots, n_i\}\) is encoded as an integer \(m \in \{0, 1, \ldots, 2^{n_i} - 1\}\) where:</p>
+\[j \in S \iff \text{bit}_{j-1}(m) = 1\]
+<p><strong>Example:</strong> For vector \([a, b, c]\) with \(n=3\):</p>
+<ul>
+<li><p>Mask \(m = 5 = (101)_2\) represents subset \(\{a, c\}\) &#40;bits 0 and 2 are set&#41;</p>
+</li>
+<li><p>Mask \(m = 3 = (011)_2\) represents subset \(\{a, b\}\) &#40;bits 0 and 1 are set&#41;</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>💡 Why Use Integer Masks Instead of Binary Matrices?</strong></p>
+<p>You might wonder: why encode subsets as integers rather than storing explicit binary matrices?</p>
+<p><strong>Memory Efficiency:</strong></p>
+<ul>
+<li><p><strong>Integer mask:</strong> 1 Int32 &#40;4 bytes&#41; per subset</p>
+</li>
+<li><p><strong>Binary matrix:</strong> \(n\) bytes per subset &#40;one boolean per element&#41;</p>
+</li>
+</ul>
+<p>For a vector of length \(n=20\), storing 1000 subsets:</p>
+<ul>
+<li><p>Masks: \(1000 \times 4 = 4\) KB</p>
+</li>
+<li><p>Binary matrix: \(1000 \times 20 = 20\) KB &#40;5× larger&#41;</p>
+</li>
+</ul>
+<p><strong>Computational Efficiency:</strong></p>
+<ul>
+<li><p><strong>Bit operations</strong> &#40;<code>&gt;&gt;</code>, <code>&amp;</code>&#41; are extremely fast &#40;single CPU cycles&#41;</p>
+</li>
+<li><p><strong>On-the-fly extraction:</strong> We decode which elements to include during computation, avoiding separate memory lookups</p>
+</li>
+<li><p><strong>Cache friendly:</strong> Compact representation means more masks fit in GPU cache</p>
+</li>
+</ul>
+<p><strong>Sampling Efficiency:</strong></p>
+<ul>
+<li><p>Generating random integers in range \([0, 2^n-1]\) is trivial</p>
+</li>
+<li><p>No need to construct and store explicit binary arrays</p>
+</li>
+<li><p>Easy to ensure uniqueness: just sample integers without replacement</p>
+</li>
+</ul>
+<p>The mask encoding is essentially a <strong>compressed representation</strong> that&#39;s both space-efficient and computation-friendly&#33;</p>
+</blockquote>
+<p><strong>Sampling Strategy:</strong> For each vector \(i\), sample \(k_i = \min(2^{n_i}, k)\) unique masks <strong>without replacement</strong>, where \(k\) is <code>num_samples_per_vec</code>.</p>
+<p><strong>Code:</strong></p>
+<pre><code class="language-julia">function generate_random_masks&#40;lengths::Vector&#123;Int32&#125;, num_samples_per_vec::Int&#41;
+    M &#61; length&#40;lengths&#41;
+    
+    # Calculate actual sample counts &#40;capped by 2^n&#41;
+    masks_needed &#61; &#91;min&#40;2^n, num_samples_per_vec&#41; for n in lengths&#93;
+    total_samples &#61; sum&#40;masks_needed&#41;
+    
+    # Allocate flat arrays to hold all masks and their corresponding vector IDs
+    masks &#61; zeros&#40;Int32, total_samples&#41;
+    vec_ids &#61; zeros&#40;Int32, total_samples&#41;
+    
+    # Fill arrays: for each vector, generate its random masks
+    current_position &#61; 1
+    for vec_id in 1:M
+        vec_length &#61; lengths&#91;vec_id&#93;
+        num_masks_for_this_vec &#61; masks_needed&#91;vec_id&#93;
+        
+        start_idx &#61; current_position
+        end_idx &#61; current_position &#43; num_masks_for_this_vec - 1
+        
+        # Generate random masks &#40;0 to 2^vec_length - 1&#41;
+        # Sample WITHOUT replacement to ensure unique subsets
+        total_possible_subsets &#61; 2^vec_length
+        if num_masks_for_this_vec &gt;&#61; total_possible_subsets
+            masks&#91;start_idx:end_idx&#93; &#61; 0:&#40;total_possible_subsets - 1&#41;
+        else
+            all_possible &#61; collect&#40;0:&#40;total_possible_subsets - 1&#41;&#41;
+            sampled &#61; shuffle&#40;all_possible&#41;&#91;1:num_masks_for_this_vec&#93;
+            masks&#91;start_idx:end_idx&#93; &#61; sampled
+        end
+        
+        vec_ids&#91;start_idx:end_idx&#93; .&#61; vec_id
+        current_position &#61; end_idx &#43; 1
+    end
+    
+    return masks, vec_ids, masks_needed
+end</code></pre>
+<hr />
+<h3 id="ol_start3_gpu_kernel_computation"><a href="#ol_start3_gpu_kernel_computation" class="header-anchor"><ol start="3">
+<li><p>GPU Kernel Computation</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Mathematical Operation:</strong> Given mask \(m\) for vector \(\mathbf{v}_i\) of length \(n_i\), compute:</p>
+\[\text{sum}(m) = \sum_{j=1}^{n_i} v_{i,j} \cdot \mathbb{1}_{j \in S(m)}\]
+<p>where \(S(m) = \{j : (m \gg (j-1)) \& 1 = 1\}\) and \(\mathbb{1}_{\cdot}\) is the indicator function.</p>
+<p><strong>Bit Extraction:</strong> For position \(j\), we check: <code>&#40;mask &gt;&gt; &#40;j-1&#41;&#41; &amp; 1 &#61;&#61; 1</code></p>
+<blockquote>
+<p><strong>📘 Detailed Bit Extraction Explanation</strong></p>
+<p>Let&#39;s break down the operation <code>&#40;mask &gt;&gt; &#40;i-1&#41;&#41; &amp; 1 &#61;&#61; 1</code> step by step:</p>
+<p><strong>Example:</strong> Suppose <code>mask &#61; 5</code> and we want to check positions 1, 2, and 3.</p>
+<p>Binary representation: <code>5 &#61; &#40;101&#41;₂</code></p>
+<p><strong>Position 1 &#40;i&#61;1&#41;:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; mask &gt;&gt; &#40;1-1&#41; &#61; 5 &gt;&gt; 0 &#61; 5 &#61; &#40;101&#41;₂
+&gt; &#40;101&#41;₂ &amp; 1 &#61; &#40;101&#41;₂ &amp; &#40;001&#41;₂ &#61; &#40;001&#41;₂ &#61; 1 ✓ &#40;bit 0 is SET&#41;
+&gt;</code></pre>
+<blockquote>
+<p><strong>Position 2 &#40;i&#61;2&#41;:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; mask &gt;&gt; &#40;2-1&#41; &#61; 5 &gt;&gt; 1 &#61; 2 &#61; &#40;010&#41;₂
+&gt; &#40;010&#41;₂ &amp; 1 &#61; &#40;010&#41;₂ &amp; &#40;001&#41;₂ &#61; &#40;000&#41;₂ &#61; 0 ✗ &#40;bit 1 is NOT set&#41;
+&gt;</code></pre>
+<blockquote>
+<p><strong>Position 3 &#40;i&#61;3&#41;:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; mask &gt;&gt; &#40;3-1&#41; &#61; 5 &gt;&gt; 2 &#61; 1 &#61; &#40;001&#41;₂
+&gt; &#40;001&#41;₂ &amp; 1 &#61; &#40;001&#41;₂ &amp; &#40;001&#41;₂ &#61; &#40;001&#41;₂ &#61; 1 ✓ &#40;bit 2 is SET&#41;
+&gt;</code></pre>
+<blockquote>
+<p><strong>Result:</strong> Mask 5 selects positions &#123;1, 3&#125;, which corresponds to subset \(\{v_1, v_3\}\).</p>
+<p><strong>Why this works:</strong></p>
+<ul>
+<li><p><strong>Right shift <code>&gt;&gt;</code> &#40;i-1&#41;:</strong> Moves bit &#40;i-1&#41; to the rightmost position</p>
+<blockquote>
+<p><strong>🔍 Understanding Right Shift</strong></p>
+<p>The right shift operator <code>&gt;&gt;</code> moves all bits to the right by a specified number of positions.</p>
+<p><strong>Example with mask &#61; 5 &#61; &#40;101&#41;₂:</strong></p>
+</blockquote>
+</li>
+</ul>
+</blockquote>
+<pre><code class="language-julia">&gt;   &gt; Original:        1 0 1
+&gt;   &gt; Bit positions:   2 1 0
+&gt;   &gt; 
+&gt;   &gt; Shift right 0:   1 0 1  &#40;no change&#41;
+&gt;   &gt; Shift right 1:   0 1 0  &#40;each bit moves right 1 position&#41;
+&gt;   &gt; Shift right 2:   0 0 1  &#40;each bit moves right 2 positions&#41;
+&gt;   &gt;</code></pre>
+<blockquote>
+<blockquote>
+<p><strong>Why shift by &#40;i-1&#41;?</strong></p>
+<ul>
+<li><p>We want to check bit at position &#40;i-1&#41; in the mask</p>
+</li>
+<li><p>After shifting right by &#40;i-1&#41;, that bit is now at position 0 &#40;rightmost&#41;</p>
+</li>
+<li><p>Then <code>&amp; 1</code> extracts just that rightmost bit</p>
+</li>
+</ul>
+<p><strong>Concrete example checking position 2 &#40;i&#61;2&#41;:</strong></p>
+</blockquote>
+</blockquote>
+<pre><code class="language-julia">&gt;   &gt; mask &#61; 5 &#61; &#40;101&#41;₂     &#91;bit 1 is at position 1, currently 0&#93;
+&gt;   &gt; mask &gt;&gt; 1 &#61; &#40;010&#41;₂    &#91;bit 1 is now at position 0&#93;
+&gt;   &gt; &#40;010&#41;₂ &amp; 1 &#61; 0        &#91;extract rightmost bit → 0, so exclude position 2&#93;
+&gt;   &gt;</code></pre>
+<blockquote>
+<blockquote>
+<p>It&#39;s like sliding the bits right until the one we care about is in the &quot;inspection window&quot; at position 0&#33;</p>
+</blockquote>
+<ul>
+<li><p><strong>Bitwise AND with 1:</strong> Extracts only the rightmost bit &#40;masks all other bits to 0&#41;</p>
+</li>
+<li><p><strong>Check <code>&#61;&#61; 1</code>:</strong> Tests if that bit is set</p>
+</li>
+</ul>
+<p><strong>Visual representation for mask &#61; 5 &#61; &#40;101&#41;₂:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; Original:     1 0 1
+&gt;              ↑ ↑ ↑
+&gt; Position:    3 2 1
+&gt;
+&gt; Checking position 1: Look at bit 0 → 1 &#40;included&#41;
+&gt; Checking position 2: Look at bit 1 → 0 &#40;excluded&#41;
+&gt; Checking position 3: Look at bit 2 → 1 &#40;included&#41;
+&gt;</code></pre>
+<p><strong>Parallelization:</strong> Each GPU thread handles one mask independently, enabling massive parallelism.</p>
+<blockquote>
+<p><strong>⚡ Efficiency Analysis: When is Bitmask Approach Optimal?</strong></p>
+<p>The bitmask approach is efficient on GPUs because bitwise operations are extremely fast, but there&#39;s a tradeoff with the loop over vector elements.</p>
+<p><strong>Cost per subset sum:</strong></p>
+<ul>
+<li><p>\(n\) right shifts: <code>mask &gt;&gt; &#40;i-1&#41;</code> for each element</p>
+</li>
+<li><p>\(n\) bitwise ANDs: <code>... &amp; 1</code> for each element  </p>
+</li>
+<li><p>\(n\) conditionals and additions: <code>if ... then s &#43;&#61; vecs&#91;i, vec_id&#93;</code></p>
+</li>
+</ul>
+<p><strong>Alternative approach:</strong> Pre-materialize all subsets as binary matrices</p>
+<ul>
+<li><p>Cost: \(O(1)\) memory lookups per element &#40;no bit operations&#41;</p>
+</li>
+<li><p>Memory: \(O(k \cdot n)\) for \(k\) subsets of length \(n\)</p>
+</li>
+</ul>
+<p><strong>Efficiency threshold estimation:</strong></p>
+<p>Bitwise operations on modern GPUs are typically <strong>1-2 cycles</strong>, while memory access can be <strong>hundreds of cycles</strong> &#40;even with caching&#41;. The bitmask approach wins when:</p>
+<p>\(\text{Cost}_{\text{bitwise}} < \text{Cost}_{\text{memory}}\) \(n \cdot (2\text{-}4 \text{ cycles}) < k \cdot n \cdot \text{(memory access penalty)}\)</p>
+<p><strong>Practical upper bound for vector length \(n\):</strong></p>
+<ul>
+<li><p><strong>Sweet spot:</strong> \(n \leq 30\text{-}32\) &#40;fits in Int32, very efficient&#41;</p>
+</li>
+<li><p><strong>Still efficient:</strong> \(n \leq 50\text{-}64\) &#40;bitwise ops still faster than memory overhead&#41;</p>
+</li>
+<li><p><strong>Diminishing returns:</strong> \(n > 100\) &#40;might consider pre-materialization if memory allows&#41;</p>
+</li>
+</ul>
+<p><strong>Why this code is well-designed:</strong></p>
+<ul>
+<li><p>For typical subset sum problems, vectors have \(n \approx 10\text{-}30\) elements</p>
+</li>
+<li><p>At \(n=20\): Each thread does 20 shifts &#43; 20 ANDs &#61; <strong>40 fast ops</strong> vs storing/loading 20 bytes</p>
+</li>
+<li><p>The loop is <strong>fully unrolled</strong> by the compiler for small \(n\), eliminating loop overhead</p>
+</li>
+<li><p><strong>No thread divergence:</strong> All threads execute the same number of iterations</p>
+</li>
+</ul>
+<p><strong>Key insight:</strong> Bitmasks trade a small amount of computation &#40;cheap bitwise ops&#41; for massive memory savings and better cache utilization. On GPUs with thousands of threads, keeping data compact is often more important than minimizing arithmetic operations&#33;</p>
+</blockquote>
+<p><strong>Code:</strong></p>
+<pre><code class="language-julia">function subset_sum_kernel&#33;&#40;sums, vecs, masks, vec_ids, lengths&#41;
+    idx &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    if idx &lt;&#61; length&#40;masks&#41;
+        vec_id &#61; vec_ids&#91;idx&#93;
+        mask &#61; masks&#91;idx&#93;
+        n &#61; lengths&#91;vec_id&#93;
+        
+        # Compute subset sum using bit mask
+        s &#61; zero&#40;eltype&#40;vecs&#41;&#41;
+        for i in 1:n
+            if &#40;mask &gt;&gt; &#40;i-1&#41;&#41; &amp; 1 &#61;&#61; 1
+                s &#43;&#61; vecs&#91;i, vec_id&#93;
+            end
+        end
+        sums&#91;idx&#93; &#61; s
+    end
+    
+    return nothing
+end</code></pre>
+<hr />
+<h3 id="ol_start4_result_processing"><a href="#ol_start4_result_processing" class="header-anchor"><ol start="4">
+<li><p>Result Processing</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Mathematical Operation:</strong> Given flattened sums array of length \(\sum_i k_i\), partition into \(M\) vectors and apply uniqueness:</p>
+\(\text{result}_i = \text{unique}\left(\left\{\text{sum}(m) : m \in \text{masks}_i\right\}\right)\)
+<blockquote>
+<p><strong>🤔 Why Apply <code>unique&#40;&#41;</code> if We Sample Without Replacement?</strong></p>
+<p>Great observation&#33; We do sample masks without replacement, so why do we still need <code>unique&#40;&#41;</code>?</p>
+<p><strong>The key insight:</strong> Different subsets can have the <strong>same sum</strong>&#33;</p>
+<p><strong>Example:</strong> Consider vector \([1, 2, 3]\)</p>
+<ul>
+<li><p>Mask \(3 = (011)_2\) → Subset \(\{1, 2\}\) → Sum &#61; \(3\)</p>
+</li>
+<li><p>Mask \(4 = (100)_2\) → Subset \(\{3\}\) → Sum &#61; \(3\)</p>
+</li>
+</ul>
+<p>Both masks are different &#40;sampled without replacement&#41;, but they produce the <strong>same subset sum</strong>&#33;</p>
+<p><strong>What sampling without replacement guarantees:</strong></p>
+<ul>
+<li><p>All masks are distinct integers</p>
+</li>
+<li><p>No duplicate subsets in our sample</p>
+</li>
+</ul>
+<p><strong>What it doesn&#39;t guarantee:</strong></p>
+<ul>
+<li><p>Distinct sums &#40;different subsets can sum to the same value&#41;</p>
+</li>
+</ul>
+<p><strong>In the subset sum problem:</strong> We care about the set of <strong>possible sums</strong>, not the subsets themselves. So we need <code>unique&#40;&#41;</code> to:</p>
+<ol>
+<li><p>Remove duplicate sum values</p>
+</li>
+<li><p>Give us the actual set \(S_i\) of achievable sums</p>
+</li>
+</ol>
+<p><strong>Practical impact:</strong> </p>
+<ul>
+<li><p>For <strong>&quot;nice&quot; vectors</strong> &#40;distinct, random values&#41;: Collisions are rare&#33; For small \(n\), you might see 95-99&#37;&#43; of sums being unique. The probability of duplicate sums grows as you sample more subsets, but remains relatively low.</p>
+</li>
+<li><p>For <strong>structured vectors</strong> &#40;e.g., powers of 2 like \([1, 2, 4, 8]\)&#41;: Every subset has a unique sum &#40;by design&#41;</p>
+</li>
+<li><p>For <strong>vectors with repeated values</strong> &#40;e.g., \([1, 1, 2, 3]\)&#41;: Collisions become much more common—potentially 30-50&#37; duplicates</p>
+</li>
+<li><p>For <strong>special cases</strong> &#40;e.g., many small integers, arithmetic sequences&#41;: Moderate collision rates</p>
+</li>
+</ul>
+<p>The <code>unique&#40;&#41;</code> call is cheap insurance—it&#39;s \(O(k \log k)\) or \(O(k)\) with hashing, negligible compared to the GPU computation cost&#33;</p>
+</blockquote>
+<p><strong>Code:</strong></p>
+<pre><code class="language-julia">function split_results&#40;sums::Vector&#123;T&#125;, masks_needed::Vector&#123;Int&#125;&#41; where T
+    M &#61; length&#40;masks_needed&#41;
+    results &#61; Vector&#123;Vector&#123;T&#125;&#125;&#40;undef, M&#41;
+    
+    offset &#61; 1
+    for &#40;i, n_samples&#41; in enumerate&#40;masks_needed&#41;
+        range &#61; offset:&#40;offset &#43; n_samples - 1&#41;
+        results&#91;i&#93; &#61; unique&#40;sums&#91;range&#93;&#41;
+        offset &#43;&#61; n_samples
+    end
+    
+    return results
+end</code></pre>
+<hr />
+<h3 id="ol_start5_main_pipeline"><a href="#ol_start5_main_pipeline" class="header-anchor"><ol start="5">
+<li><p>Main Pipeline</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Mathematical Operation:</strong> For \(M\) input vectors \(\mathbf{v}_1, \mathbf{v}_2, \ldots, \mathbf{v}_M\) with lengths \(n_1, n_2, \ldots, n_M\), compute approximations to the subset sum sets where we sample at most \(\min(2^{n_i}, k)\) elements from each \(S_i\).</p>
+<p><strong>Computational Complexity:</strong> \(O\left(\sum_{i=1}^{M} k_i \cdot n_i\right)\) where \(k_i = \min(2^{n_i}, k)\)</p>
+<p><strong>Code:</strong></p>
+<pre><code class="language-julia">function sample_subset_sums_batch_gpu&#40;
+    vectors::Vector&#123;Vector&#123;T&#125;&#125;, 
+    num_samples_per_vec::Int
+&#41; where T
+    # 1. Prepare data
+    padded_vecs, lengths &#61; prepare_padded_vectors&#40;vectors&#41;
+    masks, vec_ids, masks_needed &#61; generate_random_masks&#40;lengths, num_samples_per_vec&#41;
+    
+    # 2. Move to GPU
+    d_vecs &#61; CuArray&#40;padded_vecs&#41;
+    d_lengths &#61; CuArray&#40;lengths&#41;
+    d_masks &#61; CuArray&#40;masks&#41;
+    d_vec_ids &#61; CuArray&#40;vec_ids&#41;
+    d_sums &#61; CUDA.zeros&#40;T, length&#40;masks&#41;&#41;
+    
+    # 3. Launch kernel
+    threads &#61; 256
+    blocks &#61; cld&#40;length&#40;masks&#41;, threads&#41;
+    @cuda threads&#61;threads blocks&#61;blocks subset_sum_kernel&#33;&#40;
+        d_sums, d_vecs, d_masks, d_vec_ids, d_lengths
+    &#41;
+    
+    # 4. Process results
+    sums_cpu &#61; Array&#40;d_sums&#41;
+    results &#61; split_results&#40;sums_cpu, masks_needed&#41;
+    
+    return results
+end</code></pre>
+<hr />
+<h2 id="complete_example"><a href="#complete_example" class="header-anchor">Complete Example</a></h2>
+<p>For vectors <code>&#91;&#91;1.0, 2.0, 3.0&#93;, &#91;4.0, 5.0&#93;&#93;</code> with <code>k &#61; 8</code>:</p>
+<p><strong>Vector 1</strong> &#40;\(n_1 = 3\)&#41;: All \(2^3 = 8\) subsets sampled</p>
+<ul>
+<li><p>Masks: 0, 1, 2, 3, 4, 5, 6, 7</p>
+</li>
+<li><p>Subsets: &#123;&#125;, &#123;1.0&#125;, &#123;2.0&#125;, &#123;1.0,2.0&#125;, &#123;3.0&#125;, &#123;1.0,3.0&#125;, &#123;2.0,3.0&#125;, &#123;1.0,2.0,3.0&#125;</p>
+</li>
+<li><p>Sums: 0.0, 1.0, 2.0, 3.0, 3.0, 4.0, 5.0, 6.0</p>
+</li>
+<li><p>Unique: &#123;0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0&#125;</p>
+</li>
+</ul>
+<p><strong>Vector 2</strong> &#40;\(n_2 = 2\)&#41;: All \(2^2 = 4\) subsets sampled</p>
+<ul>
+<li><p>Masks: 0, 1, 2, 3</p>
+</li>
+<li><p>Subsets: &#123;&#125;, &#123;4.0&#125;, &#123;5.0&#125;, &#123;4.0,5.0&#125;</p>
+</li>
+<li><p>Sums: 0.0, 4.0, 5.0, 9.0</p>
+</li>
+<li><p>Unique: &#123;0.0, 4.0, 5.0, 9.0&#125;</p>
+</li>
+</ul>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-julia">vectors &#61; &#91;&#91;1.0, 2.0, 3.0&#93;, &#91;4.0, 5.0&#93;, &#91;6.0, 7.0, 8.0, 9.0&#93;&#93;
+results &#61; sample_subset_sums_batch_gpu&#40;vectors, 1000&#41;
+
+# Ground truth for vector 1: &#91;1.0, 2.0, 3.0&#93;
+# All 2^3 &#61; 8 possible subsets and their sums:
+# &#123;&#125; → 0.0
+# &#123;1.0&#125; → 1.0
+# &#123;2.0&#125; → 2.0
+# &#123;3.0&#125; → 3.0
+# &#123;1.0, 2.0&#125; → 3.0 &#40;duplicate&#33;&#41;
+# &#123;1.0, 3.0&#125; → 4.0
+# &#123;2.0, 3.0&#125; → 5.0
+# &#123;1.0, 2.0, 3.0&#125; → 6.0
+# Unique sums: &#123;0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0&#125; &#40;7 values&#41;
+
+println&#40;&quot;Subset sums for each vector:&quot;&#41;
+for &#40;i, sums&#41; in enumerate&#40;results&#41;
+    println&#40;&quot;Vector &#36;i: &#36;&#40;length&#40;sums&#41;&#41; unique sums&quot;&#41;
+end</code></pre>
+<hr />
+<h2 id="key_implementation_details"><a href="#key_implementation_details" class="header-anchor">Key Implementation Details</a></h2>
+<ol>
+<li><p><strong>Memory Coalescing:</strong> Column-major storage ensures adjacent threads access contiguous memory</p>
+</li>
+<li><p><strong>No Branching in Kernel:</strong> Bitmask operations avoid expensive conditional logic</p>
+<blockquote>
+<p><strong>🔀 Why Avoid Conditionals on GPUs?</strong></p>
+<p>Wait—doesn&#39;t the kernel have <code>if &#40;mask &gt;&gt; &#40;i-1&#41;&#41; &amp; 1 &#61;&#61; 1</code>? That&#39;s a conditional&#33;</p>
+<p><strong>The crucial distinction:</strong></p>
+<ul>
+<li><p><strong>This conditional is uniform:</strong> All threads checking the same position \(i\) make the same decision &#40;branch or not&#41; since they&#39;re iterating through the same loop</p>
+</li>
+<li><p><strong>Thread divergence</strong> occurs when threads in the same warp take different execution paths</p>
+</li>
+</ul>
+<p><strong>What we avoid:</strong> Dynamic branching based on data values that differ across threads. For example:</p>
+</blockquote>
+</li>
+</ol>
+<pre><code class="language-julia">&gt; # BAD: Causes divergence
+   &gt; if vec_id &#61;&#61; 1
+   &gt;     # do computation A
+   &gt; else
+   &gt;     # do computation B  
+   &gt; end
+   &gt;</code></pre>
+<blockquote>
+<p><strong>What we have:</strong> Structured loops where all threads execute the same instructions</p>
+</blockquote>
+<pre><code class="language-julia">&gt; # GOOD: No divergence
+   &gt; for i in 1:n
+   &gt;     if &#40;mask &gt;&gt; &#40;i-1&#41;&#41; &amp; 1 &#61;&#61; 1  # All threads check same bit position
+   &gt;         s &#43;&#61; vecs&#91;i, vec_id&#93;      # Some add, some don&#39;t, but no divergence
+   &gt;     end
+   &gt; end
+   &gt;</code></pre>
+<blockquote>
+<p><strong>GPU architecture context:</strong></p>
+<ul>
+<li><p>GPUs execute threads in groups called <strong>warps</strong> &#40;typically 32 threads&#41;</p>
+</li>
+<li><p>All threads in a warp execute the <strong>same instruction</strong> simultaneously &#40;SIMT&#41;</p>
+</li>
+<li><p>When threads diverge, the GPU must execute both paths serially, disabling threads that don&#39;t match</p>
+</li>
+</ul>
+<p><strong>Why bitmasks help:</strong></p>
+<ul>
+<li><p>The alternative would be storing explicit subset selections in memory</p>
+</li>
+<li><p>Different threads would load different subset patterns → potential divergence</p>
+</li>
+<li><p>Bitmask computation is <strong>uniform across iterations</strong> even if results differ</p>
+</li>
+</ul>
+<p><strong>Performance impact:</strong></p>
+<ul>
+<li><p>No divergence: ~1-2 cycles per instruction</p>
+</li>
+<li><p>Divergent branch: 2× the instructions &#40;both paths executed serially&#41;</p>
+</li>
+<li><p>Our loop: Compiles to predicated instructions &#40;conditional moves&#41;, avoiding true branches&#33;</p>
+</li>
+</ul>
+</blockquote>
+<ol start="3">
+<li><p><strong>Sampling Without Replacement:</strong> Uses shuffle to ensure unique subsets</p>
+</li>
+<li><p><strong>Thread Configuration:</strong> 256 threads per block balances occupancy and resource usage</p>
+</li>
+<li><p><strong>Type Genericity:</strong> Works with any numeric type <code>T</code> &#40;Float32, Float64, Int, etc.&#41;</p>
+</li>
+<li><p><strong>GPU Advantage:</strong> The \(k_i\) subset sum computations happen in parallel, dramatically reducing wall-clock time compared to sequential CPU execution</p>
+</li>
+</ol>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 15, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
