@@ -8,4 +8,5 @@
 - [julia](tag/julia)
 - [dataframe](tag/dataframe)
 - [neural-nets](tag/neural-nets)
+- [gpu-programming](tag/gpu-programming)
 

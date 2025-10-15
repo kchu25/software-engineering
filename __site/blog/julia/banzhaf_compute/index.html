@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>GPU Memory Management for batched processing tasks</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="gpu_memory_management_-_the_simple_version"><a href="#gpu_memory_management_-_the_simple_version" class="header-anchor">GPU Memory Management - The Simple Version</a></h1>
+<h2 id="the_core_problem"><a href="#the_core_problem" class="header-anchor">The Core Problem</a></h2>
+<p>Your GPU is super fast but has limited memory. If you try to process too much data at once, it crashes with an &quot;Out Of Memory&quot; &#40;OOM&#41; error. This code solves that problem automatically.</p>
+<hr />
+<h2 id="the_main_idea_smart_batching"><a href="#the_main_idea_smart_batching" class="header-anchor">The Main Idea: Smart Batching</a></h2>
+<p>Instead of processing everything at once, split your work into <strong>batches</strong> &#40;chunks&#41;. The code figures out the optimal batch size by:</p>
+<ol>
+<li><p><strong>Checking how much GPU memory is free</strong></p>
+</li>
+<li><p><strong>Looking at your data</strong> &#40;how big are the vectors?&#41;</p>
+</li>
+<li><p><strong>Doing some math</strong> to calculate: &quot;How many vectors can I safely fit?&quot;</p>
+</li>
+</ol>
+<p>If it guesses wrong and runs out of memory anyway, it <strong>automatically cuts the batch size in half and tries again</strong>.</p>
+<hr />
+<h2 id="three_key_strategies"><a href="#three_key_strategies" class="header-anchor">Three Key Strategies</a></h2>
+<h3 id="prevention"><a href="#prevention" class="header-anchor"><ol>
+<li><p><strong>Prevention</strong> </p>
+</li>
+</ol>
+</a></h3>
+<p>Estimate the right batch size <em>before</em> starting, so you hopefully never run out of memory</p>
+<h3 id="ol_start2_recovery"><a href="#ol_start2_recovery" class="header-anchor"><ol start="2">
+<li><p><strong>Recovery</strong></p>
+</li>
+</ol>
+</a></h3>
+<p>If you do run out of memory, catch the error, reduce batch size, and retry &#40;instead of crashing&#41;</p>
+<h3 id="ol_start3_adaptation"><a href="#ol_start3_adaptation" class="header-anchor"><ol start="3">
+<li><p><strong>Adaptation</strong></p>
+</li>
+</ol>
+</a></h3>
+<p>If everything&#39;s going smoothly, <em>increase</em> the batch size to work faster</p>
+<hr />
+<h2 id="special_feature_streaming_data"><a href="#special_feature_streaming_data" class="header-anchor">Special Feature: Streaming Data</a></h2>
+<p>For datasets too big to load into RAM, the code can process a <strong>generator</strong> &#40;data stream&#41;:</p>
+<ul>
+<li><p>Takes samples to understand what&#39;s coming</p>
+</li>
+<li><p>Processes data as it arrives in batches</p>
+</li>
+<li><p>Never loads the entire dataset at once</p>
+</li>
+</ul>
+<p>Think of it like washing dishes as they come in, rather than waiting for the whole stack.</p>
+<hr />
+<h2 id="the_recovery_chain"><a href="#the_recovery_chain" class="header-anchor">The Recovery Chain</a></h2>
+<p>When something goes wrong, there are <strong>multiple safety nets</strong>:</p>
+<pre><code class="language-julia">Try full batch
+  ↓ &#40;OOM error&#41;
+Cut batch in half, try again
+  ↓ &#40;still OOM&#41;
+Cut in half again
+  ↓ &#40;still OOM&#41;
+Process one item at a time
+  ↓ &#40;still failing?&#41;
+Give up and report error</code></pre>
+<p>It&#39;s like trying to fit through a door with a big box - if it doesn&#39;t fit, try a smaller box&#33;</p>
+<hr />
+<h2 id="debug_helpers"><a href="#debug_helpers" class="header-anchor">Debug Helpers</a></h2>
+<p>The code also includes utilities to:</p>
+<ul>
+<li><p>Print GPU memory status &#40;how much is used/free&#41;</p>
+</li>
+<li><p>Monitor memory changes during execution</p>
+</li>
+<li><p>Force cleanup of old data</p>
+</li>
+<li><p>Validate that your input data makes sense</p>
+</li>
+</ul>
+<p>These are like dashboard gauges showing you what&#39;s happening under the hood.</p>
+<hr />
+<h2 id="bottom_line"><a href="#bottom_line" class="header-anchor">Bottom Line</a></h2>
+<p><strong>You just call the function with your data, and it handles all the complexity:</strong></p>
+<ul>
+<li><p>Figures out optimal batch sizes</p>
+</li>
+<li><p>Recovers from memory errors</p>
+</li>
+<li><p>Adapts to your specific hardware</p>
+</li>
+<li><p>Works with streaming data</p>
+</li>
+<li><p>Shows you what&#39;s happening</p>
+</li>
+</ul>
+<p><strong>No manual tuning required</strong> - it&#39;s designed to &quot;just work&quot; regardless of your GPU size or data characteristics.</p>
+<hr />
+<h2 id="the_two_functions_you_actually_use"><a href="#the_two_functions_you_actually_use" class="header-anchor">The Two Functions You Actually Use</a></h2>
+<p><strong>For regular data &#40;already loaded&#41;:</strong></p>
+<pre><code class="language-julia">results &#61; process_in_batches&#40;my_function, vectors, targets&#41;</code></pre>
+<p><strong>For streaming data &#40;generator&#41;:</strong></p>
+<pre><code class="language-julia"># Same function&#33; It detects generators automatically
+results &#61; process_in_batches&#40;my_function, vector_generator, targets&#41;</code></pre>
+<p>Everything else in the code is infrastructure that runs behind the scenes to make these two calls bulletproof.</p>
+<hr />
+<h1 id="gpu_memory_management_-_now_lets_get_started"><a href="#gpu_memory_management_-_now_lets_get_started" class="header-anchor">GPU Memory Management –- now let&#39;s get started</a></h1>
+<p>This code handles the tricky problem of running calculations on a GPU without running out of memory. Think of it like managing a very fast but limited workspace - you need to be smart about what you put on it and when.</p>
+<hr />
+<h2 id="safe_memory_allocation"><a href="#safe_memory_allocation" class="header-anchor">Safe Memory Allocation</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Safe GPU computation with memory management
+&quot;&quot;&quot;
+function safe_gpu_alloc&#40;f::Function, arrays...&#41;
+    # Just call the function and let Julia&#39;s GC handle cleanup
+    # Manual unsafe_free&#33; can cause race conditions
+    result &#61; f&#40;arrays...&#41;
+    
+    # Optionally trigger GC to free up memory sooner
+    # But don&#39;t force unsafe_free&#33; which can cause freed reference errors
+    CUDA.reclaim&#40;&#41;
+    
+    return result
+end</code></pre>
+<p>This is a wrapper that runs your GPU function and then politely asks the GPU to clean up any memory it&#39;s not using anymore. It&#39;s like doing your work and then tidying up your desk - you don&#39;t want old stuff cluttering up the workspace.</p>
+<hr />
+<h2 id="smart_batch_processing"><a href="#smart_batch_processing" class="header-anchor">Smart Batch Processing</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Enhanced batch processing with generator support and memory-aware sizing
+&quot;&quot;&quot;
+function process_in_batches&#40;f::Function, vectors, target_vals; batch_size&#61;nothing, kwargs...&#41;
+    
+    # Check if vectors is a generator or iterator
+    if &#33;isa&#40;vectors, AbstractVector&#41;
+        # Handle generators without materializing
+        println&#40;&quot;🔄 Processing generator/iterator without materialization&quot;&#41;
+        return process_generator_in_batches&#40;f, vectors, target_vals; batch_size&#61;batch_size, kwargs...&#41;
+    end
+    
+    # Handle regular vectors &#40;already materialized&#41;
+    num_vectors &#61; length&#40;vectors&#41;
+    
+    if batch_size &#61;&#61;&#61; nothing
+        # Auto-calculate batch size based on memory analysis
+        batch_size &#61; estimate_optimal_batch_size&#40;vectors, kwargs&#41;
+    end
+    
+    if batch_size &gt;&#61; num_vectors
+        # No batching needed - try single batch first
+        try
+            return f&#40;vectors, target_vals; kwargs...&#41;
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41;
+                @warn &quot;OOM in single batch, forcing batching with size &#36;&#40;num_vectors÷2&#41;&quot;
+                batch_size &#61; max&#40;1, num_vectors ÷ 2&#41;
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    # Process in batches with adaptive sizing
+    results &#61; Vector&#123;Float32&#125;&#40;undef, num_vectors&#41;
+    
+    return process_batches_with_recovery&#40;f, vectors, target_vals, results, batch_size; kwargs...&#41;
+end</code></pre>
+<p>The main workhorse function. Instead of trying to process everything at once &#40;which might overflow your GPU&#39;s memory&#41;, this breaks work into manageable chunks. It&#39;s like eating a pizza slice by slice instead of trying to stuff the whole thing in your mouth.</p>
+<p>The clever part? It figures out the optimal batch size automatically by looking at:</p>
+<ul>
+<li><p>How much memory you have available</p>
+</li>
+<li><p>How big your data is</p>
+</li>
+<li><p>Whether you&#39;re dealing with a generator &#40;streaming data&#41; or already-loaded data</p>
+</li>
+</ul>
+<p>If you try to process too much at once and run out of memory, it automatically retries with smaller batches.</p>
+<hr />
+<h2 id="automatic_recovery_from_memory_errors"><a href="#automatic_recovery_from_memory_errors" class="header-anchor">Automatic Recovery from Memory Errors</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Process batches with automatic recovery from OOM errors
+&quot;&quot;&quot;
+function process_batches_with_recovery&#40;f::Function, vectors, target_vals, results, 
+                                     initial_batch_size; kwargs...&#41;
+    num_vectors &#61; length&#40;vectors&#41;
+    batch_size &#61; initial_batch_size
+    processed &#61; 0
+    
+    while processed &lt; num_vectors
+        remaining &#61; num_vectors - processed
+        current_batch_size &#61; min&#40;batch_size, remaining&#41;
+        
+        start_idx &#61; processed &#43; 1
+        end_idx &#61; processed &#43; current_batch_size
+        
+        batch_vectors &#61; vectors&#91;start_idx:end_idx&#93;
+        batch_targets &#61; target_vals&#91;start_idx:end_idx&#93;
+        
+        try
+            # Attempt batch processing
+            batch_results &#61; f&#40;batch_vectors, batch_targets; kwargs...&#41;
+            results&#91;start_idx:end_idx&#93; &#61; batch_results
+            processed &#43;&#61; current_batch_size
+            
+            # Success - try to increase batch size for efficiency
+            if current_batch_size &lt; batch_size &amp;&amp; remaining &gt; current_batch_size
+                batch_size &#61; min&#40;batch_size, Int&#40;ceil&#40;batch_size * 1.2&#41;&#41;&#41;
+            end
+            
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41; &amp;&amp; current_batch_size &gt; 1
+                # OOM - reduce batch size and retry
+                new_batch_size &#61; max&#40;1, current_batch_size ÷ 2&#41;
+                @warn &quot;GPU OOM at batch size &#36;current_batch_size, reducing to &#36;new_batch_size&quot;
+                batch_size &#61; new_batch_size
+                CUDA.reclaim&#40;&#41;  # Force garbage collection
+                continue
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    return results
+end</code></pre>
+<p>This is the safety net. When processing batches, if the GPU runs out of memory &#40;OOM &#61; Out Of Memory&#41;, this function catches the error, cuts the batch size in half, and tries again. It even tries to <em>increase</em> batch size when things are going well, to work more efficiently.</p>
+<hr />
+<h2 id="memory_estimation"><a href="#memory_estimation" class="header-anchor">Memory Estimation</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Estimate optimal batch size based on vector characteristics and available memory
+&quot;&quot;&quot;
+function estimate_optimal_batch_size&#40;vectors, kwargs&#41;
+    num_samples &#61; get&#40;kwargs, :num_samples_per_vec, DEFAULT_SAMPLES_PER_VECTOR&#41;
+    
+    # Analyze vector length distribution
+    lengths &#61; length.&#40;vectors&#41;
+    min_len, max_len &#61; extrema&#40;lengths&#41;
+    avg_len &#61; mean&#40;lengths&#41;
+    std_len &#61; std&#40;lengths&#41;
+    
+    # Memory estimation for different scenarios
+    small_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, min_len&#41;
+    avg_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, Int&#40;ceil&#40;avg_len&#41;&#41;&#41;
+    large_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, max_len&#41;
+    
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    usable_memory &#61; Int&#40;floor&#40;free_mem * MAX_GPU_MEMORY_FRACTION&#41;&#41;
+    
+    # Conservative estimate using worst-case scenario &#40;largest vectors&#41;
+    # but with some optimization for typical case
+    if std_len / avg_len &lt; 0.1  # Low variance in vector lengths
+        target_memory &#61; avg_vec_memory
+    else
+        # High variance - use weighted average biased toward larger vectors
+        target_memory &#61; Int&#40;ceil&#40;0.7 * avg_vec_memory &#43; 0.3 * large_vec_memory&#41;&#41;
+    end
+    
+    batch_size &#61; max&#40;1, min&#40;
+        length&#40;vectors&#41;,
+        Int&#40;floor&#40;usable_memory / target_memory&#41;&#41;,
+        BATCH_PROCESSING_THRESHOLD
+    &#41;&#41;
+    
+    @info &quot;Memory analysis&quot; free_mb&#61;round&#40;free_mem/1e6, digits&#61;2&#41; usable_mb&#61;round&#40;usable_memory/1e6, digits&#61;2&#41; target_mb_per_vec&#61;round&#40;target_memory/1e6, digits&#61;4&#41; estimated_batch_size&#61;batch_size
+    
+    return batch_size
+end</code></pre>
+<p>Before doing any real work, this function does some math to figure out the ideal batch size. It analyzes your vector lengths &#40;shortest, longest, average&#41;, checks how much GPU memory is free, and estimates how much each calculation will need. If vectors are all similar sizes, it&#39;s more aggressive. If they vary wildly, it plays it safe.</p>
+<hr />
+<h2 id="gpu_configuration_helpers"><a href="#gpu_configuration_helpers" class="header-anchor">GPU Configuration Helpers</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Optimal thread/block configuration for given problem size
+&quot;&quot;&quot;
+function get_optimal_launch_config&#40;problem_size::Int, max_threads::Int&#61;DEFAULT_THREADS_PER_BLOCK&#41;
+    threads &#61; min&#40;max_threads, problem_size&#41;
+    blocks &#61; cld&#40;problem_size, threads&#41;
+    return threads, blocks
+end
+
+&quot;&quot;&quot;
+Launch kernel with error handling and timing
+&quot;&quot;&quot;
+function launch_kernel_safe&#40;kernel_func, args...; threads&#61;DEFAULT_THREADS_PER_BLOCK, 
+                           blocks&#61;nothing, name&#61;&quot;kernel&quot;&#41;
+    if blocks &#61;&#61;&#61; nothing
+        problem_size &#61; length&#40;args&#91;1&#93;&#41;  # Assume first arg determines size
+        threads, blocks &#61; get_optimal_launch_config&#40;problem_size, threads&#41;
+    end
+    
+    try
+        @cuda threads&#61;threads blocks&#61;blocks kernel_func&#40;args...&#41;
+        CUDA.synchronize&#40;&#41;
+    catch e
+        @error &quot;Kernel &#36;name failed&quot; exception&#61;e
+        rethrow&#40;e&#41;
+    end
+end</code></pre>
+<p>GPUs work differently than regular CPUs - they run thousands of tiny workers &#40;threads&#41; organized into groups &#40;blocks&#41;. These functions figure out the right number of workers and groups for your specific problem size, and provide safe execution with error handling.</p>
+<hr />
+<h2 id="data_validation"><a href="#data_validation" class="header-anchor">Data Validation</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Validate input data for GPU computation
+&quot;&quot;&quot;
+function validate_inputs&#40;vectors, target_vals&#41;
+    @assert &#33;isempty&#40;vectors&#41; &quot;Input vectors cannot be empty&quot;
+    @assert length&#40;vectors&#41; &#61;&#61; length&#40;target_vals&#41; &quot;Vectors and target values must have same length&quot;
+    
+    # Check for invalid vector lengths
+    for &#40;i, vec&#41; in enumerate&#40;vectors&#41;
+        @assert &#33;isempty&#40;vec&#41; &quot;Vector &#36;i cannot be empty&quot;
+        @assert length&#40;vec&#41; &lt;&#61; MAX_SAFE_VECTOR_LENGTH &quot;Vector &#36;i too long &#40;&#36;&#40;length&#40;vec&#41;&#41; &gt; &#36;MAX_SAFE_VECTOR_LENGTH&#41;&quot;
+    end
+    
+    # Check target values
+    @assert all&#40;isfinite, target_vals&#41; &quot;All target values must be finite&quot;
+end
+
+&quot;&quot;&quot;
+Validate GPU arrays for bounds checking
+&quot;&quot;&quot;
+function validate_gpu_arrays&#40;d_sums, d_vec_ids, target_vals&#41;
+    vec_id_range &#61; extrema&#40;Array&#40;d_vec_ids&#41;&#41;
+    @assert vec_id_range&#91;1&#93; &gt;&#61; 1 &quot;Vector IDs must be &gt;&#61; 1, got &#36;&#40;vec_id_range&#91;1&#93;&#41;&quot;
+    @assert vec_id_range&#91;2&#93; &lt;&#61; length&#40;target_vals&#41; &quot;Vector IDs must be &lt;&#61; &#36;&#40;length&#40;target_vals&#41;&#41;, got &#36;&#40;vec_id_range&#91;2&#93;&#41;&quot;
+end</code></pre>
+<p>Before doing any expensive GPU work, these functions check that your data makes sense: no empty vectors, vectors aren&#39;t absurdly long, you have matching target values, and all numbers are valid &#40;not infinity or NaN&#41;. Catching problems early saves you from mysterious crashes later.</p>
+<hr />
+<h2 id="memory_monitoring_tools"><a href="#memory_monitoring_tools" class="header-anchor">Memory Monitoring Tools</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Print detailed GPU memory information
+&quot;&quot;&quot;
+function print_gpu_memory_info&#40;label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        println&#40;&quot;CUDA not available&quot;&#41;
+        return
+    end
+    
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    used_mem &#61; total_mem - free_mem
+    
+    println&#40;&quot;GPU Memory Info &#36;&#40;label &#33;&#61; &quot;&quot; ? &quot;&#40;&#36;label&#41;&quot; : &quot;&quot;&#41;:&quot;&#41;
+    println&#40;&quot;  Total: &#36;&#40;round&#40;total_mem/1e6, digits&#61;1&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Used:  &#36;&#40;round&#40;used_mem/1e6, digits&#61;1&#41;&#41; MB &#40;&#36;&#40;round&#40;used_mem/total_mem*100, digits&#61;1&#41;&#41;&#37;&#41;&quot;&#41;
+    println&#40;&quot;  Free:  &#36;&#40;round&#40;free_mem/1e6, digits&#61;1&#41;&#41; MB &#40;&#36;&#40;round&#40;free_mem/total_mem*100, digits&#61;1&#41;&#41;&#37;&#41;&quot;&#41;
+end
+
+&quot;&quot;&quot;
+Monitor memory usage during function execution
+&quot;&quot;&quot;
+function with_memory_monitoring&#40;f::Function, label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return f&#40;&#41;
+    end
+    
+    # Initial memory state
+    free_before, total_mem &#61; CUDA.memory_info&#40;&#41;
+    used_before &#61; total_mem - free_before
+    
+    println&#40;&quot;Starting &#36;label&quot;&#41;
+    print_gpu_memory_info&#40;&quot;before&quot;&#41;
+    
+    # Execute function
+    start_time &#61; time&#40;&#41;
+    result &#61; f&#40;&#41;
+    end_time &#61; time&#40;&#41;
+    
+    # Final memory state
+    free_after, _ &#61; CUDA.memory_info&#40;&#41;
+    used_after &#61; total_mem - free_after
+    
+    print_gpu_memory_info&#40;&quot;after&quot;&#41;
+    println&#40;&quot;Memory change: &#36;&#40;round&#40;&#40;used_after - used_before&#41;/1e6, digits&#61;2&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;Execution time: &#36;&#40;round&#40;end_time - start_time, digits&#61;3&#41;&#41; seconds&quot;&#41;
+    
+    return result
+end
+
+&quot;&quot;&quot;
+Force GPU garbage collection and print memory stats
+&quot;&quot;&quot;
+function cleanup_gpu_memory&#40;label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return
+    end
+    
+    print_gpu_memory_info&#40;&quot;before cleanup&quot;&#41;
+    
+    # Force cleanup
+    CUDA.reclaim&#40;&#41;
+    GC.gc&#40;&#41;
+    sleep&#40;0.1&#41;  # Give time for cleanup
+    
+    print_gpu_memory_info&#40;&quot;after cleanup&quot;&#41;
+end
+
+&quot;&quot;&quot;
+Calculate recommended batch size based on current GPU memory state
+&quot;&quot;&quot;
+function get_recommended_batch_size&#40;vectors, num_samples_per_vec::Int&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return length&#40;vectors&#41;
+    end
+    
+    # Current memory state
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    usable_mem &#61; Int&#40;floor&#40;free_mem * MAX_GPU_MEMORY_FRACTION&#41;&#41;
+    
+    # Vector characteristics
+    lengths &#61; length.&#40;vectors&#41;
+    avg_len &#61; mean&#40;lengths&#41;
+    max_len &#61; maximum&#40;lengths&#41;
+    
+    # Conservative estimate using largest vectors
+    memory_per_vector &#61; estimate_memory_usage&#40;1, num_samples_per_vec, max_len&#41;
+    max_vectors &#61; max&#40;1, Int&#40;floor&#40;usable_mem / memory_per_vector&#41;&#41;&#41;
+    
+    recommended_batch_size &#61; min&#40;max_vectors, length&#40;vectors&#41;&#41;
+    
+    println&#40;&quot;Batch size recommendation:&quot;&#41;
+    println&#40;&quot;  Available memory: &#36;&#40;round&#40;usable_mem/1e6, digits&#61;1&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Memory per vector &#40;worst case&#41;: &#36;&#40;round&#40;memory_per_vector/1e6, digits&#61;3&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Max vectors per batch: &#36;max_vectors&quot;&#41;
+    println&#40;&quot;  Recommended batch size: &#36;recommended_batch_size&quot;&#41;
+    
+    return recommended_batch_size
+end</code></pre>
+<p>Debugging tools that show you exactly what&#39;s happening with GPU memory. They print formatted stats &#40;total/used/free memory&#41;, monitor memory changes during execution, force cleanup when needed, and recommend batch sizes. Super helpful when troubleshooting&#33;</p>
+<hr />
+<h2 id="generator_processing_part_1_estimation"><a href="#generator_processing_part_1_estimation" class="header-anchor">Generator Processing &#40;Part 1: Estimation&#41;</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Estimate batch size by sampling from generator without materializing entire dataset
+&quot;&quot;&quot;
+function estimate_batch_size_from_generator&#40;vector_generator, target_vals; 
+                                          num_samples_per_vec::Int &#61; 10000,
+                                          sample_size::Int &#61; 50&#41;
+    
+    # Sample a few vectors to estimate characteristics
+    sample_vectors &#61; Vector&#123;Vector&#123;Float32&#125;&#125;&#40;&#41;
+    count &#61; 0
+    for vec in vector_generator
+        push&#33;&#40;sample_vectors, vec&#41;
+        count &#43;&#61; 1
+        if count &gt;&#61; sample_size
+            break
+        end
+    end
+    
+    if isempty&#40;sample_vectors&#41;
+        error&#40;&quot;Generator appears to be empty&quot;&#41;
+    end
+    
+    # Analyze sample characteristics
+    lengths &#61; length.&#40;sample_vectors&#41;
+    min_len, max_len &#61; extrema&#40;lengths&#41;
+    avg_len &#61; mean&#40;lengths&#41;
+    std_len &#61; std&#40;lengths&#41;
+    
+    # Estimate total count &#40;if target_vals is available&#41;
+    total_count &#61; length&#40;target_vals&#41;
+    
+    # Memory estimation using worst-case scenario
+    target_memory_per_vec &#61; estimate_memory_usage&#40;1, num_samples_per_vec, max_len&#41;
+    
+    free_mem, _ &#61; CUDA.memory_info&#40;&#41;
+    usable_memory &#61; Int&#40;floor&#40;free_mem * MAX_GPU_MEMORY_FRACTION&#41;&#41;
+    
+    batch_size &#61; max&#40;1, min&#40;
+        total_count,
+        Int&#40;floor&#40;usable_memory / target_memory_per_vec&#41;&#41;,
+        BATCH_PROCESSING_THRESHOLD
+    &#41;&#41;
+    
+    println&#40;&quot;🔍 Generator analysis &#40;sampled &#36;count vectors&#41;:&quot;&#41;
+    println&#40;&quot;  Vector lengths: &#36;min_len - &#36;max_len &#40;avg: &#36;&#40;round&#40;avg_len, digits&#61;1&#41;&#41;&#41;&quot;&#41;
+    println&#40;&quot;  Estimated total vectors: &#36;total_count&quot;&#41;
+    println&#40;&quot;  Memory per vector &#40;worst case&#41;: &#36;&#40;round&#40;target_memory_per_vec/1e6, digits&#61;3&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Recommended batch size: &#36;batch_size&quot;&#41;
+    
+    return batch_size, avg_len, max_len
+end</code></pre>
+<hr />
+<h2 id="generator_processing_part_2_batch_processing"><a href="#generator_processing_part_2_batch_processing" class="header-anchor">Generator Processing &#40;Part 2: Batch Processing&#41;</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Process generator in batches without materializing the entire dataset
+&quot;&quot;&quot;
+function process_generator_in_batches&#40;f::Function, vector_generator, target_vals;
+                                    batch_size&#61;nothing, kwargs...&#41;
+    
+    total_vectors &#61; length&#40;target_vals&#41;
+    
+    if batch_size &#61;&#61;&#61; nothing
+        batch_size, _, _ &#61; estimate_batch_size_from_generator&#40;vector_generator, target_vals; 
+                                                           get&#40;kwargs, :num_samples_per_vec, DEFAULT_SAMPLES_PER_VECTOR&#41;&#41;
+    end
+    
+    if batch_size &gt;&#61; total_vectors
+        # Single batch - collect only once
+        println&#40;&quot;📦 Processing all &#36;total_vectors vectors in single batch&quot;&#41;
+        return f&#40;collect&#40;vector_generator&#41;, target_vals; kwargs...&#41;
+    end
+    
+    # Process in batches
+    println&#40;&quot;📦 Processing &#36;total_vectors vectors in batches of size &#36;batch_size&quot;&#41;
+    results &#61; Vector&#123;Float32&#125;&#40;undef, total_vectors&#41;
+    
+    batch_vectors &#61; Vector&#123;Vector&#123;Float32&#125;&#125;&#40;&#41;
+    current_batch_size &#61; 0
+    batch_start_idx &#61; 1
+    batch_count &#61; 0
+    
+    for &#40;idx, vec&#41; in enumerate&#40;vector_generator&#41;
+        push&#33;&#40;batch_vectors, vec&#41;
+        current_batch_size &#43;&#61; 1
+        
+        # Process batch when it&#39;s full or we&#39;ve reached the end
+        if current_batch_size &gt;&#61; batch_size || idx &gt;&#61; total_vectors
+            batch_end_idx &#61; batch_start_idx &#43; current_batch_size - 1
+            batch_range &#61; batch_start_idx:batch_end_idx
+            
+            batch_count &#43;&#61; 1
+            expected_batches &#61; cld&#40;total_vectors, batch_size&#41;
+            
+            println&#40;&quot;  Processing batch &#36;batch_count/&#36;expected_batches: vectors &#36;&#40;batch_start_idx&#41;-&#36;&#40;batch_end_idx&#41;&quot;&#41;
+            
+            try
+                # Process current batch
+                batch_target_vals &#61; @view target_vals&#91;batch_range&#93;
+                batch_results &#61; process_batch_with_recovery&#40;f, batch_vectors, batch_target_vals, 
+                                                          current_batch_size; kwargs...&#41;
+                
+                results&#91;batch_range&#93; &#61; batch_results
+                
+                println&#40;&quot;    ✅ Batch &#36;batch_count completed successfully&quot;&#41;
+                
+            catch e
+                println&#40;&quot;    ❌ Batch &#36;batch_count failed: &#36;e&quot;&#41;
+                rethrow&#40;e&#41;
+            end
+            
+            # Reset for next batch
+            empty&#33;&#40;batch_vectors&#41;
+            current_batch_size &#61; 0
+            batch_start_idx &#61; batch_end_idx &#43; 1
+            
+            # Optional memory cleanup between batches
+            CUDA.reclaim&#40;&#41;
+        end
+        
+        # Progress update
+        if idx &#37; max&#40;1, total_vectors ÷ 20&#41; &#61;&#61; 0  # Update every 5&#37;
+            progress &#61; round&#40;idx / total_vectors * 100, digits&#61;1&#41;
+            println&#40;&quot;    Progress: &#36;progress&#37; &#40;&#36;idx/&#36;total_vectors vectors&#41;&quot;&#41;
+        end
+    end
+    
+    return results
+end</code></pre>
+<hr />
+<h2 id="recursive_batch_recovery"><a href="#recursive_batch_recovery" class="header-anchor">Recursive Batch Recovery</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Process a single batch with automatic size reduction on OOM
+&quot;&quot;&quot;
+function process_batch_with_recovery&#40;f::Function, batch_vectors, batch_target_vals, 
+                                   original_batch_size; max_retries::Int &#61; 3, kwargs...&#41;
+    
+    current_vectors &#61; batch_vectors
+    current_targets &#61; batch_target_vals
+    retry_count &#61; 0
+    
+    while retry_count &lt;&#61; max_retries
+        try
+            return f&#40;current_vectors, current_targets; kwargs...&#41;
+            
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41; &amp;&amp; retry_count &lt; max_retries
+                retry_count &#43;&#61; 1
+                
+                # Reduce batch size by half
+                new_size &#61; max&#40;1, length&#40;current_vectors&#41; ÷ 2&#41;
+                println&#40;&quot;      🔄 OOM detected, reducing batch size to &#36;new_size &#40;attempt &#36;retry_count&#41;&quot;&#41;
+                
+                if new_size &lt; length&#40;current_vectors&#41;
+                    # Split the batch and process recursively
+                    mid_point &#61; new_size
+                    
+                    # Process first half
+                    first_half_vectors &#61; current_vectors&#91;1:mid_point&#93;
+                    first_half_targets &#61; current_targets&#91;1:mid_point&#93;
+                    first_results &#61; process_batch_with_recovery&#40;f, first_half_vectors, first_half_targets,
+                                                              mid_point; max_retries&#61;max_retries-retry_count, kwargs...&#41;
+                    
+                    # Process second half
+                    second_half_vectors &#61; current_vectors&#91;mid_point&#43;1:end&#93;
+                    second_half_targets &#61; current_targets&#91;mid_point&#43;1:end&#93;
+                    second_results &#61; process_batch_with_recovery&#40;f, second_half_vectors, second_half_targets,
+                                                               length&#40;second_half_vectors&#41;; max_retries&#61;max_retries-retry_count, kwargs...&#41;
+                    
+                    # Combine results
+                    return vcat&#40;first_results, second_results&#41;
+                else
+                    # Cannot reduce further
+                    println&#40;&quot;      ❌ Cannot reduce batch size further &#40;size&#61;1&#41;&quot;&#41;
+                    rethrow&#40;e&#41;
+                end
+                
+                CUDA.reclaim&#40;&#41;  # Force cleanup before retry
+                
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    error&#40;&quot;Maximum retries exceeded for batch processing&quot;&#41;
+end</code></pre>
+<p>The ultimate safety net&#33; If a batch causes out-of-memory, this recursively splits it in half and processes each part separately &#40;which may split again if needed&#41;. It&#39;s like a binary search for the maximum batch size your GPU can handle. Gives up after 3 retries to avoid infinite loops.</p>
+<h2 id="recursive_batch_recovery__2"><a href="#recursive_batch_recovery__2" class="header-anchor">Recursive Batch Recovery</a></h2>
+<pre><code class="language-julia">function process_batch_with_recovery&#40;f::Function, batch_vectors, batch_target_vals, 
+                                   original_batch_size; max_retries::Int &#61; 3, kwargs...&#41;
+    
+    current_vectors &#61; batch_vectors
+    current_targets &#61; batch_target_vals
+    retry_count &#61; 0
+    
+    while retry_count &lt;&#61; max_retries
+        try
+            return f&#40;current_vectors, current_targets; kwargs...&#41;
+            
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41; &amp;&amp; retry_count &lt; max_retries
+                retry_count &#43;&#61; 1
+                
+                # Reduce batch size by half
+                new_size &#61; max&#40;1, length&#40;current_vectors&#41; ÷ 2&#41;
+                println&#40;&quot;      🔄 OOM detected, reducing batch size to &#36;new_size &#40;attempt &#36;retry_count&#41;&quot;&#41;
+                
+                if new_size &lt; length&#40;current_vectors&#41;
+                    # Split the batch and process recursively
+                    mid_point &#61; new_size
+                    
+                    # Process first half
+                    first_half_vectors &#61; current_vectors&#91;1:mid_point&#93;
+                    first_half_targets &#61; current_targets&#91;1:mid_point&#93;
+                    first_results &#61; process_batch_with_recovery&#40;f, first_half_vectors, first_half_targets,
+                                                              mid_point; max_retries&#61;max_retries-retry_count, kwargs...&#41;
+                    
+                    # Process second half
+                    second_half_vectors &#61; current_vectors&#91;mid_point&#43;1:end&#93;
+                    second_half_targets &#61; current_targets&#91;mid_point&#43;1:end&#93;
+                    second_results &#61; process_batch_with_recovery&#40;f, second_half_vectors, second_half_targets,
+                                                               length&#40;second_half_vectors&#41;; max_retries&#61;max_retries-retry_count, kwargs...&#41;
+                    
+                    # Combine results
+                    return vcat&#40;first_results, second_results&#41;
+                else
+                    # Cannot reduce further
+                    println&#40;&quot;      ❌ Cannot reduce batch size further &#40;size&#61;1&#41;&quot;&#41;
+                    rethrow&#40;e&#41;
+                end
+                
+                CUDA.reclaim&#40;&#41;  # Force cleanup before retry
+                
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    error&#40;&quot;Maximum retries exceeded for batch processing&quot;&#41;
+end</code></pre>
+<p>The ultimate safety net. If a batch causes an out-of-memory error, this function:</p>
+<ol>
+<li><p>Splits the batch in half</p>
+</li>
+<li><p>Processes each half separately &#40;which may split again if needed&#41;</p>
+</li>
+<li><p>Combines the results back together</p>
+</li>
+<li><p>Gives up after 3 retries to avoid infinite loops</p>
+</li>
+</ol>
+<p>It&#39;s like a binary search for the maximum batch size your GPU can handle with this specific data.</p>
+<hr />
+<h2 id="the_big_picture"><a href="#the_big_picture" class="header-anchor">The Big Picture</a></h2>
+<p>All these functions work together to make GPU computation robust and automatic. You don&#39;t need to manually figure out batch sizes or worry about running out of memory - the code adapts to your hardware and data automatically. If something goes wrong, it recovers gracefully instead of crashing. It&#39;s defensive programming at its finest&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 15, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

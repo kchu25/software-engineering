@@ -1,6 +1,7 @@
 @def title = "Julia DataFrames: Techniques & Ninja Tricks"
 @def published = "7 October 2025"
 @def tags = ["julia", "dataframe"]
+
 # Julia DataFrames: Techniques & Ninja Tricks
 
 ## Installation
