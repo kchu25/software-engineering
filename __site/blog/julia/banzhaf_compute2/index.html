@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>GPU Memory Management for batched processing tasks -- II</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="gpu_memory_management_guide"><a href="#gpu_memory_management_guide" class="header-anchor">GPU Memory Management Guide </a></h1>
+<p>This code provides a comprehensive set of utilities for managing GPU memory when computing Banzhaf values. Think of it as a safety system that prevents your GPU from running out of memory while processing large datasets.</p>
+<hr />
+<h2 id="memory_management_functions"><a href="#memory_management_functions" class="header-anchor">Memory Management Functions</a></h2>
+<h3 id="safe_gpu_allocation"><a href="#safe_gpu_allocation" class="header-anchor">Safe GPU Allocation</a></h3>
+<pre><code class="language-julia">function safe_gpu_alloc&#40;f::Function, arrays...&#41;
+    # Just call the function and let Julia&#39;s GC handle cleanup
+    # Manual unsafe_free&#33; can cause race conditions
+    result &#61; f&#40;arrays...&#41;
+    
+    # Optionally trigger GC to free up memory sooner
+    # But don&#39;t force unsafe_free&#33; which can cause freed reference errors
+    CUDA.reclaim&#40;&#41;
+    
+    return result
+end</code></pre>
+<p><strong>What it does:</strong> This is a wrapper function that safely executes GPU computations. Instead of manually freeing memory &#40;which can cause crashes&#41;, it lets Julia&#39;s garbage collector handle cleanup naturally. After the computation finishes, it calls <code>CUDA.reclaim&#40;&#41;</code> to gently suggest freeing up unused memory, but doesn&#39;t force it.</p>
+<hr />
+<h3 id="batch_processing_with_smart_memory_management"><a href="#batch_processing_with_smart_memory_management" class="header-anchor">Batch Processing with Smart Memory Management</a></h3>
+<pre><code class="language-julia">function process_in_batches&#40;f::Function, vectors, target_vals; batch_size&#61;nothing, kwargs...&#41;
+    
+    # Handle regular vectors &#40;collections&#41;
+    num_vectors &#61; length&#40;vectors&#41;
+    
+    if batch_size &#61;&#61;&#61; nothing
+        # Auto-calculate batch size based on memory analysis
+        batch_size &#61; estimate_optimal_batch_size&#40;vectors, kwargs&#41;
+    end
+    
+    if batch_size &gt;&#61; num_vectors
+        # No batching needed - try single batch first
+        try
+            return f&#40;vectors, target_vals; kwargs...&#41;
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41;
+                @warn &quot;OOM in single batch, forcing batching with size &#36;&#40;num_vectors÷2&#41;&quot;
+                batch_size &#61; max&#40;1, num_vectors ÷ 2&#41;
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    # Process in batches with adaptive sizing
+    results &#61; Vector&#123;Float32&#125;&#40;undef, num_vectors&#41;
+    
+    return process_batches_with_recovery&#40;f, vectors, target_vals, results, batch_size; kwargs...&#41;
+end</code></pre>
+<p><strong>What it does:</strong> This is the main coordinator for batch processing. When you have too much data to process at once, it breaks the work into smaller chunks. Here&#39;s the smart part: if you don&#39;t specify a batch size, it automatically figures out the optimal size based on available GPU memory. It first tries to process everything in one go, and if that fails due to memory issues, it automatically switches to batching mode by cutting the batch size in half.</p>
+<hr />
+<h3 id="automatic_recovery_from_memory_errors"><a href="#automatic_recovery_from_memory_errors" class="header-anchor">Automatic Recovery from Memory Errors</a></h3>
+<pre><code class="language-julia">function process_batches_with_recovery&#40;f::Function, vectors, target_vals, results, 
+                                     initial_batch_size; kwargs...&#41;
+    num_vectors &#61; length&#40;vectors&#41;
+    batch_size &#61; initial_batch_size
+    processed &#61; 0
+    
+    while processed &lt; num_vectors
+        remaining &#61; num_vectors - processed
+        current_batch_size &#61; min&#40;batch_size, remaining&#41;
+        
+        start_idx &#61; processed &#43; 1
+        end_idx &#61; processed &#43; current_batch_size
+        
+        batch_vectors &#61; vectors&#91;start_idx:end_idx&#93;
+        batch_targets &#61; target_vals&#91;start_idx:end_idx&#93;
+        
+        try
+            # Attempt batch processing
+            batch_results &#61; f&#40;batch_vectors, batch_targets; kwargs...&#41;
+            results&#91;start_idx:end_idx&#93; &#61; batch_results
+            processed &#43;&#61; current_batch_size
+            
+            # Success - try to increase batch size for efficiency
+            if current_batch_size &lt; batch_size &amp;&amp; remaining &gt; current_batch_size
+                batch_size &#61; min&#40;batch_size, Int&#40;ceil&#40;batch_size * 1.2&#41;&#41;&#41;
+            end
+            
+        catch e
+            if isa&#40;e, CUDA.OutOfGPUMemoryError&#41; &amp;&amp; current_batch_size &gt; 1
+                # OOM - reduce batch size and retry
+                new_batch_size &#61; max&#40;1, current_batch_size ÷ 2&#41;
+                @warn &quot;GPU OOM at batch size &#36;current_batch_size, reducing to &#36;new_batch_size&quot;
+                batch_size &#61; new_batch_size
+                CUDA.reclaim&#40;&#41;  # Force garbage collection
+                continue
+            else
+                rethrow&#40;e&#41;
+            end
+        end
+    end
+    
+    return results
+end</code></pre>
+<p><strong>What it does:</strong> This is the resilient workhorse that actually processes the batches. It&#39;s adaptive and self-healing. If a batch succeeds, it tries to increase the batch size by 20&#37; to speed things up. If it runs out of memory, it cuts the batch size in half and tries again. It keeps going until all vectors are processed, adjusting its strategy based on what&#39;s actually working. Think of it as a smart loader that learns the GPU&#39;s limits in real-time.</p>
+<hr />
+<h3 id="intelligent_batch_size_estimation"><a href="#intelligent_batch_size_estimation" class="header-anchor">Intelligent Batch Size Estimation</a></h3>
+<pre><code class="language-julia">function estimate_optimal_batch_size&#40;vectors, kwargs&#41;
+    num_samples &#61; get&#40;kwargs, :num_samples_per_vec, DEFAULT_SAMPLES_PER_VECTOR&#41;
+    
+    # Analyze vector length distribution
+    lengths &#61; length.&#40;vectors&#41;
+    min_len, max_len &#61; extrema&#40;lengths&#41;
+    avg_len &#61; mean&#40;lengths&#41;
+    std_len &#61; std&#40;lengths&#41;
+    
+    # Memory estimation for different scenarios
+    small_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, min_len&#41;
+    avg_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, Int&#40;ceil&#40;avg_len&#41;&#41;&#41;
+    large_vec_memory &#61; estimate_memory_usage&#40;1, num_samples, max_len&#41;
+    
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    usable_memory &#61; Int&#40;floor&#40;free_mem * MAX_GPU_MEMORY_FRACTION&#41;&#41;
+    
+    # Conservative estimate using worst-case scenario &#40;largest vectors&#41;
+    # but with some optimization for typical case
+    if std_len / avg_len &lt; 0.1  # Low variance in vector lengths
+        target_memory &#61; avg_vec_memory
+    else
+        # High variance - use weighted average biased toward larger vectors
+        target_memory &#61; Int&#40;ceil&#40;0.7 * avg_vec_memory &#43; 0.3 * large_vec_memory&#41;&#41;
+    end
+    
+    batch_size &#61; max&#40;1, min&#40;
+        length&#40;vectors&#41;,
+        Int&#40;floor&#40;usable_memory / target_memory&#41;&#41;,
+        BATCH_PROCESSING_THRESHOLD
+    &#41;&#41;
+    
+    @info &quot;Memory analysis&quot; free_mb&#61;round&#40;free_mem/1e6, digits&#61;2&#41; usable_mb&#61;round&#40;usable_memory/1e6, digits&#61;2&#41; target_mb_per_vec&#61;round&#40;target_memory/1e6, digits&#61;4&#41; estimated_batch_size&#61;batch_size
+    
+    return batch_size
+end</code></pre>
+<p><strong>What it does:</strong> This function is like a smart planner that looks at your data before processing. It analyzes how big your vectors are, checks how consistent they are in size, and estimates how much memory each will need. If your vectors are all similar sizes, it uses the average for estimation. If they vary a lot, it&#39;s more conservative and plans for larger vectors &#40;70&#37; average, 30&#37; maximum size&#41;. Finally, it calculates how many vectors can fit in available GPU memory, ensuring it doesn&#39;t exceed safe limits.</p>
+<hr />
+<h2 id="gpu_utilities"><a href="#gpu_utilities" class="header-anchor">GPU Utilities</a></h2>
+<h3 id="optimal_thread_configuration"><a href="#optimal_thread_configuration" class="header-anchor">Optimal Thread Configuration</a></h3>
+<pre><code class="language-julia">function get_optimal_launch_config&#40;problem_size::Int, max_threads::Int&#61;DEFAULT_THREADS_PER_BLOCK&#41;
+    threads &#61; min&#40;max_threads, problem_size&#41;
+    blocks &#61; cld&#40;problem_size, threads&#41;
+    return threads, blocks
+end</code></pre>
+<p><strong>What it does:</strong> When launching GPU kernels, you need to organize work into threads and blocks. This function calculates the best configuration for your problem size. It figures out how many threads per block to use &#40;capped at the maximum&#41; and how many blocks you need to cover all the work.</p>
+<hr />
+<h3 id="safe_kernel_launching"><a href="#safe_kernel_launching" class="header-anchor">Safe Kernel Launching</a></h3>
+<pre><code class="language-julia">function launch_kernel_safe&#40;kernel_func, args...; threads&#61;DEFAULT_THREADS_PER_BLOCK, 
+                           blocks&#61;nothing, name&#61;&quot;kernel&quot;&#41;
+    if blocks &#61;&#61;&#61; nothing
+        problem_size &#61; length&#40;args&#91;1&#93;&#41;  # Assume first arg determines size
+        threads, blocks &#61; get_optimal_launch_config&#40;problem_size, threads&#41;
+    end
+    
+    try
+        @cuda threads&#61;threads blocks&#61;blocks kernel_func&#40;args...&#41;
+        CUDA.synchronize&#40;&#41;
+    catch e
+        @error &quot;Kernel &#36;name failed&quot; exception&#61;e
+        rethrow&#40;e&#41;
+    end
+end</code></pre>
+<p><strong>What it does:</strong> This wraps GPU kernel launches with safety checks and error handling. If you don&#39;t specify thread/block configuration, it automatically calculates the optimal setup. It catches any errors during kernel execution and provides helpful error messages with the kernel name, making debugging easier.</p>
+<hr />
+<h2 id="data_validation"><a href="#data_validation" class="header-anchor">Data Validation</a></h2>
+<h3 id="input_validation"><a href="#input_validation" class="header-anchor">Input Validation</a></h3>
+<pre><code class="language-julia">function validate_inputs&#40;vectors, target_vals&#41;
+    @assert &#33;isempty&#40;vectors&#41; &quot;Input vectors cannot be empty&quot;
+    @assert length&#40;vectors&#41; &#61;&#61; length&#40;target_vals&#41; &quot;Vectors and target values must have same length&quot;
+    
+    # Check for invalid vector lengths
+    for &#40;i, vec&#41; in enumerate&#40;vectors&#41;
+        @assert &#33;isempty&#40;vec&#41; &quot;Vector &#36;i cannot be empty&quot;
+        @assert length&#40;vec&#41; &lt;&#61; MAX_SAFE_VECTOR_LENGTH &quot;Vector &#36;i too long &#40;&#36;&#40;length&#40;vec&#41;&#41; &gt; &#36;MAX_SAFE_VECTOR_LENGTH&#41;&quot;
+    end
+    
+    # Check target values
+    @assert all&#40;isfinite, target_vals&#41; &quot;All target values must be finite&quot;
+end</code></pre>
+<p><strong>What it does:</strong> Before processing, this function performs sanity checks on your input data. It verifies that vectors aren&#39;t empty, that you have the same number of vectors as target values, that no vector is too long for safe processing, and that all target values are valid numbers &#40;not infinity or NaN&#41;. This catches problems early before they cause cryptic GPU errors.</p>
+<hr />
+<h3 id="gpu_array_validation"><a href="#gpu_array_validation" class="header-anchor">GPU Array Validation</a></h3>
+<pre><code class="language-julia">function validate_gpu_arrays&#40;d_sums, d_vec_ids, target_vals&#41;
+    vec_id_range &#61; extrema&#40;Array&#40;d_vec_ids&#41;&#41;
+    @assert vec_id_range&#91;1&#93; &gt;&#61; 1 &quot;Vector IDs must be &gt;&#61; 1, got &#36;&#40;vec_id_range&#91;1&#93;&#41;&quot;
+    @assert vec_id_range&#91;2&#93; &lt;&#61; length&#40;target_vals&#41; &quot;Vector IDs must be &lt;&#61; &#36;&#40;length&#40;target_vals&#41;&#41;, got &#36;&#40;vec_id_range&#91;2&#93;&#41;&quot;
+end</code></pre>
+<p><strong>What it does:</strong> This validates GPU arrays to ensure vector IDs are within valid bounds. It prevents array out-of-bounds errors by checking that all vector IDs are between 1 and the number of target values. This is crucial for preventing crashes during GPU kernel execution.</p>
+<hr />
+<h2 id="gpu_monitoring_and_debugging"><a href="#gpu_monitoring_and_debugging" class="header-anchor">GPU Monitoring and Debugging</a></h2>
+<h3 id="memory_information_display"><a href="#memory_information_display" class="header-anchor">Memory Information Display</a></h3>
+<pre><code class="language-julia">function print_gpu_memory_info&#40;label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        println&#40;&quot;CUDA not available&quot;&#41;
+        return
+    end
+    
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    used_mem &#61; total_mem - free_mem
+    
+    println&#40;&quot;GPU Memory Info &#36;&#40;label &#33;&#61; &quot;&quot; ? &quot;&#40;&#36;label&#41;&quot; : &quot;&quot;&#41;:&quot;&#41;
+    println&#40;&quot;  Total: &#36;&#40;round&#40;total_mem/1e6, digits&#61;1&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Used:  &#36;&#40;round&#40;used_mem/1e6, digits&#61;1&#41;&#41; MB &#40;&#36;&#40;round&#40;used_mem/total_mem*100, digits&#61;1&#41;&#41;&#37;&#41;&quot;&#41;
+    println&#40;&quot;  Free:  &#36;&#40;round&#40;free_mem/1e6, digits&#61;1&#41;&#41; MB &#40;&#36;&#40;round&#40;free_mem/total_mem*100, digits&#61;1&#41;&#41;&#37;&#41;&quot;&#41;
+end</code></pre>
+<p><strong>What it does:</strong> This is a diagnostic tool that prints a nice summary of GPU memory status. It shows total, used, and free memory in megabytes and percentages. You can add a label to identify different points in your code. Super useful for tracking down memory leaks or understanding memory usage patterns.</p>
+<hr />
+<h3 id="memory_monitoring_wrapper"><a href="#memory_monitoring_wrapper" class="header-anchor">Memory Monitoring Wrapper</a></h3>
+<pre><code class="language-julia">function with_memory_monitoring&#40;f::Function, label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return f&#40;&#41;
+    end
+    
+    # Initial memory state
+    free_before, total_mem &#61; CUDA.memory_info&#40;&#41;
+    used_before &#61; total_mem - free_before
+    
+    println&#40;&quot;Starting &#36;label&quot;&#41;
+    print_gpu_memory_info&#40;&quot;before&quot;&#41;
+    
+    # Execute function
+    start_time &#61; time&#40;&#41;
+    result &#61; f&#40;&#41;
+    end_time &#61; time&#40;&#41;
+    
+    # Final memory state
+    free_after, _ &#61; CUDA.memory_info&#40;&#41;
+    used_after &#61; total_mem - free_after
+    
+    print_gpu_memory_info&#40;&quot;after&quot;&#41;
+    println&#40;&quot;Memory change: &#36;&#40;round&#40;&#40;used_after - used_before&#41;/1e6, digits&#61;2&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;Execution time: &#36;&#40;round&#40;end_time - start_time, digits&#61;3&#41;&#41; seconds&quot;&#41;
+    
+    return result
+end</code></pre>
+<p><strong>What it does:</strong> This is like putting a stopwatch and memory tracker around any function. It captures memory state before and after execution, measures how long it takes, and reports the memory change. Perfect for profiling and understanding which operations consume the most memory and time.</p>
+<hr />
+<h3 id="force_gpu_cleanup"><a href="#force_gpu_cleanup" class="header-anchor">Force GPU Cleanup</a></h3>
+<pre><code class="language-julia">function cleanup_gpu_memory&#40;label::String&#61;&quot;&quot;&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return
+    end
+    
+    print_gpu_memory_info&#40;&quot;before cleanup&quot;&#41;
+    
+    # Force cleanup
+    CUDA.reclaim&#40;&#41;
+    GC.gc&#40;&#41;
+    sleep&#40;0.1&#41;  # Give time for cleanup
+    
+    print_gpu_memory_info&#40;&quot;after cleanup&quot;&#41;
+end</code></pre>
+<p><strong>What it does:</strong> When you need to aggressively free GPU memory, this function forces both GPU and CPU garbage collection, then waits a moment for everything to settle. It shows you memory stats before and after so you can see how much was reclaimed. Useful when transitioning between memory-intensive operations.</p>
+<hr />
+<h3 id="batch_size_recommendation"><a href="#batch_size_recommendation" class="header-anchor">Batch Size Recommendation</a></h3>
+<pre><code class="language-julia">function get_recommended_batch_size&#40;vectors, num_samples_per_vec::Int&#41;
+    if &#33;CUDA.functional&#40;&#41;
+        return length&#40;vectors&#41;
+    end
+    
+    # Current memory state
+    free_mem, total_mem &#61; CUDA.memory_info&#40;&#41;
+    usable_mem &#61; Int&#40;floor&#40;free_mem * MAX_GPU_MEMORY_FRACTION&#41;&#41;
+    
+    # Vector characteristics
+    lengths &#61; length.&#40;vectors&#41;
+    avg_len &#61; mean&#40;lengths&#41;
+    max_len &#61; maximum&#40;lengths&#41;
+    
+    # Conservative estimate using largest vectors
+    memory_per_vector &#61; estimate_memory_usage&#40;1, num_samples_per_vec, max_len&#41;
+    max_vectors &#61; max&#40;1, Int&#40;floor&#40;usable_mem / memory_per_vector&#41;&#41;&#41;
+    
+    recommended_batch_size &#61; min&#40;max_vectors, length&#40;vectors&#41;&#41;
+    
+    println&#40;&quot;Batch size recommendation:&quot;&#41;
+    println&#40;&quot;  Available memory: &#36;&#40;round&#40;usable_mem/1e6, digits&#61;1&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Memory per vector &#40;worst case&#41;: &#36;&#40;round&#40;memory_per_vector/1e6, digits&#61;3&#41;&#41; MB&quot;&#41;
+    println&#40;&quot;  Max vectors per batch: &#36;max_vectors&quot;&#41;
+    println&#40;&quot;  Recommended batch size: &#36;recommended_batch_size&quot;&#41;
+    
+    return recommended_batch_size
+end</code></pre>
+<p><strong>What it does:</strong> This is a helper function that tells you the best batch size to use based on current GPU memory availability. It takes a conservative approach by planning for the worst case &#40;largest vectors&#41; and calculates how many can fit in memory. It prints a detailed breakdown showing available memory, memory per vector, and the recommended batch size, helping you make informed decisions about processing strategies.</p>
+<hr />
+<h2 id="summary"><a href="#summary" class="header-anchor">Summary</a></h2>
+<p>This entire module is designed to make GPU computing robust and failure-resistant. The key philosophy is:</p>
+<ol>
+<li><p><strong>Adaptive</strong>: Automatically adjusts batch sizes based on available memory</p>
+</li>
+<li><p><strong>Resilient</strong>: Recovers from out-of-memory errors by reducing workload</p>
+</li>
+<li><p><strong>Safe</strong>: Validates inputs and handles cleanup properly</p>
+</li>
+<li><p><strong>Observable</strong>: Provides detailed monitoring and debugging tools</p>
+</li>
+</ol>
+<p>You can use these functions to process large datasets on GPUs without worrying about memory crashes. The system will automatically figure out the best strategy and recover from problems as they occur.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 16, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
