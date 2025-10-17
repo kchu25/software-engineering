@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>CUDA Design Patterns: A Friendly Guide</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="cuda_design_patterns_a_friendly_guide"><a href="#cuda_design_patterns_a_friendly_guide" class="header-anchor">CUDA Design Patterns: A Friendly Guide</a></h1>
+<p>So you know the basics of CUDA kernels? Great&#33; Let&#39;s talk about the patterns that separate &quot;it works&quot; code from &quot;it flies&quot; code.</p>
+<h2 id="memory_coalescing_the_golden_rule"><a href="#memory_coalescing_the_golden_rule" class="header-anchor"><ol>
+<li><p>Memory Coalescing: The Golden Rule</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: GPUs love when neighboring threads access neighboring memory locations. It&#39;s like carpooling – one memory transaction can serve 32 threads at once.</p>
+<blockquote>
+<p><strong>What &quot;Coalesced&quot; Actually Means</strong> &#40;the dead simple version&#41;:</p>
+<p>Imagine 32 friends going to a library. They need books from the shelves.</p>
+<p><strong>COALESCED</strong> ✅: They all stand in a line and each person grabs the book right in front of them.   → Librarian brings ONE cart with 32 consecutive books. Done in one trip&#33;</p>
+<p><strong>NOT COALESCED</strong> ❌: Person 1 wants a book from shelf A, person 2 wants one from shelf Z, person 3 wants one from shelf M...   → Librarian has to make 32 separate trips. Nightmare&#33;</p>
+<p><strong>In GPU terms</strong>: </p>
+<ul>
+<li><p>Thread 0, 1, 2, 3... accessing <code>array&#91;0&#93;, array&#91;1&#93;, array&#91;2&#93;, array&#91;3&#93;...</code> &#61; <strong>ONE memory transaction</strong> ✅</p>
+</li>
+<li><p>Thread 0, 1, 2, 3... accessing <code>array&#91;0&#93;, array&#91;1000&#93;, array&#91;2000&#93;, array&#91;3000&#93;...</code> &#61; <strong>32 separate transactions</strong> ❌</p>
+</li>
+</ul>
+<p><strong>Wait, what about uniform spacing?</strong></p>
+<ul>
+<li><p><code>array&#91;0&#93;, array&#91;2&#93;, array&#91;4&#93;, array&#91;6&#93;...</code> &#40;every other element&#41; &#61; Still pretty good&#33; GPU can fetch in 2 transactions instead of 32</p>
+</li>
+<li><p><code>array&#91;0&#93;, array&#91;4&#93;, array&#91;8&#93;, array&#91;12&#93;...</code> &#40;stride of 4 for float32&#41; &#61; Perfect&#33; Still just 1 transaction &#40;they fit in one 128-byte chunk&#41;</p>
+</li>
+</ul>
+<p><strong>The rule</strong>: Distance DOES matter, but there&#39;s a sweet spot:</p>
+<ul>
+<li><p><strong>Stride 1</strong> &#40;consecutive&#41;: BEST - always 1 transaction</p>
+</li>
+<li><p><strong>Small strides</strong> &#40;2-4&#41;: GOOD - fits in 1-2 cache lines &#40;128 bytes&#41;</p>
+</li>
+<li><p><strong>Large strides</strong> &#40;100&#43;&#41;: BAD - each needs its own transaction</p>
+</li>
+</ul>
+<p>Think of it like: the GPU fetches memory in big 128-byte chunks &#40;like loading a whole bookshelf section&#41;. If your 32 threads all want books from the same section, great&#33; If they&#39;re scattered across the entire library? Pain.</p>
+</blockquote>
+<h3 id="real_example_processing_rgb_images"><a href="#real_example_processing_rgb_images" class="header-anchor">Real Example: Processing RGB Images</a></h3>
+<p>Say you have an image stored as <code>&#91;R1, G1, B1, R2, G2, B2, R3, G3, B3, ...&#93;</code> and you want to extract just the red channel.</p>
+<p><strong>Bad pattern</strong> &#40;what feels natural&#41;:</p>
+<pre><code class="language-julia">using CUDA
+
+# Input: &#91;R1,G1,B1, R2,G2,B2, R3,G3,B3, ...&#93;
+# Want: &#91;R1, R2, R3, ...&#93;
+function extract_red_bad&#33;&#40;output, rgb_image&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    if i &lt;&#61; length&#40;output&#41;
+        # Thread 0 reads position 0 &#40;R1&#41;
+        # Thread 1 reads position 3 &#40;R2&#41;  
+        # Thread 2 reads position 6 &#40;R3&#41;
+        # Threads jump by 3 - NOT coalesced&#33;
+        output&#91;i&#93; &#61; rgb_image&#91;3 * &#40;i - 1&#41; &#43; 1&#93;
+    end
+    return
+end</code></pre>
+<p><strong>Good pattern</strong> &#40;think differently about the problem&#41;:</p>
+<pre><code class="language-julia"># Instead: have each thread read consecutive elements,
+# then sort them out afterward
+function extract_red_good&#33;&#40;output, rgb_image&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    if i &lt;&#61; length&#40;rgb_image&#41;
+        # Thread 0 reads position 0 &#40;R1&#41;
+        # Thread 1 reads position 1 &#40;G1&#41;
+        # Thread 2 reads position 2 &#40;B1&#41;
+        # Thread 3 reads position 3 &#40;R2&#41; - COALESCED&#33;
+        
+        val &#61; rgb_image&#91;i&#93;
+        
+        # Only every 3rd thread writes &#40;when we hit a red pixel&#41;
+        if &#40;i - 1&#41; &#37; 3 &#61;&#61; 0
+            output&#91;&#40;i - 1&#41; ÷ 3 &#43; 1&#93; &#61; val
+        end
+    end
+    return
+end</code></pre>
+<p><strong>Why it matters</strong>: The bad version does 32 separate memory loads. The good version does 1 memory transaction that loads 32 consecutive values. That&#39;s potentially 32x less memory traffic&#33;</p>
+<h3 id="another_real_example_struct_of_arrays_vs_array_of_structs"><a href="#another_real_example_struct_of_arrays_vs_array_of_structs" class="header-anchor">Another Real Example: Struct of Arrays vs Array of Structs</a></h3>
+<p>You&#39;re processing particles with position and velocity:</p>
+<p><strong>Bad</strong> &#40;Array of Structs - AoS&#41;:</p>
+<pre><code class="language-julia">struct Particle
+    x::Float32
+    y::Float32
+    z::Float32
+    vx::Float32
+    vy::Float32
+    vz::Float32
+end
+
+function update_positions_bad&#33;&#40;particles, dt&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    if i &lt;&#61; length&#40;particles&#41;
+        # Thread 0 wants x at byte 0
+        # Thread 1 wants x at byte 24 &#40;6 floats later&#41;
+        # Memory is scattered&#33;
+        p &#61; particles&#91;i&#93;
+        particles&#91;i&#93; &#61; Particle&#40;
+            p.x &#43; p.vx * dt,
+            p.y &#43; p.vy * dt,
+            p.z &#43; p.vz * dt,
+            p.vx, p.vy, p.vz
+        &#41;
+    end
+    return
+end</code></pre>
+<p><strong>Good</strong> &#40;Struct of Arrays - SoA&#41;:</p>
+<pre><code class="language-julia">struct ParticlesSoA
+    x::CuDeviceVector&#123;Float32&#125;
+    y::CuDeviceVector&#123;Float32&#125;
+    z::CuDeviceVector&#123;Float32&#125;
+    vx::CuDeviceVector&#123;Float32&#125;
+    vy::CuDeviceVector&#123;Float32&#125;
+    vz::CuDeviceVector&#123;Float32&#125;
+end
+
+function update_positions_good&#33;&#40;particles, dt&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    if i &lt;&#61; length&#40;particles.x&#41;
+        # Thread 0 reads x&#91;0&#93;, thread 1 reads x&#91;1&#93;, etc.
+        # All consecutive&#33; Perfect coalescing&#33;
+        particles.x&#91;i&#93; &#43;&#61; particles.vx&#91;i&#93; * dt
+        particles.y&#91;i&#93; &#43;&#61; particles.vy&#91;i&#93; * dt
+        particles.z&#91;i&#93; &#43;&#61; particles.vz&#91;i&#93; * dt
+    end
+    return
+end</code></pre>
+<p><strong>The tradeoff</strong>: SoA feels weird in CPU code but is gold for GPUs. If you only need to update X positions, you don&#39;t even load the Y and Z arrays&#33;</p>
+<h3 id="when_coalescing_is_hard_and_thats_okay"><a href="#when_coalescing_is_hard_and_thats_okay" class="header-anchor">When Coalescing is Hard &#40;and that&#39;s okay&#33;&#41;</a></h3>
+<p>Sometimes you genuinely need random access - like in a hash table lookup or tree traversal. In those cases:</p>
+<ul>
+<li><p>Use texture memory &#40;has a cache&#41;</p>
+</li>
+<li><p>Batch your random accesses</p>
+</li>
+<li><p>Or just accept it and optimize something else</p>
+</li>
+</ul>
+<p>Not every memory access can be coalesced, but the ones in your hot loops? Those are worth the effort.</p>
+<h2 id="ol_start2_shared_memory_your_on-chip_cache"><a href="#ol_start2_shared_memory_your_on-chip_cache" class="header-anchor"><ol start="2">
+<li><p>Shared Memory: Your On-Chip Cache</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: Shared memory is like a scratchpad shared by all threads in a block. It&#39;s 100x faster than global memory but tiny &#40;48-96 KB&#41;.</p>
+<blockquote>
+<p><strong>The Shared Memory Recipe</strong>:</p>
+<ol>
+<li><p><strong>Pick TILE size</strong>: Almost always <strong>16, 32, or 64</strong></p>
+<ul>
+<li><p>Why these numbers? They&#39;re multiples of 32 &#40;warp size&#41; and powers of 2</p>
+</li>
+<li><p>Most common: <strong>TILE&#61;32</strong> &#40;sweet spot for most GPUs&#41;</p>
+</li>
+<li><p>Rule of thumb: <code>TILE × TILE × sizeof&#40;element&#41;</code> should be &lt; 48KB</p>
+</li>
+<li><p>Example: 32×32 floats &#61; 4KB ✅, 128×128 floats &#61; 64KB ❌ &#40;too big&#33;&#41;</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Launch with TILE×TILE threads per block</strong></p>
+<ul>
+<li><p>For TILE&#61;32: launch with <code>threads&#61;&#40;32,32&#41;</code> → 1024 threads per block</p>
+</li>
+</ul>
+</li>
+<li><p><strong>The loading pattern</strong> &#40;YES, this should be coalesced&#33;&#41;:</p>
+<ul>
+<li><p>Each thread loads ONE element from global → shared</p>
+</li>
+<li><p>Thread positions map directly: <code>tile&#91;threadIdx.y, threadIdx.x&#93; &#61; input&#91;global_y, global_x&#93;</code></p>
+</li>
+<li><p>This is naturally coalesced because consecutive thread IDs access consecutive memory</p>
+</li>
+</ul>
+</li>
+<li><p><strong>The using pattern</strong> &#40;can be whatever you want&#33;&#41;:</p>
+<ul>
+<li><p>After <code>sync_threads&#40;&#41;</code>, read from shared memory however you like</p>
+</li>
+<li><p>Shared memory is fast enough that &quot;uncoalesced&quot; patterns are fine here</p>
+</li>
+</ul>
+</li>
+</ol>
+</blockquote>
+<p><strong>Classic use case</strong> – Matrix transpose:</p>
+<pre><code class="language-julia">function transpose_shared&#33;&#40;output, input, width, height&#41;
+    TILE &#61; 32  # The magic number - try 16, 32, or 64
+    
+    # Allocate shared memory: TILE×TILE elements
+    tile &#61; @cuDynamicSharedMem&#40;Float32, &#40;TILE, TILE&#41;&#41;
+    
+    # The typical 2D index pattern:
+    tx &#61; threadIdx&#40;&#41;.x  # Local thread position in block &#40;1 to 32&#41;
+    ty &#61; threadIdx&#40;&#41;.y  # Local thread position in block &#40;1 to 32&#41;
+    
+    # Global position in the input matrix
+    i &#61; tx &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * TILE  # Global column
+    j &#61; ty &#43; &#40;blockIdx&#40;&#41;.y - 1&#41; * TILE  # Global row
+    
+    # STEP 1: Load from global memory &#40;COALESCED&#33;&#41;
+    # Each thread grabs one element from input&#91;j, i&#93;
+    if i &lt;&#61; width &amp;&amp; j &lt;&#61; height
+        tile&#91;ty, tx&#93; &#61; input&#91;j, i&#93;
+        #    ↑   ↑          ↑  ↑
+        #  local coords   global coords
+    end
+    
+    sync_threads&#40;&#41;  # ⚠️ CRITICAL: Wait for all threads to finish loading&#33;
+    
+    # STEP 2: Write to output with coordinates swapped &#40;ALSO COALESCED&#33;&#41;
+    # The transpose happens in shared memory indexing
+    i_out &#61; ty &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * TILE  # Notice: ty becomes i_out
+    j_out &#61; tx &#43; &#40;blockIdx&#40;&#41;.y - 1&#41; * TILE  # Notice: tx becomes j_out
+    
+    if i_out &lt;&#61; height &amp;&amp; j_out &lt;&#61; width
+        output&#91;j_out, i_out&#93; &#61; tile&#91;tx, ty&#93;
+        #                           ↑   ↑
+        #                      Swap the indices&#33;
+    end
+    
+    return
+end
+
+# Launch it - CRITICAL: threads must match TILE&#33;
+# @cuda threads&#61;&#40;32,32&#41; blocks&#61;&#40;ceil&#40;Int,width/32&#41;, ceil&#40;Int,height/32&#41;&#41; transpose_shared&#33;&#40;out, in, w, h&#41;
+#              ↑↑  ↑↑                    ↑↑          ↑↑
+#              Must match TILE&#61;32&#33;</code></pre>
+<blockquote>
+<p><strong>Pro Tip: Avoid the TILE/threads mismatch bug&#33;</strong></p>
+<p>The #1 bug with shared memory kernels: <code>TILE</code> in the kernel doesn&#39;t match <code>threads</code> at launch.</p>
+<p><strong>Bad</strong> &#40;easy to mess up&#41;:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; TILE &#61; 32  # inside kernel
+&gt; @cuda threads&#61;&#40;16,16&#41; ...  # Oops&#33; Mismatch &#61; wrong results or crash
+&gt;</code></pre>
+<blockquote>
+<p><strong>Better</strong> &#40;programmatic consistency&#41;:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; const TILE &#61; 32  # Define once as a constant
+&gt; 
+&gt; function transpose_shared&#33;&#40;output, input, width, height&#41;
+&gt;     tile &#61; @cuDynamicSharedMem&#40;Float32, &#40;TILE, TILE&#41;&#41;
+&gt;     # ... rest of kernel uses TILE
+&gt; end
+&gt; 
+&gt; # Launch using the SAME constant
+&gt; @cuda threads&#61;&#40;TILE,TILE&#41; blocks&#61;&#40;ceil&#40;Int,width/TILE&#41;, ceil&#40;Int,height/TILE&#41;&#41; \
+&gt;     transpose_shared&#33;&#40;out, in, w, h&#41;
+&gt;</code></pre>
+<blockquote>
+<p><strong>Best</strong> &#40;wrapper function that can&#39;t go wrong&#41;:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; function launch_transpose&#40;output, input, width, height; TILE&#61;32&#41;
+&gt;     threads &#61; &#40;TILE, TILE&#41;
+&gt;     blocks &#61; &#40;ceil&#40;Int, width/TILE&#41;, ceil&#40;Int, height/TILE&#41;&#41;
+&gt;     
+&gt;     @cuda threads&#61;threads blocks&#61;blocks shmem&#61;TILE*TILE*sizeof&#40;Float32&#41; \
+&gt;         transpose_shared&#33;&#40;output, input, width, height&#41;
+&gt; end
+&gt; 
+&gt; # Now just call:
+&gt; launch_transpose&#40;out, in, w, h&#41;  # Can&#39;t mess it up&#33;
+&gt;</code></pre>
+<blockquote>
+<p>The wrapper pattern is bulletproof - TILE is defined once and used everywhere automatically.</p>
+</blockquote>
+<p><strong>The i,j pattern explained</strong>:</p>
+<ul>
+<li><p><code>tx, ty</code>: Where am I in my thread block? &#40;1-32 for each&#41;</p>
+</li>
+<li><p><code>i, j</code>: Where am I in the global matrix? &#40;could be anywhere&#41;</p>
+</li>
+<li><p>Load uses <code>input&#91;j, i&#93;</code> with global coords</p>
+</li>
+<li><p>Store uses <code>tile&#91;ty, tx&#93;</code> with local coords</p>
+</li>
+<li><p>Then flip everything for the transpose&#33;</p>
+</li>
+</ul>
+<p><strong>Why this works</strong>: </p>
+<ul>
+<li><p>Loading <code>input&#91;y,x&#93;</code> row by row &#61; coalesced ✅</p>
+</li>
+<li><p>Writing <code>output&#91;y_out,x_out&#93;</code> row by row &#61; coalesced ✅  </p>
+</li>
+<li><p>The transpose happens in the shared memory indexing &#40;swapping threadIdx.x and threadIdx.y&#41;</p>
+</li>
+<li><p>Without shared memory, either the read OR write would be uncoalesced &#40;column access&#41; &#61; 32x slower&#33;</p>
+</li>
+</ul>
+<h2 id="ol_start3_warp-level_primitives_free_synchronization"><a href="#ol_start3_warp-level_primitives_free_synchronization" class="header-anchor"><ol start="3">
+<li><p>Warp-Level Primitives: Free Synchronization</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: 32 threads &#40;a &quot;warp&quot;&#41; execute in lockstep. You can shuffle data between them without slow synchronization.</p>
+<p><strong>Example</strong> – Sum reduction within a warp:</p>
+<pre><code class="language-julia">function warp_reduce_sum&#40;val&#41;
+    # Threads can share data within a warp for free&#33;
+    for offset in &#91;16, 8, 4, 2, 1&#93;
+        val &#43;&#61; shfl_down_sync&#40;0xffffffff, val, offset&#41;
+    end
+    return val
+end
+
+function block_sum_kernel&#33;&#40;output, input&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    
+    # Each thread loads one value
+    val &#61; i &lt;&#61; length&#40;input&#41; ? input&#91;i&#93; : 0.0f0
+    
+    # Reduce within warp &#40;no __syncthreads needed&#33;&#41;
+    val &#61; warp_reduce_sum&#40;val&#41;
+    
+    # First thread in each warp writes result
+    if threadIdx&#40;&#41;.x &#37; 32 &#61;&#61; 1
+        warp_id &#61; &#40;threadIdx&#40;&#41;.x - 1&#41; ÷ 32 &#43; 1
+        @inbounds output&#91;warp_id &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * 32&#93; &#61; val
+    end
+    
+    return
+end</code></pre>
+<p><strong>Why it&#39;s awesome</strong>: No synchronization barriers, no shared memory needed for simple reductions.</p>
+<h2 id="ol_start4_occupancy_keep_those_cores_busy"><a href="#ol_start4_occupancy_keep_those_cores_busy" class="header-anchor"><ol start="4">
+<li><p>Occupancy: Keep Those Cores Busy</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: GPUs have thousands of cores. If you don&#39;t give them enough work, they sit idle.</p>
+<p><strong>The tradeoff</strong>:</p>
+<ul>
+<li><p>More threads per block &#61; better occupancy</p>
+</li>
+<li><p>More shared memory per block &#61; fewer blocks fit on the GPU</p>
+</li>
+</ul>
+<pre><code class="language-julia"># Calculate theoretical occupancy
+function analyze_kernel&#40;&#41;
+    threads_per_block &#61; 256
+    shared_mem_per_block &#61; 48 * 1024  # 48 KB
+    
+    # CUDA.jl can tell you occupancy
+    kernel &#61; @cuda launch&#61;false my_kernel&#33;&#40;args...&#41;
+    occupancy &#61; CUDA.occupancy&#40;kernel, threads_per_block, 
+                               shmem&#61;shared_mem_per_block&#41;
+    
+    println&#40;&quot;Occupancy: &#36;&#40;occupancy.active_blocks&#41; blocks active&quot;&#41;
+end</code></pre>
+<p><strong>Rule of thumb</strong>: Aim for at least 128 threads per block, ideally 256-512. But measure&#33;</p>
+<h2 id="ol_start5_memory_access_patterns_bank_conflicts"><a href="#ol_start5_memory_access_patterns_bank_conflicts" class="header-anchor"><ol start="5">
+<li><p>Memory Access Patterns: Bank Conflicts</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: Shared memory is divided into 32 &quot;banks&quot;. If multiple threads in a warp access the same bank &#40;but different addresses&#41;, they serialize &#40;slow&#33;&#41;.</p>
+<blockquote>
+<p><strong>What are banks?</strong> Think of shared memory like a bank with 32 teller windows. Each &quot;address&quot; goes to a specific bank:</p>
+<ul>
+<li><p><code>shared&#91;0&#93;</code> → Bank 0</p>
+</li>
+<li><p><code>shared&#91;1&#93;</code> → Bank 1</p>
+</li>
+<li><p><code>shared&#91;32&#93;</code> → Bank 0 &#40;wraps around&#33;&#41;</p>
+</li>
+<li><p><code>shared&#91;33&#93;</code> → Bank 1</p>
+</li>
+</ul>
+<p><strong>Formula</strong>: <code>bank_id &#61; &#40;address / 4&#41; &#37; 32</code> for 4-byte elements &#40;Float32&#41;</p>
+<p>If 2 threads in a warp want different addresses from the same bank → they have to wait in line &#40;serialized&#41;&#33;</p>
+</blockquote>
+<p><strong>Real example</strong> – Why matrix transpose has bank conflicts:</p>
+<pre><code class="language-julia">function transpose_with_conflicts&#33;&#40;output, input, width, height&#41;
+    TILE &#61; 32
+    tile &#61; @cuDynamicSharedMem&#40;Float32, &#40;TILE, TILE&#41;&#41;  # 32×32 array
+    
+    tx &#61; threadIdx&#40;&#41;.x
+    ty &#61; threadIdx&#40;&#41;.y
+    
+    # Load data &#40;no conflicts here - different rows&#41;
+    tile&#91;ty, tx&#93; &#61; input&#91;...&#93;
+    sync_threads&#40;&#41;
+    
+    # PROBLEM: Write transposed
+    output&#91;...&#93; &#61; tile&#91;tx, ty&#93;
+    #                  ↑   ↑
+    #            Reading COLUMNS now&#33;
+    
+    # When tx&#61;1, ty varies from 1 to 32:
+    # Thread 0 reads tile&#91;1, 1&#93;  → address 1   → Bank 1
+    # Thread 1 reads tile&#91;1, 2&#93;  → address 33  → Bank 1  &#40;conflict&#33;&#41;
+    # Thread 2 reads tile&#91;1, 3&#93;  → address 65  → Bank 1  &#40;conflict&#33;&#41;
+    # ...
+    # All 32 threads hit Bank 1&#33; They serialize &#61; 32x slower
+end</code></pre>
+<p><strong>Why does this happen?</strong></p>
+<ul>
+<li><p>Julia stores arrays column-major: <code>tile&#91;row, col&#93;</code></p>
+</li>
+<li><p>Elements in the same column are 32 elements apart: <code>tile&#91;1,1&#93;</code> to <code>tile&#91;2,1&#93;</code> &#61; &#43;32 addresses</p>
+</li>
+<li><p>&#43;32 addresses &#61; same bank &#40;because banks wrap every 32&#41;</p>
+</li>
+<li><p>When you read a column, all threads hit the same bank&#33;</p>
+</li>
+</ul>
+<p><strong>The fix</strong> – Add padding:</p>
+<pre><code class="language-julia">function transpose_no_conflicts&#33;&#40;output, input, width, height&#41;
+    TILE &#61; 32
+    # Add &#43;1 to one dimension &#40;padding&#41;
+    tile &#61; @cuDynamicSharedMem&#40;Float32, &#40;TILE, TILE &#43; 1&#41;&#41;  # 32×33 array &#40;wastes 32 floats&#41;
+    
+    tx &#61; threadIdx&#40;&#41;.x
+    ty &#61; threadIdx&#40;&#41;.y
+    
+    # Load &#40;still works fine, just ignore column 33&#41;
+    tile&#91;ty, tx&#93; &#61; input&#91;...&#93;
+    sync_threads&#40;&#41;
+    
+    # Write transposed &#40;NOW no conflicts&#33;&#41;
+    output&#91;...&#93; &#61; tile&#91;tx, ty&#93;
+    
+    # Why it works:
+    # Thread 0 reads tile&#91;1, 1&#93;  → address 1   → Bank 1
+    # Thread 1 reads tile&#91;1, 2&#93;  → address 34  → Bank 2  &#40;no conflict&#33;&#41;
+    # Thread 2 reads tile&#91;1, 3&#93;  → address 67  → Bank 3  &#40;no conflict&#33;&#41;
+    # The &#43;1 padding shifts everything, spreading across different banks&#33;
+end</code></pre>
+<p><strong>Another example</strong> – Reduction with bank conflicts:</p>
+<pre><code class="language-julia"># BAD: Power-of-2 stride causes bank conflicts
+function reduce_bad&#33;&#40;data&#41;
+    shared &#61; @cuDynamicSharedMem&#40;Float32, 256&#41;
+    tid &#61; threadIdx&#40;&#41;.x
+    
+    shared&#91;tid&#93; &#61; data&#91;tid&#93;
+    sync_threads&#40;&#41;
+    
+    # Reduce with stride&#61;1, 2, 4, 8, 16, 32...
+    stride &#61; 1
+    while stride &lt; 256
+        if tid &lt;&#61; 256 ÷ &#40;2 * stride&#41;
+            # Thread 0 reads shared&#91;1&#93; and shared&#91;1&#43;stride&#93;
+            # When stride&#61;16: all active threads read 16 elements apart
+            # 16 apart → same banks → CONFLICTS&#33;
+            shared&#91;tid&#93; &#61; shared&#91;tid&#93; &#43; shared&#91;tid &#43; stride&#93;
+        end
+        stride *&#61; 2
+        sync_threads&#40;&#41;
+    end
+end
+
+# GOOD: Sequential addressing avoids conflicts
+function reduce_good&#33;&#40;data&#41;
+    shared &#61; @cuDynamicSharedMem&#40;Float32, 256&#41;
+    tid &#61; threadIdx&#40;&#41;.x
+    
+    shared&#91;tid&#93; &#61; data&#91;tid&#93;
+    sync_threads&#40;&#41;
+    
+    # Reduce with sequential indices
+    stride &#61; 128
+    while stride &gt; 0
+        if tid &lt;&#61; stride
+            # Thread 0 reads shared&#91;0&#93; and shared&#91;128&#93;
+            # Thread 1 reads shared&#91;1&#93; and shared&#91;129&#93;
+            # All consecutive &#61; different banks &#61; NO CONFLICTS&#33;
+            shared&#91;tid&#93; &#61; shared&#91;tid&#93; &#43; shared&#91;tid &#43; stride&#93;
+        end
+        stride ÷&#61; 2
+        sync_threads&#40;&#41;
+    end
+end</code></pre>
+<p><strong>When to worry about bank conflicts:</strong></p>
+<ul>
+<li><p>✅ When reading/writing columns of 2D arrays in shared memory</p>
+</li>
+<li><p>✅ When accessing with power-of-2 strides &#40;2, 4, 8, 16, 32...&#41;</p>
+</li>
+<li><p>❌ When reading rows &#40;consecutive access &#61; different banks naturally&#41;</p>
+</li>
+<li><p>❌ When each thread reads a different location &#40;no conflict if different banks&#41;</p>
+</li>
+</ul>
+<p><strong>The quick fix</strong>: Add <code>&#43;1</code> padding to one dimension. Wastes a tiny bit of memory but can give huge speedups&#33;</p>
+<h2 id="ol_start6_stream_processing_overlap_everything"><a href="#ol_start6_stream_processing_overlap_everything" class="header-anchor"><ol start="6">
+<li><p>Stream Processing: Overlap Everything</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: GPUs can compute while copying data. Use streams to overlap operations.</p>
+<pre><code class="language-julia"># Create multiple streams
+streams &#61; &#91;CuStream&#40;&#41; for _ in 1:4&#93;
+
+# Launch work on different streams
+for &#40;i, stream&#41; in enumerate&#40;streams&#41;
+    # Each stream can work independently
+    d_input &#61; CuArray&#123;Float32&#125;&#40;data_chunks&#91;i&#93;&#41;
+    d_output &#61; similar&#40;d_input&#41;
+    
+    @cuda stream&#61;stream threads&#61;256 blocks&#61;N my_kernel&#33;&#40;d_output, d_input&#41;
+    
+    # This can happen while GPU is computing
+    results&#91;i&#93; &#61; Array&#40;d_output&#41;
+end
+
+# Synchronize all streams
+foreach&#40;synchronize, streams&#41;</code></pre>
+<p><strong>Win</strong>: CPU-GPU transfers happen while other streams compute. Total time goes down.</p>
+<h2 id="ol_start7_the_grid-stride_loop_scale_to_any_data_size"><a href="#ol_start7_the_grid-stride_loop_scale_to_any_data_size" class="header-anchor"><ol start="7">
+<li><p>The Grid-Stride Loop: Scale to Any Data Size</p>
+</li>
+</ol>
+</a></h2>
+<p><strong>The big idea</strong>: Don&#39;t assume you have enough threads for all data. Loop if needed.</p>
+<pre><code class="language-julia">function flexible_kernel&#33;&#40;output, input&#41;
+    # Global thread index
+    idx &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    stride &#61; blockDim&#40;&#41;.x * gridDim&#40;&#41;.x
+    
+    # Each thread handles multiple elements if needed
+    while idx &lt;&#61; length&#40;input&#41;
+        output&#91;idx&#93; &#61; process&#40;input&#91;idx&#93;&#41;
+        idx &#43;&#61; stride
+    end
+    
+    return
+end</code></pre>
+<p><strong>Why</strong>: Works with any data size, easy to tune block/grid dimensions for performance.</p>
+<h2 id="quick_checklist_for_fast_cuda_code"><a href="#quick_checklist_for_fast_cuda_code" class="header-anchor">Quick Checklist for Fast CUDA Code</a></h2>
+<ol>
+<li><p>✅ Memory accesses coalesced?</p>
+</li>
+<li><p>✅ Using shared memory for reused data?</p>
+</li>
+<li><p>✅ Avoiding shared memory bank conflicts?</p>
+</li>
+<li><p>✅ Occupancy above 50&#37;?</p>
+</li>
+<li><p>✅ Grid-stride loop for flexibility?</p>
+</li>
+<li><p>✅ Using streams for overlap?</p>
+</li>
+</ol>
+<h2 id="the_reality_check"><a href="#the_reality_check" class="header-anchor">The Reality Check</a></h2>
+<p>Start simple. Measure. Then optimize. Premature optimization is real – sometimes the &quot;bad&quot; pattern is fast enough and way easier to maintain.</p>
+<p>Use Julia&#39;s <code>CUDA.@profile</code> to see where time actually goes. You&#39;ll be surprised what matters&#33;</p>
+<pre><code class="language-julia">CUDA.@profile @cuda threads&#61;256 blocks&#61;1000 my_kernel&#33;&#40;output, input&#41;</code></pre>
+<p>Happy GPU hacking&#33; 🚀</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 17, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
