@@ -10,4 +10,5 @@
 - [neural-nets](tag/neural-nets)
 - [cuda](tag/cuda)
 - [gpu-programming](tag/gpu-programming)
+- [research-tasks](tag/research-tasks)
 
