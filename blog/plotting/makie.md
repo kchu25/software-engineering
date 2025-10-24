@@ -89,27 +89,96 @@ f
 > **Option 1: Using `Relative()` (Exact proportions)**
 > ```julia
 > f = Figure()
+> 
+> # Create your axes first
+> ax1 = Axis(f[1, 1], title = "Small top section")
+> ax2 = Axis(f[2, 1], title = "Large middle section")
+> ax3 = Axis(f[3, 1], title = "Large bottom section")
+> 
+> # THEN set the row sizes
 > rowsize!(f.layout, 1, Relative(0.1))   # 10% of figure height
 > rowsize!(f.layout, 2, Relative(0.45))  # 45% of figure height
 > rowsize!(f.layout, 3, Relative(0.45))  # 45% of figure height
+> 
+> f
 > ```
 > 
 > **Option 2: Using `Auto()` with weights (More flexible)**
 > ```julia
 > f = Figure()
+> ax1 = Axis(f[1, 1])
+> ax2 = Axis(f[2, 1])
+> ax3 = Axis(f[3, 1])
+> 
 > rowsize!(f.layout, 1, Auto(0.1))   # Weight of 0.1
 > rowsize!(f.layout, 2, Auto(0.45))  # Weight of 0.45
 > rowsize!(f.layout, 3, Auto(0.45))  # Weight of 0.45
 > # This gives you 0.1/(0.1+0.45+0.45) = 10%, etc.
+> 
+> f
 > ```
 > 
 > **Option 3: Simpler weights (Recommended!)**
 > ```julia
 > f = Figure()
+> ax1 = Axis(f[1, 1])
+> ax2 = Axis(f[2, 1])
+> ax3 = Axis(f[3, 1])
+> 
 > rowsize!(f.layout, 1, Auto(1))   # Weight 1
 > rowsize!(f.layout, 2, Auto(4.5)) # Weight 4.5
 > rowsize!(f.layout, 3, Auto(4.5)) # Weight 4.5
 > # Or even simpler: Auto(2), Auto(9), Auto(9) for 2:9:9 ratio
+> 
+> f
+> ```
+> 
+> **The key connection:** When you write `Axis(f[1, 1])`, you're placing an Axis in row 1, column 1 of `f.layout`. The `rowsize!` and `colsize!` functions control how big those rows and columns are. So your axes automatically follow the sizing rules you set!
+> 
+> **Understanding `rowsize!` and `colsize!` syntax:**
+> ```julia
+> rowsize!(layout, row_index, size_specification)
+> colsize!(layout, col_index, size_specification)
+> ```
+> 
+> Breaking it down:
+> - **`layout`**: Which grid are you modifying? (`f.layout` for main figure, or `ga`, `gb` for nested grids)
+> - **`row_index` / `col_index`**: Which row or column number? (1 for first row, 2 for second, etc.)
+> - **`size_specification`**: How big should it be? Options:
+>   - `Auto(weight)` - Proportional sizing with a weight
+>   - `Relative(fraction)` - Exact percentage (0.0 to 1.0)
+>   - `Fixed(pixels)` - Exact pixel size
+> 
+> **Examples to make it crystal clear:**
+> ```julia
+> f = Figure()
+> 
+> # Make row 1 take 20% of the figure height
+> rowsize!(f.layout, 1, Relative(0.2))
+> 
+> # Make row 2 have twice the weight of default rows
+> rowsize!(f.layout, 2, Auto(2))
+> 
+> # Make column 1 exactly 300 pixels wide
+> colsize!(f.layout, 1, Fixed(300))
+> 
+> # Make column 2 take 30% of the figure width
+> colsize!(f.layout, 2, Relative(0.3))
+> ```
+> 
+> **For nested GridLayouts:**
+> ```julia
+> f = Figure()
+> ga = f[1, 1] = GridLayout()  # Nested layout
+> 
+> ax1 = Axis(ga[1, 1])
+> ax2 = Axis(ga[2, 1])
+> 
+> # Control the nested layout's rows (note: use 'ga', not 'f.layout')
+> rowsize!(ga, 1, Auto(1))   # Row 1 of ga
+> rowsize!(ga, 2, Auto(4))   # Row 2 of ga
+> 
+> f
 > ```
 > 
 > **When to use what?**
