@@ -1,7 +1,3 @@
-@def title = "The Ultimate Guide to Makie & CairoMakie in Julia"
-@def published = "24 October 2025"
-@def tags = ["plotting", "julia"]
-
 # The Ultimate Guide to Makie & CairoMakie in Julia
 
 Hey there! Welcome to your friendly guide to creating beautiful, publication-ready plots in Julia using Makie. Think of Makie as the Swiss Army knife of plotting libraries—it's incredibly powerful, but once you get the hang of it, you'll wonder how you ever lived without it.
@@ -74,6 +70,52 @@ ax3 = Axis(gc[1, 1])
 
 f
 ```
+
+> **💡 Pro Tip: Cleaner Range Syntax**
+> 
+> Instead of writing `1:56, 57:100`, you can use `end` for more flexible indexing:
+> ```julia
+> ga = f[1:56, 1] = GridLayout()
+> gb = f[57:end, 1] = GridLayout()  # From 57 to the last row
+> gc = f[1:end, 2] = GridLayout()   # Entire column 2
+> ```
+> 
+> But honestly? **For most cases, keep it simple!** Use small numbers (1, 2, 3) and adjust sizes later with `rowsize!` and `colsize!`. The grid doesn't need to match your data dimensions—it just needs to organize your visual elements. If you're thinking about 100+ rows in a layout, you might want to rethink your approach—perhaps use a single axis with multiple plot elements instead, or consider creating subplots programmatically in a loop.
+
+> **🎯 Controlling Proportional Sizes**
+>
+> Want specific proportions like 0.1 : 0.45 : 0.45? Here are your options:
+> 
+> **Option 1: Using `Relative()` (Exact proportions)**
+> ```julia
+> f = Figure()
+> rowsize!(f.layout, 1, Relative(0.1))   # 10% of figure height
+> rowsize!(f.layout, 2, Relative(0.45))  # 45% of figure height
+> rowsize!(f.layout, 3, Relative(0.45))  # 45% of figure height
+> ```
+> 
+> **Option 2: Using `Auto()` with weights (More flexible)**
+> ```julia
+> f = Figure()
+> rowsize!(f.layout, 1, Auto(0.1))   # Weight of 0.1
+> rowsize!(f.layout, 2, Auto(0.45))  # Weight of 0.45
+> rowsize!(f.layout, 3, Auto(0.45))  # Weight of 0.45
+> # This gives you 0.1/(0.1+0.45+0.45) = 10%, etc.
+> ```
+> 
+> **Option 3: Simpler weights (Recommended!)**
+> ```julia
+> f = Figure()
+> rowsize!(f.layout, 1, Auto(1))   # Weight 1
+> rowsize!(f.layout, 2, Auto(4.5)) # Weight 4.5
+> rowsize!(f.layout, 3, Auto(4.5)) # Weight 4.5
+> # Or even simpler: Auto(2), Auto(9), Auto(9) for 2:9:9 ratio
+> ```
+> 
+> **When to use what?**
+> - `Relative()`: When you want exact percentages regardless of content
+> - `Auto()`: When you want proportions but also respect minimum sizes of content (more flexible!)
+> - `Fixed()`: When you want exact pixel sizes like `Fixed(100)` for a 100px row
 
 **Pro tip:** Store your GridLayouts in variables (like `ga`, `gb`) if you plan to adjust gaps, add titles, or manipulate them later. It's way easier than hunting through nested indices!
 
@@ -244,6 +286,8 @@ boxplot!(ax, categories, values,
 ```
 
 ### Understanding the `range` Parameter
+
+> **What's IQR?** IQR stands for **Interquartile Range**—it's the distance between the 25th percentile (Q1) and 75th percentile (Q3). Basically, it's the height of the box in your boxplot! It represents the middle 50% of your data. Using 1.5 × IQR is a classic statistical convention from John Tukey for identifying outliers.
 
 The `range` parameter controls how far the whiskers extend:
 
