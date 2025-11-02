@@ -24,9 +24,9 @@
 
 
 <!-- Content appended here -->
-<div class="franklin-content"><h1 id="cuda_design_patterns_a_friendly_guide__2"><a href="#cuda_design_patterns_a_friendly_guide__2" class="header-anchor">CUDA Design Patterns: A Friendly Guide</a></h1>
+<div class="franklin-content"><h1 id="cuda_design_patterns_a_friendly_guide"><a href="#cuda_design_patterns_a_friendly_guide" class="header-anchor">CUDA Design Patterns: A Friendly Guide</a></h1>
 <p>So you know the basics of CUDA kernels? Great&#33; Let&#39;s talk about the patterns that separate &quot;it works&quot; code from &quot;it flies&quot; code.</p>
-<h2 id="memory_coalescing_the_golden_rule__2"><a href="#memory_coalescing_the_golden_rule__2" class="header-anchor"><ol>
+<h2 id="memory_coalescing_the_golden_rule"><a href="#memory_coalescing_the_golden_rule" class="header-anchor"><ol>
 <li><p>Memory Coalescing: The Golden Rule</p>
 </li>
 </ol>
@@ -62,7 +62,7 @@
 </ul>
 <p>Think of it like: the GPU fetches memory in big 128-byte chunks &#40;like loading a whole bookshelf section&#41;. If your 32 threads all want books from the same section, great&#33; If they&#39;re scattered across the entire library? Pain.</p>
 </blockquote>
-<h3 id="real_example_processing_rgb_images__2"><a href="#real_example_processing_rgb_images__2" class="header-anchor">Real Example: Processing RGB Images</a></h3>
+<h3 id="real_example_processing_rgb_images"><a href="#real_example_processing_rgb_images" class="header-anchor">Real Example: Processing RGB Images</a></h3>
 <p>Say you have an image stored as <code>&#91;R1, G1, B1, R2, G2, B2, R3, G3, B3, ...&#93;</code> and you want to extract just the red channel.</p>
 <p><strong>Bad pattern</strong> &#40;what feels natural&#41;:</p>
 <pre><code class="language-julia">using CUDA
@@ -103,7 +103,7 @@ function extract_red_good&#33;&#40;output, rgb_image&#41;
     return
 end</code></pre>
 <p><strong>Why it matters</strong>: The bad version does 32 separate memory loads. The good version does 1 memory transaction that loads 32 consecutive values. That&#39;s potentially 32x less memory traffic&#33;</p>
-<h3 id="another_real_example_struct_of_arrays_vs_array_of_structs__2"><a href="#another_real_example_struct_of_arrays_vs_array_of_structs__2" class="header-anchor">Another Real Example: Struct of Arrays vs Array of Structs</a></h3>
+<h3 id="another_real_example_struct_of_arrays_vs_array_of_structs"><a href="#another_real_example_struct_of_arrays_vs_array_of_structs" class="header-anchor">Another Real Example: Struct of Arrays vs Array of Structs</a></h3>
 <p>You&#39;re processing particles with position and velocity:</p>
 <p><strong>Bad</strong> &#40;Array of Structs - AoS&#41;:</p>
 <pre><code class="language-julia">struct Particle
@@ -155,7 +155,7 @@ function update_positions_good&#33;&#40;particles, dt&#41;
     return
 end</code></pre>
 <p><strong>The tradeoff</strong>: SoA feels weird in CPU code but is gold for GPUs. If you only need to update X positions, you don&#39;t even load the Y and Z arrays&#33;</p>
-<h3 id="when_coalescing_is_hard_and_thats_okay__2"><a href="#when_coalescing_is_hard_and_thats_okay__2" class="header-anchor">When Coalescing is Hard &#40;and that&#39;s okay&#33;&#41;</a></h3>
+<h3 id="when_coalescing_is_hard_and_thats_okay"><a href="#when_coalescing_is_hard_and_thats_okay" class="header-anchor">When Coalescing is Hard &#40;and that&#39;s okay&#33;&#41;</a></h3>
 <p>Sometimes you genuinely need random access - like in a hash table lookup or tree traversal. In those cases:</p>
 <ul>
 <li><p>Use texture memory &#40;has a cache&#41;</p>
@@ -166,7 +166,7 @@ end</code></pre>
 </li>
 </ul>
 <p>Not every memory access can be coalesced, but the ones in your hot loops? Those are worth the effort.</p>
-<h2 id="ol_start2_shared_memory_your_on-chip_cache__2"><a href="#ol_start2_shared_memory_your_on-chip_cache__2" class="header-anchor"><ol start="2">
+<h2 id="ol_start2_shared_memory_your_on-chip_cache"><a href="#ol_start2_shared_memory_your_on-chip_cache" class="header-anchor"><ol start="2">
 <li><p>Shared Memory: Your On-Chip Cache</p>
 </li>
 </ol>
@@ -319,7 +319,7 @@ end
 <li><p>Without shared memory, either the read OR write would be uncoalesced &#40;column access&#41; &#61; 32x slower&#33;</p>
 </li>
 </ul>
-<h2 id="ol_start3_warp-level_primitives_free_synchronization__2"><a href="#ol_start3_warp-level_primitives_free_synchronization__2" class="header-anchor"><ol start="3">
+<h2 id="ol_start3_warp-level_primitives_free_synchronization"><a href="#ol_start3_warp-level_primitives_free_synchronization" class="header-anchor"><ol start="3">
 <li><p>Warp-Level Primitives: Free Synchronization</p>
 </li>
 </ol>
@@ -352,7 +352,7 @@ function block_sum_kernel&#33;&#40;output, input&#41;
     return
 end</code></pre>
 <p><strong>Why it&#39;s awesome</strong>: No synchronization barriers, no shared memory needed for simple reductions.</p>
-<h2 id="ol_start4_occupancy_keep_those_cores_busy__2"><a href="#ol_start4_occupancy_keep_those_cores_busy__2" class="header-anchor"><ol start="4">
+<h2 id="ol_start4_occupancy_keep_those_cores_busy"><a href="#ol_start4_occupancy_keep_those_cores_busy" class="header-anchor"><ol start="4">
 <li><p>Occupancy: Keep Those Cores Busy</p>
 </li>
 </ol>
@@ -378,7 +378,7 @@ function analyze_kernel&#40;&#41;
     println&#40;&quot;Occupancy: &#36;&#40;occupancy.active_blocks&#41; blocks active&quot;&#41;
 end</code></pre>
 <p><strong>Rule of thumb</strong>: Aim for at least 128 threads per block, ideally 256-512. But measure&#33;</p>
-<h2 id="ol_start5_memory_access_patterns_bank_conflicts__2"><a href="#ol_start5_memory_access_patterns_bank_conflicts__2" class="header-anchor"><ol start="5">
+<h2 id="ol_start5_memory_access_patterns_bank_conflicts"><a href="#ol_start5_memory_access_patterns_bank_conflicts" class="header-anchor"><ol start="5">
 <li><p>Memory Access Patterns: Bank Conflicts</p>
 </li>
 </ol>
@@ -512,7 +512,7 @@ end</code></pre>
 </li>
 </ul>
 <p><strong>The quick fix</strong>: Add <code>&#43;1</code> padding to one dimension. Wastes a tiny bit of memory but can give huge speedups&#33;</p>
-<h2 id="ol_start6_stream_processing_overlap_everything__2"><a href="#ol_start6_stream_processing_overlap_everything__2" class="header-anchor"><ol start="6">
+<h2 id="ol_start6_stream_processing_overlap_everything"><a href="#ol_start6_stream_processing_overlap_everything" class="header-anchor"><ol start="6">
 <li><p>Stream Processing: Overlap Everything</p>
 </li>
 </ol>
@@ -536,7 +536,7 @@ end
 # Synchronize all streams
 foreach&#40;synchronize, streams&#41;</code></pre>
 <p><strong>Win</strong>: CPU-GPU transfers happen while other streams compute. Total time goes down.</p>
-<h2 id="ol_start7_the_grid-stride_loop_scale_to_any_data_size__2"><a href="#ol_start7_the_grid-stride_loop_scale_to_any_data_size__2" class="header-anchor"><ol start="7">
+<h2 id="ol_start7_the_grid-stride_loop_scale_to_any_data_size"><a href="#ol_start7_the_grid-stride_loop_scale_to_any_data_size" class="header-anchor"><ol start="7">
 <li><p>The Grid-Stride Loop: Scale to Any Data Size</p>
 </li>
 </ol>
@@ -556,7 +556,7 @@ foreach&#40;synchronize, streams&#41;</code></pre>
     return
 end</code></pre>
 <p><strong>Why</strong>: Works with any data size, easy to tune block/grid dimensions for performance.</p>
-<h2 id="quick_checklist_for_fast_cuda_code__2"><a href="#quick_checklist_for_fast_cuda_code__2" class="header-anchor">Quick Checklist for Fast CUDA Code</a></h2>
+<h2 id="quick_checklist_for_fast_cuda_code"><a href="#quick_checklist_for_fast_cuda_code" class="header-anchor">Quick Checklist for Fast CUDA Code</a></h2>
 <ol>
 <li><p>✅ Memory accesses coalesced?</p>
 </li>
@@ -571,7 +571,7 @@ end</code></pre>
 <li><p>✅ Using streams for overlap?</p>
 </li>
 </ol>
-<h2 id="the_reality_check__2"><a href="#the_reality_check__2" class="header-anchor">The Reality Check</a></h2>
+<h2 id="the_reality_check"><a href="#the_reality_check" class="header-anchor">The Reality Check</a></h2>
 <p>Start simple. Measure. Then optimize. Premature optimization is real – sometimes the &quot;bad&quot; pattern is fast enough and way easier to maintain.</p>
 <p>Use Julia&#39;s <code>CUDA.@profile</code> to see where time actually goes. You&#39;ll be surprised what matters&#33;</p>
 <pre><code class="language-julia">CUDA.@profile @cuda threads&#61;256 blocks&#61;1000 my_kernel&#33;&#40;output, input&#41;</code></pre>

@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>The Ultimate Guide to Makie &amp; CairoMakie in Julia</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="the_ultimate_guide_to_makie_cairomakie_in_julia"><a href="#the_ultimate_guide_to_makie_cairomakie_in_julia" class="header-anchor">The Ultimate Guide to Makie &amp; CairoMakie in Julia</a></h1>
+<p>Hey there&#33; Welcome to your friendly guide to creating beautiful, publication-ready plots in Julia using Makie. Think of Makie as the Swiss Army knife of plotting libraries—it&#39;s incredibly powerful, but once you get the hang of it, you&#39;ll wonder how you ever lived without it.</p>
+<h2 id="getting_started_the_basics"><a href="#getting_started_the_basics" class="header-anchor">Getting Started: The Basics</a></h2>
+<p>First things first, let&#39;s get you set up:</p>
+<pre><code class="language-julia">using CairoMakie  # This automatically loads Makie too&#33;
+CairoMakie.activate&#33;&#40;&#41;  # Use CairoMakie as the backend</code></pre>
+<p><strong>Why CairoMakie?</strong> It&#39;s perfect for static, high-quality outputs &#40;think papers, reports&#41;. If you want interactive plots, check out <code>GLMakie</code> instead, but we&#39;ll focus on CairoMakie here.</p>
+<h3 id="your_first_figure"><a href="#your_first_figure" class="header-anchor">Your First Figure</a></h3>
+<p>Everything in Makie starts with a <code>Figure</code>. Think of it as your canvas:</p>
+<pre><code class="language-julia">f &#61; Figure&#40;size &#61; &#40;800, 600&#41;, backgroundcolor &#61; :white&#41;</code></pre>
+<p>You can customize all sorts of things right from the start—size, background color, font family, resolution for publication quality, you name it.</p>
+<h2 id="understanding_the_layout_system_the_gridlayout_magic"><a href="#understanding_the_layout_system_the_gridlayout_magic" class="header-anchor">Understanding the Layout System: The GridLayout Magic</a></h2>
+<p>Here&#39;s where Makie really shines. Instead of fighting with subplot layouts, Makie gives you a <strong>grid system</strong> that&#39;s intuitive once you get it.</p>
+<h3 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h3>
+<p>Think of your figure as a <strong>grid of cells</strong>. You can place anything in these cells:</p>
+<ul>
+<li><p>Axes &#40;for plotting&#41;</p>
+</li>
+<li><p>Colorbars</p>
+</li>
+<li><p>Legends</p>
+</li>
+<li><p>Labels</p>
+</li>
+<li><p>Even other grids &#40;nested layouts&#33;&#41;</p>
+</li>
+</ul>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+
+# Create an axis in row 1, column 1
+ax &#61; Axis&#40;f&#91;1, 1&#93;, xlabel &#61; &quot;X Label&quot;, ylabel &#61; &quot;Y Label&quot;&#41;
+
+# Create another in row 1, column 2
+ax2 &#61; Axis&#40;f&#91;1, 2&#93;&#41;
+
+# Span multiple cells&#33; This goes in row 2, across both columns
+ax3 &#61; Axis&#40;f&#91;2, 1:2&#93;&#41;
+
+f</code></pre>
+<h3 id="gridlayout_when_you_need_more_control"><a href="#gridlayout_when_you_need_more_control" class="header-anchor">GridLayout: When You Need More Control</a></h3>
+<p>For complex layouts, you&#39;ll want to create explicit <code>GridLayout</code> objects. This is super useful when you want to group related plots together and control their spacing independently:</p>
+<pre><code class="language-julia">f &#61; Figure&#40;size &#61; &#40;1000, 700&#41;&#41;
+
+# Create separate GridLayouts
+ga &#61; f&#91;1, 1&#93; &#61; GridLayout&#40;&#41;  # Top-left section
+gb &#61; f&#91;2, 1&#93; &#61; GridLayout&#40;&#41;  # Bottom-left section
+gc &#61; f&#91;1:2, 2&#93; &#61; GridLayout&#40;&#41;  # Entire right side
+
+# Now place axes in these grids
+ax1 &#61; Axis&#40;ga&#91;1, 1&#93;&#41;
+ax2 &#61; Axis&#40;gb&#91;1, 1&#93;&#41;
+ax3 &#61; Axis&#40;gc&#91;1, 1&#93;&#41;
+
+f</code></pre>
+<blockquote>
+<p><strong>💡 Pro Tip: Cleaner Range Syntax</strong></p>
+<p>Instead of writing <code>1:56, 57:100</code>, you can use <code>end</code> for more flexible indexing:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; ga &#61; f&#91;1:56, 1&#93; &#61; GridLayout&#40;&#41;
+&gt; gb &#61; f&#91;57:end, 1&#93; &#61; GridLayout&#40;&#41;  # From 57 to the last row
+&gt; gc &#61; f&#91;1:end, 2&#93; &#61; GridLayout&#40;&#41;   # Entire column 2
+&gt;</code></pre>
+<blockquote>
+<p>But honestly? <strong>For most cases, keep it simple&#33;</strong> Use small numbers &#40;1, 2, 3&#41; and adjust sizes later with <code>rowsize&#33;</code> and <code>colsize&#33;</code>. The grid doesn&#39;t need to match your data dimensions—it just needs to organize your visual elements. If you&#39;re thinking about 100&#43; rows in a layout, you might want to rethink your approach—perhaps use a single axis with multiple plot elements instead, or consider creating subplots programmatically in a loop.</p>
+</blockquote>
+<blockquote>
+<p><strong>🎯 Controlling Proportional Sizes</strong></p>
+<p>Want specific proportions like 0.1 : 0.45 : 0.45? Here are your options:</p>
+<p><strong>Option 1: Using <code>Relative&#40;&#41;</code> &#40;Exact proportions&#41;</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; f &#61; Figure&#40;&#41;
+&gt; 
+&gt; # Create your axes first
+&gt; ax1 &#61; Axis&#40;f&#91;1, 1&#93;, title &#61; &quot;Small top section&quot;&#41;
+&gt; ax2 &#61; Axis&#40;f&#91;2, 1&#93;, title &#61; &quot;Large middle section&quot;&#41;
+&gt; ax3 &#61; Axis&#40;f&#91;3, 1&#93;, title &#61; &quot;Large bottom section&quot;&#41;
+&gt; 
+&gt; # THEN set the row sizes
+&gt; rowsize&#33;&#40;f.layout, 1, Relative&#40;0.1&#41;&#41;   # 10&#37; of figure height
+&gt; rowsize&#33;&#40;f.layout, 2, Relative&#40;0.45&#41;&#41;  # 45&#37; of figure height
+&gt; rowsize&#33;&#40;f.layout, 3, Relative&#40;0.45&#41;&#41;  # 45&#37; of figure height
+&gt; 
+&gt; f
+&gt;</code></pre>
+<blockquote>
+<p><strong>Option 2: Using <code>Auto&#40;&#41;</code> with weights &#40;More flexible&#41;</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; f &#61; Figure&#40;&#41;
+&gt; ax1 &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+&gt; ax2 &#61; Axis&#40;f&#91;2, 1&#93;&#41;
+&gt; ax3 &#61; Axis&#40;f&#91;3, 1&#93;&#41;
+&gt; 
+&gt; rowsize&#33;&#40;f.layout, 1, Auto&#40;0.1&#41;&#41;   # Weight of 0.1
+&gt; rowsize&#33;&#40;f.layout, 2, Auto&#40;0.45&#41;&#41;  # Weight of 0.45
+&gt; rowsize&#33;&#40;f.layout, 3, Auto&#40;0.45&#41;&#41;  # Weight of 0.45
+&gt; # This gives you 0.1/&#40;0.1&#43;0.45&#43;0.45&#41; &#61; 10&#37;, etc.
+&gt; 
+&gt; f
+&gt;</code></pre>
+<blockquote>
+<p><strong>Option 3: Simpler weights &#40;Recommended&#33;&#41;</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; f &#61; Figure&#40;&#41;
+&gt; ax1 &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+&gt; ax2 &#61; Axis&#40;f&#91;2, 1&#93;&#41;
+&gt; ax3 &#61; Axis&#40;f&#91;3, 1&#93;&#41;
+&gt; 
+&gt; rowsize&#33;&#40;f.layout, 1, Auto&#40;1&#41;&#41;   # Weight 1
+&gt; rowsize&#33;&#40;f.layout, 2, Auto&#40;4.5&#41;&#41; # Weight 4.5
+&gt; rowsize&#33;&#40;f.layout, 3, Auto&#40;4.5&#41;&#41; # Weight 4.5
+&gt; # Or even simpler: Auto&#40;2&#41;, Auto&#40;9&#41;, Auto&#40;9&#41; for 2:9:9 ratio
+&gt; 
+&gt; f
+&gt;</code></pre>
+<blockquote>
+<p><strong>The key connection:</strong> When you write <code>Axis&#40;f&#91;1, 1&#93;&#41;</code>, you&#39;re placing an Axis in row 1, column 1 of <code>f.layout</code>. The <code>rowsize&#33;</code> and <code>colsize&#33;</code> functions control how big those rows and columns are. So your axes automatically follow the sizing rules you set&#33;</p>
+<p><strong>Understanding <code>rowsize&#33;</code> and <code>colsize&#33;</code> syntax:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; rowsize&#33;&#40;layout, row_index, size_specification&#41;
+&gt; colsize&#33;&#40;layout, col_index, size_specification&#41;
+&gt;</code></pre>
+<blockquote>
+<p>Breaking it down:</p>
+<ul>
+<li><p><strong><code>layout</code></strong>: Which grid are you modifying? &#40;<code>f.layout</code> for main figure, or <code>ga</code>, <code>gb</code> for nested grids&#41;</p>
+</li>
+<li><p><strong><code>row_index</code> / <code>col_index</code></strong>: Which row or column number? &#40;1 for first row, 2 for second, etc.&#41;</p>
+</li>
+<li><p><strong><code>size_specification</code></strong>: How big should it be? Options:</p>
+<ul>
+<li><p><code>Auto&#40;weight&#41;</code> - Proportional sizing with a weight</p>
+</li>
+<li><p><code>Relative&#40;fraction&#41;</code> - Exact percentage &#40;0.0 to 1.0&#41;</p>
+</li>
+<li><p><code>Fixed&#40;pixels&#41;</code> - Exact pixel size</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>Examples to make it crystal clear:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; f &#61; Figure&#40;&#41;
+&gt; 
+&gt; # Make row 1 take 20&#37; of the figure height
+&gt; rowsize&#33;&#40;f.layout, 1, Relative&#40;0.2&#41;&#41;
+&gt; 
+&gt; # Make row 2 have twice the weight of default rows
+&gt; rowsize&#33;&#40;f.layout, 2, Auto&#40;2&#41;&#41;
+&gt; 
+&gt; # Make column 1 exactly 300 pixels wide
+&gt; colsize&#33;&#40;f.layout, 1, Fixed&#40;300&#41;&#41;
+&gt; 
+&gt; # Make column 2 take 30&#37; of the figure width
+&gt; colsize&#33;&#40;f.layout, 2, Relative&#40;0.3&#41;&#41;
+&gt;</code></pre>
+<blockquote>
+<p><strong>For nested GridLayouts:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; f &#61; Figure&#40;&#41;
+&gt; ga &#61; f&#91;1, 1&#93; &#61; GridLayout&#40;&#41;  # Nested layout
+&gt; 
+&gt; ax1 &#61; Axis&#40;ga&#91;1, 1&#93;&#41;
+&gt; ax2 &#61; Axis&#40;ga&#91;2, 1&#93;&#41;
+&gt; 
+&gt; # Control the nested layout&#39;s rows &#40;note: use &#39;ga&#39;, not &#39;f.layout&#39;&#41;
+&gt; rowsize&#33;&#40;ga, 1, Auto&#40;1&#41;&#41;   # Row 1 of ga
+&gt; rowsize&#33;&#40;ga, 2, Auto&#40;4&#41;&#41;   # Row 2 of ga
+&gt; 
+&gt; f
+&gt;</code></pre>
+<blockquote>
+<p><strong>When to use what?</strong></p>
+<ul>
+<li><p><code>Relative&#40;&#41;</code>: When you want exact percentages regardless of content</p>
+</li>
+<li><p><code>Auto&#40;&#41;</code>: When you want proportions but also respect minimum sizes of content &#40;more flexible&#33;&#41;</p>
+</li>
+<li><p><code>Fixed&#40;&#41;</code>: When you want exact pixel sizes like <code>Fixed&#40;100&#41;</code> for a 100px row</p>
+</li>
+</ul>
+</blockquote>
+<p><strong>Pro tip:</strong> Store your GridLayouts in variables &#40;like <code>ga</code>, <code>gb</code>&#41; if you plan to adjust gaps, add titles, or manipulate them later. It&#39;s way easier than hunting through nested indices&#33;</p>
+<h2 id="scatter_plots_the_foundation"><a href="#scatter_plots_the_foundation" class="header-anchor">Scatter Plots: The Foundation</a></h2>
+<p>Scatter plots are your bread and butter. Here&#39;s how to make them shine:</p>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;, 
+    xlabel &#61; &quot;Time &#40;s&#41;&quot;, 
+    ylabel &#61; &quot;Response&quot;,
+    title &#61; &quot;My Beautiful Scatter Plot&quot;&#41;
+
+# Basic scatter
+x &#61; 1:10
+y &#61; rand&#40;10&#41;
+scatter&#33;&#40;ax, x, y&#41;
+
+f</code></pre>
+<h3 id="customizing_your_scatters"><a href="#customizing_your_scatters" class="header-anchor">Customizing Your Scatters</a></h3>
+<p>The fun part&#33; You can control almost everything:</p>
+<pre><code class="language-julia"># Different marker types
+scatter&#33;&#40;ax, x, y, 
+    marker &#61; :circle,      # or :rect, :diamond, :cross, :utriangle, etc.
+    markersize &#61; 20,       # size in pixels
+    color &#61; :red,          # or use :steelblue, RGB values, etc.
+    strokecolor &#61; :black,  # outline color
+    strokewidth &#61; 2&#41;       # outline thickness
+
+# Color by a variable &#40;continuous&#41;
+colors &#61; rand&#40;10&#41;
+scatter&#33;&#40;ax, x, y, color &#61; colors, colormap &#61; :viridis&#41;
+
+# Different sizes per point
+sizes &#61; rand&#40;10&#41; .* 30
+scatter&#33;&#40;ax, x, y, markersize &#61; sizes&#41;
+
+# Transparency
+scatter&#33;&#40;ax, x, y, alpha &#61; 0.5&#41;  # or use color &#61; &#40;:red, 0.5&#41;</code></pre>
+<h3 id="multiple_series_with_legends"><a href="#multiple_series_with_legends" class="header-anchor">Multiple Series with Legends</a></h3>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+
+# Plot multiple series with labels
+scatter&#33;&#40;ax, x1, y1, label &#61; &quot;Treatment&quot;, color &#61; :blue&#41;
+scatter&#33;&#40;ax, x2, y2, label &#61; &quot;Control&quot;, color &#61; :red&#41;
+scatter&#33;&#40;ax, x3, y3, label &#61; &quot;Placebo&quot;, color &#61; :green&#41;
+
+# Add the legend
+Legend&#40;f&#91;1, 2&#93;, ax&#41;  # Places it in column 2
+
+# Or place it within the axis
+axislegend&#40;ax, position &#61; :rt&#41;  # rt &#61; right-top, also :lt, :lb, :rb
+
+f</code></pre>
+<h2 id="histograms_distribution_visualization"><a href="#histograms_distribution_visualization" class="header-anchor">Histograms: Distribution Visualization</a></h2>
+<p>Histograms in Makie are straightforward and flexible:</p>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;, xlabel &#61; &quot;Value&quot;, ylabel &#61; &quot;Count&quot;&#41;
+
+data &#61; randn&#40;1000&#41;  # Random normal data
+
+# Basic histogram
+hist&#33;&#40;ax, data&#41;
+
+f</code></pre>
+<h3 id="customizing_histograms"><a href="#customizing_histograms" class="header-anchor">Customizing Histograms</a></h3>
+<pre><code class="language-julia"># Control the bins
+hist&#33;&#40;ax, data, bins &#61; 30&#41;  # specific number of bins
+hist&#33;&#40;ax, data, bins &#61; -3:0.5:3&#41;  # explicit bin edges
+
+# Colors and styling
+hist&#33;&#40;ax, data, 
+    color &#61; :steelblue,
+    strokecolor &#61; :black,
+    strokewidth &#61; 1&#41;
+
+# Normalization options
+hist&#33;&#40;ax, data, normalization &#61; :pdf&#41;  # probability density
+hist&#33;&#40;ax, data, normalization &#61; :probability&#41;  # sums to 1
+
+# Horizontal histograms
+hist&#33;&#40;ax, data, direction &#61; :x&#41;  # now bins are on y-axis</code></pre>
+<h3 id="multiple_histograms_overlapping_or_dodged"><a href="#multiple_histograms_overlapping_or_dodged" class="header-anchor">Multiple Histograms &#40;Overlapping or Dodged&#41;</a></h3>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+
+group1 &#61; randn&#40;1000&#41;
+group2 &#61; randn&#40;1000&#41; .&#43; 2
+
+# Overlapping with transparency
+hist&#33;&#40;ax, group1, color &#61; &#40;:blue, 0.5&#41;, label &#61; &quot;Group 1&quot;&#41;
+hist&#33;&#40;ax, group2, color &#61; &#40;:red, 0.5&#41;, label &#61; &quot;Group 2&quot;&#41;
+axislegend&#40;ax&#41;
+
+f</code></pre>
+<p>For side-by-side &#40;dodged&#41; histograms, you&#39;ll want to use <code>barplot&#33;</code> with pre-computed bin counts, or check out the <code>AlgebraOfGraphics.jl</code> package which makes this easier.</p>
+<h2 id="boxplots_taking_full_control"><a href="#boxplots_taking_full_control" class="header-anchor">Boxplots: Taking Full Control</a></h2>
+<p>Now we&#39;re getting to the good stuff&#33; Boxplots in Makie give you incredible control, including the whiskers.</p>
+<h3 id="basic_boxplot"><a href="#basic_boxplot" class="header-anchor">Basic Boxplot</a></h3>
+<pre><code class="language-julia">using CairoMakie
+
+f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;, ylabel &#61; &quot;Value&quot;&#41;
+
+# Data: categories and values
+categories &#61; repeat&#40;1:3, inner &#61; 50&#41;
+values &#61; randn&#40;150&#41; .&#43; categories
+
+boxplot&#33;&#40;ax, categories, values&#41;
+
+# Label the categories
+ax.xticks &#61; &#40;1:3, &#91;&quot;Control&quot;, &quot;Treatment A&quot;, &quot;Treatment B&quot;&#93;&#41;
+
+f</code></pre>
+<h3 id="customizing_whiskers_the_inside-out_details"><a href="#customizing_whiskers_the_inside-out_details" class="header-anchor">Customizing Whiskers: The Inside-Out Details</a></h3>
+<p>Here&#39;s where it gets really interesting. Makie&#39;s <code>boxplot</code> function has several parameters that control whiskers:</p>
+<pre><code class="language-julia">boxplot&#33;&#40;ax, categories, values,
+    # Whisker range &#40;default is 1.5 for 1.5*IQR&#41;
+    range &#61; 1.5,  # This is the multiplier for IQR
+    
+    # Show outliers
+    show_outliers &#61; true,
+    
+    # Whisker style
+    whiskerwidth &#61; 0.5,  # Width relative to box
+    
+    # Box customization
+    width &#61; 0.8,  # Box width
+    color &#61; :lightblue,
+    strokecolor &#61; :black,
+    strokewidth &#61; 2&#41;</code></pre>
+<h3 id="understanding_the_range_parameter"><a href="#understanding_the_range_parameter" class="header-anchor">Understanding the <code>range</code> Parameter</a></h3>
+<blockquote>
+<p><strong>What&#39;s IQR?</strong> IQR stands for <strong>Interquartile Range</strong>—it&#39;s the distance between the 25th percentile &#40;Q1&#41; and 75th percentile &#40;Q3&#41;. Basically, it&#39;s the height of the box in your boxplot&#33; It represents the middle 50&#37; of your data. Using 1.5 × IQR is a classic statistical convention from John Tukey for identifying outliers.</p>
+</blockquote>
+<p>The <code>range</code> parameter controls how far the whiskers extend:</p>
+<ul>
+<li><p><code>range &#61; 1.5</code> &#40;default&#41;: Whiskers extend to 1.5 × IQR from the quartiles</p>
+</li>
+<li><p><code>range &#61; 0</code>: Whiskers extend to min/max of data &#40;no outliers&#41;</p>
+</li>
+<li><p><code>range &#61; 2.0</code>: More conservative, fewer outliers</p>
+</li>
+</ul>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+
+# Compare different ranges
+ax1 &#61; Axis&#40;f&#91;1, 1&#93;, title &#61; &quot;range &#61; 1.5 &#40;default&#41;&quot;&#41;
+boxplot&#33;&#40;ax1, categories, values, range &#61; 1.5&#41;
+
+ax2 &#61; Axis&#40;f&#91;1, 2&#93;, title &#61; &quot;range &#61; 0 &#40;min/max&#41;&quot;&#41;
+boxplot&#33;&#40;ax2, categories, values, range &#61; 0&#41;
+
+ax3 &#61; Axis&#40;f&#91;1, 3&#93;, title &#61; &quot;range &#61; 3.0 &#40;conservative&#41;&quot;&#41;
+boxplot&#33;&#40;ax3, categories, values, range &#61; 3.0&#41;
+
+f</code></pre>
+<h3 id="manual_control_computing_your_own_whiskers"><a href="#manual_control_computing_your_own_whiskers" class="header-anchor">Manual Control: Computing Your Own Whiskers</a></h3>
+<p>For ultimate control, you can compute the box plot statistics yourself and use <code>rangebars&#33;</code>:</p>
+<pre><code class="language-julia">using Statistics
+
+function my_boxplot_stats&#40;data; whisker_range &#61; 1.5&#41;
+    q1, q2, q3 &#61; quantile&#40;data, &#91;0.25, 0.5, 0.75&#93;&#41;
+    iqr &#61; q3 - q1
+    
+    # Compute whisker positions
+    lower_fence &#61; q1 - whisker_range * iqr
+    upper_fence &#61; q3 &#43; whisker_range * iqr
+    
+    # Whiskers go to most extreme data point within fences
+    lower_whisker &#61; maximum&#40;x -&gt; x &gt;&#61; lower_fence ? x : -Inf, data&#41;
+    upper_whisker &#61; minimum&#40;x -&gt; x &lt;&#61; upper_fence ? x : Inf, data&#41;
+    
+    # Find outliers
+    outliers &#61; filter&#40;x -&gt; x &lt; lower_fence || x &gt; upper_fence, data&#41;
+    
+    return &#40;q1 &#61; q1, q2 &#61; q2, q3 &#61; q3, 
+            lower &#61; lower_whisker, upper &#61; upper_whisker,
+            outliers &#61; outliers&#41;
+end
+
+# Use it
+f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+
+data &#61; randn&#40;100&#41;
+stats &#61; my_boxplot_stats&#40;data&#41;
+
+# Draw box
+x_pos &#61; 1
+box_width &#61; 0.4
+
+# Use poly&#33; for the box
+poly&#33;&#40;ax, Point2f&#91;&#40;x_pos - box_width/2, stats.q1&#41;,
+                   &#40;x_pos &#43; box_width/2, stats.q1&#41;,
+                   &#40;x_pos &#43; box_width/2, stats.q3&#41;,
+                   &#40;x_pos - box_width/2, stats.q3&#41;&#93;,
+      color &#61; :lightblue, strokecolor &#61; :black, strokewidth &#61; 2&#41;
+
+# Median line
+lines&#33;&#40;ax, &#91;x_pos - box_width/2, x_pos &#43; box_width/2&#93;,
+       &#91;stats.q2, stats.q2&#93;, color &#61; :black, linewidth &#61; 3&#41;
+
+# Whiskers
+linesegments&#33;&#40;ax, &#91;Point2f&#40;x_pos, stats.q3&#41;, Point2f&#40;x_pos, stats.upper&#41;&#93;,
+              color &#61; :black&#41;
+linesegments&#33;&#40;ax, &#91;Point2f&#40;x_pos, stats.q1&#41;, Point2f&#40;x_pos, stats.lower&#41;&#93;,
+              color &#61; :black&#41;
+
+# Whisker caps
+whisker_cap &#61; box_width / 4
+linesegments&#33;&#40;ax, &#91;Point2f&#40;x_pos - whisker_cap, stats.upper&#41;,
+                    Point2f&#40;x_pos &#43; whisker_cap, stats.upper&#41;&#93;,
+              color &#61; :black&#41;
+linesegments&#33;&#40;ax, &#91;Point2f&#40;x_pos - whisker_cap, stats.lower&#41;,
+                    Point2f&#40;x_pos &#43; whisker_cap, stats.lower&#41;&#93;,
+              color &#61; :black&#41;
+
+# Outliers
+if &#33;isempty&#40;stats.outliers&#41;
+    scatter&#33;&#40;ax, fill&#40;x_pos, length&#40;stats.outliers&#41;&#41;, stats.outliers,
+             color &#61; :red, markersize &#61; 8&#41;
+end
+
+f</code></pre>
+<h3 id="horizontal_boxplots"><a href="#horizontal_boxplots" class="header-anchor">Horizontal Boxplots</a></h3>
+<pre><code class="language-julia">boxplot&#33;&#40;ax, values, categories, orientation &#61; :horizontal&#41;</code></pre>
+<h3 id="grouped_boxplots"><a href="#grouped_boxplots" class="header-anchor">Grouped Boxplots</a></h3>
+<pre><code class="language-julia">f &#61; Figure&#40;&#41;
+ax &#61; Axis&#40;f&#91;1, 1&#93;&#41;
+
+categories &#61; repeat&#40;1:3, inner &#61; 50&#41;
+groups &#61; repeat&#40;&#91;1, 2&#93;, 75&#41;  # Two groups
+values &#61; randn&#40;150&#41; .&#43; categories
+
+boxplot&#33;&#40;ax, categories, values, 
+    dodge &#61; groups,  # This creates side-by-side boxes
+    color &#61; groups,  # Color by group
+    colormap &#61; &#91;:blue, :red&#93;&#41;
+
+# Add legend
+labels &#61; &#91;&quot;Group A&quot;, &quot;Group B&quot;&#93;
+elements &#61; &#91;PolyElement&#40;polycolor &#61; c&#41; for c in &#91;:blue, :red&#93;&#93;
+Legend&#40;f&#91;1, 2&#93;, elements, labels&#41;
+
+f</code></pre>
+<h2 id="building_complex_layouts_putting_it_all_together"><a href="#building_complex_layouts_putting_it_all_together" class="header-anchor">Building Complex Layouts: Putting It All Together</a></h2>
+<p>Let&#39;s create a multi-panel figure with everything we&#39;ve learned. This follows the philosophy from the Makie layout tutorial: think in rectangular boxes&#33;</p>
+<pre><code class="language-julia">f &#61; Figure&#40;size &#61; &#40;1200, 800&#41;, backgroundcolor &#61; :white&#41;
+
+# Create main grid sections
+ga &#61; f&#91;1, 1&#93; &#61; GridLayout&#40;&#41;  # Top-left: Scatter with margins
+gb &#61; f&#91;2, 1&#93; &#61; GridLayout&#40;&#41;  # Bottom-left: Histogram
+gc &#61; f&#91;1:2, 2&#93; &#61; GridLayout&#40;&#41;  # Right side: Boxplot
+
+# &#61;&#61;&#61; Panel A: Scatter with marginal distributions &#61;&#61;&#61;
+axtop &#61; Axis&#40;ga&#91;1, 1&#93;&#41;  # Top marginal
+axmain &#61; Axis&#40;ga&#91;2, 1&#93;, xlabel &#61; &quot;X&quot;, ylabel &#61; &quot;Y&quot;&#41;  # Main scatter
+axright &#61; Axis&#40;ga&#91;2, 2&#93;&#41;  # Right marginal
+
+# Link axes so they zoom together
+linkyaxes&#33;&#40;axmain, axright&#41;
+linkxaxes&#33;&#40;axmain, axtop&#41;
+
+# Generate data
+x &#61; randn&#40;200&#41;
+y &#61; randn&#40;200&#41;
+
+# Plot
+scatter&#33;&#40;axmain, x, y, color &#61; &#40;:steelblue, 0.5&#41;, markersize &#61; 10&#41;
+hist&#33;&#40;axtop, x, bins &#61; 30, color &#61; :steelblue&#41;
+hist&#33;&#40;axright, y, bins &#61; 30, direction &#61; :x, color &#61; :steelblue&#41;
+
+# Clean up marginal plots
+hidedecorations&#33;&#40;axtop, grid &#61; false&#41;
+hidedecorations&#33;&#40;axright, grid &#61; false&#41;
+ylims&#33;&#40;axtop, low &#61; 0&#41;
+xlims&#33;&#40;axright, low &#61; 0&#41;
+
+# Tighten the layout
+colgap&#33;&#40;ga, 10&#41;
+rowgap&#33;&#40;ga, 10&#41;
+
+# Add title
+Label&#40;ga&#91;1, 1:2, Top&#40;&#41;&#93;, &quot;Scatter with Marginals&quot;,
+      font &#61; :bold, padding &#61; &#40;0, 0, 5, 0&#41;&#41;
+
+# &#61;&#61;&#61; Panel B: Histogram &#61;&#61;&#61;
+axhist &#61; Axis&#40;gb&#91;1, 1&#93;, xlabel &#61; &quot;Value&quot;, ylabel &#61; &quot;Frequency&quot;&#41;
+
+# Multiple distributions
+data1 &#61; randn&#40;500&#41;
+data2 &#61; randn&#40;500&#41; .&#43; 1.5
+
+hist&#33;&#40;axhist, data1, color &#61; &#40;:blue, 0.5&#41;, label &#61; &quot;Group 1&quot;, bins &#61; 30&#41;
+hist&#33;&#40;axhist, data2, color &#61; &#40;:red, 0.5&#41;, label &#61; &quot;Group 2&quot;, bins &#61; 30&#41;
+axislegend&#40;axhist, position &#61; :rt&#41;
+
+Label&#40;gb&#91;1, 1, Top&#40;&#41;&#93;, &quot;Distribution Comparison&quot;,
+      font &#61; :bold, padding &#61; &#40;0, 0, 5, 0&#41;&#41;
+
+# &#61;&#61;&#61; Panel C: Boxplot &#61;&#61;&#61;
+axbox &#61; Axis&#40;gc&#91;1, 1&#93;, ylabel &#61; &quot;Response Value&quot;&#41;
+
+categories &#61; repeat&#40;1:4, inner &#61; 50&#41;
+values &#61; randn&#40;200&#41; .&#43; &#91;0, 1, 2, 1&#93;&#91;categories&#93;
+
+boxplot&#33;&#40;axbox, categories, values,
+    color &#61; :lightblue,
+    whiskerwidth &#61; 0.5,
+    range &#61; 1.5,
+    show_outliers &#61; true&#41;
+
+axbox.xticks &#61; &#40;1:4, &#91;&quot;Control&quot;, &quot;Low&quot;, &quot;High&quot;, &quot;Recovery&quot;&#93;&#41;
+
+Label&#40;gc&#91;1, 1, Top&#40;&#41;&#93;, &quot;Treatment Effects&quot;,
+      font &#61; :bold, padding &#61; &#40;0, 0, 5, 0&#41;&#41;
+
+# &#61;&#61;&#61; Add panel labels &#61;&#61;&#61;
+for &#40;label, layout&#41; in zip&#40;&#91;&quot;A&quot;, &quot;B&quot;, &quot;C&quot;&#93;, &#91;ga, gb, gc&#93;&#41;
+    Label&#40;layout&#91;1, 1, TopLeft&#40;&#41;&#93;, label,
+        fontsize &#61; 26,
+        font &#61; :bold,
+        padding &#61; &#40;0, 5, 5, 0&#41;,
+        halign &#61; :right&#41;
+end
+
+# &#61;&#61;&#61; Final adjustments &#61;&#61;&#61;
+# Make left column narrower
+colsize&#33;&#40;f.layout, 1, Auto&#40;0.6&#41;&#41;
+
+f</code></pre>
+<h2 id="advanced_layout_tips"><a href="#advanced_layout_tips" class="header-anchor">Advanced Layout Tips</a></h2>
+<h3 id="controlling_gaps"><a href="#controlling_gaps" class="header-anchor">Controlling Gaps</a></h3>
+<pre><code class="language-julia"># Row and column gaps for entire figure
+rowgap&#33;&#40;f.layout, 20&#41;
+colgap&#33;&#40;f.layout, 20&#41;
+
+# For specific grids
+rowgap&#33;&#40;ga, 5&#41;
+colgap&#33;&#40;ga, 10&#41;
+
+# For specific gaps
+rowgap&#33;&#40;ga, 1, 20&#41;  # Gap after row 1</code></pre>
+<h3 id="controlling_sizes"><a href="#controlling_sizes" class="header-anchor">Controlling Sizes</a></h3>
+<pre><code class="language-julia"># Relative sizing
+colsize&#33;&#40;f.layout, 1, Auto&#40;0.5&#41;&#41;  # Half the weight of other Auto columns
+
+# Fixed sizes
+colsize&#33;&#40;f.layout, 1, Fixed&#40;300&#41;&#41;  # 300 pixels
+
+# Relative to figure
+colsize&#33;&#40;f.layout, 1, Relative&#40;0.3&#41;&#41;  # 30&#37; of figure width
+
+# For rows
+rowsize&#33;&#40;f.layout, 1, Auto&#40;1.5&#41;&#41;  # 1.5x weight</code></pre>
+<h3 id="linking_axes"><a href="#linking_axes" class="header-anchor">Linking Axes</a></h3>
+<p>This is super useful for synchronized zooming/panning:</p>
+<pre><code class="language-julia"># Link x-axes
+linkxaxes&#33;&#40;ax1, ax2, ax3&#41;
+
+# Link y-axes
+linkyaxes&#33;&#40;ax1, ax2&#41;</code></pre>
+<h2 id="saving_your_masterpiece"><a href="#saving_your_masterpiece" class="header-anchor">Saving Your Masterpiece</a></h2>
+<pre><code class="language-julia"># Save as PNG
+save&#40;&quot;myplot.png&quot;, f, px_per_unit &#61; 2&#41;  # High resolution
+
+# Save as PDF &#40;vector graphics&#33;&#41;
+save&#40;&quot;myplot.pdf&quot;, f&#41;
+
+# Save as SVG
+save&#40;&quot;myplot.svg&quot;, f&#41;
+
+# Control resolution
+save&#40;&quot;myplot.png&quot;, f, px_per_unit &#61; 3&#41;  # Even higher resolution</code></pre>
+<h2 id="quick_reference_common_customizations"><a href="#quick_reference_common_customizations" class="header-anchor">Quick Reference: Common Customizations</a></h2>
+<h3 id="axis_attributes"><a href="#axis_attributes" class="header-anchor">Axis Attributes</a></h3>
+<pre><code class="language-julia">ax &#61; Axis&#40;f&#91;1, 1&#93;,
+    xlabel &#61; &quot;X Label&quot;,
+    ylabel &#61; &quot;Y Label&quot;,
+    title &#61; &quot;My Title&quot;,
+    xlabelsize &#61; 20,
+    ylabelsize &#61; 20,
+    xticklabelsize &#61; 14,
+    yticklabelsize &#61; 14,
+    xticks &#61; 0:2:10,  # Custom tick positions
+    yticks &#61; &#40;&#91;-1, 0, 1&#93;, &#91;&quot;Low&quot;, &quot;Med&quot;, &quot;High&quot;&#93;&#41;,  # Custom labels
+    limits &#61; &#40;0, 10, -5, 5&#41;,  # &#40;xmin, xmax, ymin, ymax&#41;
+    aspect &#61; 1&#41;  # Square aspect ratio</code></pre>
+<h3 id="colors"><a href="#colors" class="header-anchor">Colors</a></h3>
+<pre><code class="language-julia"># Named colors
+color &#61; :red
+color &#61; :steelblue
+
+# RGB
+color &#61; RGB&#40;0.2, 0.4, 0.8&#41;
+
+# With alpha
+color &#61; &#40;:red, 0.5&#41;
+
+# Colormaps &#40;for continuous data&#41;
+colormap &#61; :viridis
+colormap &#61; :plasma
+colormap &#61; :RdBu  # Diverging
+colormap &#61; Reverse&#40;:viridis&#41;  # Reverse a colormap</code></pre>
+<h3 id="line_styles"><a href="#line_styles" class="header-anchor">Line Styles</a></h3>
+<pre><code class="language-julia">lines&#33;&#40;ax, x, y,
+    color &#61; :blue,
+    linewidth &#61; 2,
+    linestyle &#61; :solid&#41;  # or :dash, :dot, :dashdot
+
+# Custom patterns
+linestyle &#61; &#91;0, 10, 5, 5&#93;  # Advanced: on, off, on, off pattern in pixels</code></pre>
+<h2 id="pro_tips_and_gotchas"><a href="#pro_tips_and_gotchas" class="header-anchor">Pro Tips and Gotchas</a></h2>
+<ol>
+<li><p><strong>The Bang &#40;&#33;&#41;</strong>: Functions with <code>&#33;</code> modify existing objects. <code>scatter&#33;</code> adds to an existing axis, <code>scatter</code> creates a new one.</p>
+</li>
+<li><p><strong>Updating Plots</strong>: You can store plot objects and update them:</p>
+</li>
+</ol>
+<pre><code class="language-julia">s &#61; scatter&#33;&#40;ax, x, y&#41;
+   s.color &#61; :red  # Updates the plot</code></pre>
+<ol start="3">
+<li><p><strong>Observables</strong>: For animations or interactive updates, use <code>Observable</code>:</p>
+</li>
+</ol>
+<pre><code class="language-julia">data &#61; Observable&#40;Point2f&#91;&#40;1,1&#41;, &#40;2,2&#41;&#93;&#41;
+   scatter&#33;&#40;ax, data&#41;
+   data&#91;&#93; &#61; Point2f&#91;&#40;1,2&#41;, &#40;2,1&#41;&#93;  # Updates automatically&#33;</code></pre>
+<ol start="4">
+<li><p><strong>Theme</strong>: Set default styles for everything:</p>
+</li>
+</ol>
+<pre><code class="language-julia">set_theme&#33;&#40;Theme&#40;
+       fontsize &#61; 18,
+       Axis &#61; &#40;xlabelsize &#61; 20, ylabelsize &#61; 20&#41;,
+       palette &#61; &#40;color &#61; &#91;:red, :blue, :green&#93;,&#41;
+   &#41;&#41;</code></pre>
+<ol start="5">
+<li><p><strong>Aspect Ratios</strong>: For equal x and y scaling:</p>
+</li>
+</ol>
+<pre><code class="language-julia">ax.aspect &#61; DataAspect&#40;&#41;  # 1 data unit &#61; 1 data unit
+   ax.aspect &#61; 1  # Same as DataAspect</code></pre>
+<h2 id="troubleshooting"><a href="#troubleshooting" class="header-anchor">Troubleshooting</a></h2>
+<p><strong>Plot isn&#39;t showing?</strong> Remember to return <code>f</code> at the end, or call <code>display&#40;f&#41;</code>.</p>
+<p><strong>Layout looks weird?</strong> Check your gaps with <code>colgap&#33;</code> and <code>rowgap&#33;</code>, and consider using <code>Auto&#40;&#41;</code> for column/row sizes.</p>
+<p><strong>Legend covering data?</strong> Use <code>Legend&#40;f&#91;1, 2&#93;, ax&#41;</code> to place it outside, or adjust <code>axislegend&#40;position &#61; :rt&#41;</code>.</p>
+<p><strong>Need more space around labels?</strong> Makie auto-calculates protrusions, but you can set them manually: <code>ax.xticklabelpad &#61; 10</code>.</p>
+<h2 id="where_to_learn_more"><a href="#where_to_learn_more" class="header-anchor">Where to Learn More</a></h2>
+<ul>
+<li><p><strong>Official Docs</strong>: https://docs.makie.org/stable/</p>
+</li>
+<li><p><strong>Examples</strong>: https://beautiful.makie.org/</p>
+</li>
+<li><p><strong>Discourse</strong>: https://discourse.julialang.org/c/domain/viz/</p>
+</li>
+<li><p><strong>GitHub</strong>: https://github.com/MakieOrg/Makie.jl</p>
+</li>
+</ul>
+<p>Happy plotting&#33; Remember: Makie&#39;s layout system might feel different at first, but once you think in grids and layouts, you&#39;ll be creating publication-quality figures faster than you ever thought possible. 🎨📊</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 24, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

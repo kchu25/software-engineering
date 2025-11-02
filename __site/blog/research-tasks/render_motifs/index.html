@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Comprehensive Refactoring Solution for patterns</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="comprehensive_refactoring_solution_for_patterns"><a href="#comprehensive_refactoring_solution_for_patterns" class="header-anchor">Comprehensive Refactoring Solution for patterns</a></h1>
+<h2 id="overview"><a href="#overview" class="header-anchor">Overview</a></h2>
+<p>You have a Mustache.jl template system generating interactive HTML pages for genomic motif visualization. The current architecture has server dependencies, memory issues, and maintainability problems. Here&#39;s a complete refactoring solution.</p>
+<hr />
+<h2 id="architecture_philosophy"><a href="#architecture_philosophy" class="header-anchor">Architecture Philosophy</a></h2>
+<p><strong>BUILD-TIME PROCESSING → SELF-CONTAINED HTML</strong></p>
+<p>Everything should be processed in Julia and baked into the HTML. No runtime fetching, no external JSON files.</p>
+<hr />
+<h2 id="refactored_file_structure"><a href="#refactored_file_structure" class="header-anchor">Refactored File Structure</a></h2>
+<pre><code class="language-julia">output/
+├── index1.html          # Self-contained, no server needed
+├── index2.html
+├── index3.html
+└── readme/
+    └── readme.html</code></pre>
+<p>Each HTML file contains:</p>
+<ul>
+<li><p>All data inline &#40;no external JSON&#41;</p>
+</li>
+<li><p>All modular JavaScript inline</p>
+</li>
+<li><p>All highlighted sequences pre-rendered</p>
+</li>
+<li><p>CSS inline or as data URL</p>
+</li>
+</ul>
+<hr />
+<h2 id="part_1_julia-side_refactoring"><a href="#part_1_julia-side_refactoring" class="header-anchor">Part 1: Julia-Side Refactoring</a></h2>
+<h3 id="new_data_preparation_function"><a href="#new_data_preparation_function" class="header-anchor">New Data Preparation Function</a></h3>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Pre-process all data for a single page
+Returns a dictionary ready for Mustache rendering
+&quot;&quot;&quot;
+function prepare_page_data&#40;j::Int, mode_count::Int, protein_name::String&#41;
+    # 1. Load and structure motif data
+    modes &#61; &#91;&#93;
+    for i in 1:mode_count
+        mode_data &#61; load_mode_data&#40;i, j&#41;
+        
+        # Convert images to data URLs or keep as relative paths
+        images &#61; mode_data.images
+        labels &#61; mode_data.labels
+        texts &#61; mode_data.texts
+        
+        # Pre-render the slider HTML for each combination
+        combinations &#61; &#91;&#93;
+        for &#40;idx, &#40;img, label, text_array&#41;&#41; in enumerate&#40;zip&#40;images, labels, texts&#41;&#41;
+            push&#33;&#40;combinations, Dict&#40;
+                &quot;index&quot; &#61;&gt; idx - 1,  # 0-based for JS
+                &quot;image&quot; &#61;&gt; img,
+                &quot;label&quot; &#61;&gt; label,
+                &quot;texts&quot; &#61;&gt; text_array,
+                &quot;is_last&quot; &#61;&gt; idx &#61;&#61; length&#40;images&#41;
+            &#41;&#41;
+        end
+        
+        push&#33;&#40;modes, Dict&#40;
+            &quot;mode_index&quot; &#61;&gt; i,
+            &quot;combinations&quot; &#61;&gt; combinations,
+            &quot;max_index&quot; &#61;&gt; length&#40;images&#41; - 1,
+            &quot;has_slider&quot; &#61;&gt; length&#40;images&#41; &gt; 1,
+            &quot;first_image&quot; &#61;&gt; images&#91;1&#93;,
+            &quot;first_label&quot; &#61;&gt; labels&#91;1&#93;,
+            &quot;first_texts&quot; &#61;&gt; texts&#91;1&#93;
+        &#41;&#41;
+    end
+    
+    # 2. Pre-render highlighted sequences
+    highlighted_sequences &#61; prepare_highlighted_sequences&#40;j&#41;
+    
+    # 3. Return complete data structure
+    return Dict&#40;
+        &quot;j&quot; &#61;&gt; j,
+        &quot;protein_name&quot; &#61;&gt; protein_name,
+        &quot;mode_count&quot; &#61;&gt; mode_count,
+        &quot;upto&quot; &#61;&gt; 6,  # total pages
+        &quot;modes&quot; &#61;&gt; modes,
+        &quot;highlighted_sequences&quot; &#61;&gt; highlighted_sequences
+    &#41;
+end
+
+&quot;&quot;&quot;
+Pre-render all highlighted sequences as HTML
+This eliminates runtime FASTA parsing
+&quot;&quot;&quot;
+function prepare_highlighted_sequences&#40;j::Int&#41;
+    sequences_html &#61; Dict&#91;&#93;
+    
+    # Get all CSV files for this page
+    csv_files &#61; get_csv_files_for_page&#40;j&#41;
+    
+    for csv_file in csv_files
+        # Load sequences and highlights
+        fasta_files &#61; get_fasta_files_for_csv&#40;csv_file&#41;
+        sequences &#61; load_all_sequences&#40;fasta_files&#41;
+        highlights &#61; load_highlights&#40;csv_file&#41;
+        
+        # Generate highlighted HTML
+        html &#61; generate_highlighted_html&#40;sequences, highlights&#41;
+        
+        push&#33;&#40;sequences_html, Dict&#40;
+            &quot;csv_id&quot; &#61;&gt; basename&#40;csv_file&#41;,
+            &quot;html_content&quot; &#61;&gt; html
+        &#41;&#41;
+    end
+    
+    return sequences_html
+end
+
+&quot;&quot;&quot;
+Generate highlighted sequence HTML
+&quot;&quot;&quot;
+function generate_highlighted_html&#40;sequences, highlights&#41;
+    io &#61; IOBuffer&#40;&#41;
+    
+    # Group highlights by sequence index
+    highlights_by_seq &#61; group_by_sequence&#40;highlights&#41;
+    
+    for &#40;seq_idx, seq&#41; in enumerate&#40;sequences&#41;
+        seq_highlights &#61; get&#40;highlights_by_seq, seq_idx, &#91;&#93;&#41;
+        
+        write&#40;io, &quot;&lt;div class&#61;\&quot;header\&quot;&gt;&#36;&#40;escape_html&#40;seq.header&#41;&#41;&lt;/div&gt;\n&quot;&#41;
+        write&#40;io, &quot;&lt;div class&#61;\&quot;sequence\&quot;&gt;&quot;&#41;
+        write&#40;io, highlight_sequence&#40;seq.sequence, seq_highlights&#41;&#41;
+        write&#40;io, &quot;&lt;/div&gt;\n&quot;&#41;
+    end
+    
+    return String&#40;take&#33;&#40;io&#41;&#41;
+end
+
+&quot;&quot;&quot;
+Apply highlights to a sequence string
+&quot;&quot;&quot;
+function highlight_sequence&#40;sequence::String, highlights&#41;
+    # Sort and merge overlapping highlights
+    merged &#61; merge_highlights&#40;highlights&#41;
+    
+    io &#61; IOBuffer&#40;&#41;
+    last_pos &#61; 1
+    
+    for h in merged
+        # Write unhighlighted part
+        if h.start &gt; last_pos
+            write&#40;io, sequence&#91;last_pos:h.start-1&#93;&#41;
+        end
+        
+        # Write highlighted part
+        css_class &#61; h.iscomp &#61;&#61; 1 ? &quot;highlight-comp&quot; : &quot;highlight&quot;
+        write&#40;io, &quot;&lt;span class&#61;\&quot;&#36;css_class\&quot;&gt;&quot;&#41;
+        write&#40;io, sequence&#91;h.start:h.end&#93;&#41;
+        write&#40;io, &quot;&lt;/span&gt;&quot;&#41;
+        
+        last_pos &#61; h.end &#43; 1
+    end
+    
+    # Write remaining sequence
+    if last_pos &lt;&#61; length&#40;sequence&#41;
+        write&#40;io, sequence&#91;last_pos:end&#93;&#41;
+    end
+    
+    return String&#40;take&#33;&#40;io&#41;&#41;
+end
+
+function merge_highlights&#40;highlights&#41;
+    # Sort by start position
+    sorted &#61; sort&#40;highlights, by &#61; h -&gt; h.start&#41;
+    
+    merged &#61; &#91;&#93;
+    for h in sorted
+        if isempty&#40;merged&#41; || merged&#91;end&#93;.end &lt; h.start
+            push&#33;&#40;merged, h&#41;
+        else
+            # Merge overlapping
+            merged&#91;end&#93; &#61; &#40;
+                start &#61; merged&#91;end&#93;.start,
+                end &#61; max&#40;merged&#91;end&#93;.end, h.end&#41;,
+                iscomp &#61; h.iscomp  # Keep last value
+            &#41;
+        end
+    end
+    
+    return merged
+end</code></pre>
+<hr />
+<h2 id="part_2_new_modular_javascript_template"><a href="#part_2_new_modular_javascript_template" class="header-anchor">Part 2: New Modular JavaScript Template</a></h2>
+<h3 id="inline_javascript_structure"><a href="#inline_javascript_structure" class="header-anchor">Inline JavaScript Structure</a></h3>
+<pre><code class="language-javascript">// Create a single, modular script template
+script_template_modular &#61; mt&quot;&quot;&quot;
+&lt;script&gt;
+&#40;function&#40;&#41; &#123;
+    &#39;use strict&#39;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; CONFIGURATION &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    const CONFIG &#61; &#123;
+        currentPage: &#123;&#123;:j&#125;&#125;,
+        totalPages: &#123;&#123;:upto&#125;&#125;,
+        modeCount: &#123;&#123;:mode_count&#125;&#125;
+    &#125;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; DATA &#40;INLINE&#41; &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    const DATA &#61; &#123;
+        modes: &#91;
+            &#123;&#123;#:modes&#125;&#125;
+            &#123;
+                index: &#123;&#123;:mode_index&#125;&#125;,
+                hasSlider: &#123;&#123;:has_slider&#125;&#125;,
+                maxIndex: &#123;&#123;:max_index&#125;&#125;,
+                combinations: &#91;
+                    &#123;&#123;#:combinations&#125;&#125;
+                    &#123;
+                        index: &#123;&#123;:index&#125;&#125;,
+                        image: &#39;&#123;&#123;&#123;:image&#125;&#125;&#125;&#39;,
+                        label: &#39;&#123;&#123;&#123;:label&#125;&#125;&#125;&#39;,
+                        texts: &#91;
+                            &#123;&#123;#:texts&#125;&#125;
+                            &#39;&#123;&#123;&#123;.&#125;&#125;&#125;&#39;&#123;&#123;^.&#91;end&#93;&#125;&#125;,&#123;&#123;/.&#91;end&#93;&#125;&#125;
+                            &#123;&#123;/:texts&#125;&#125;
+                        &#93;
+                    &#125;&#123;&#123;^:is_last&#125;&#125;,&#123;&#123;/:is_last&#125;&#125;
+                    &#123;&#123;/:combinations&#125;&#125;
+                &#93;
+            &#125;&#123;&#123;^.&#91;end&#93;&#125;&#125;,&#123;&#123;/.&#91;end&#93;&#125;&#125;
+            &#123;&#123;/:modes&#125;&#125;
+        &#93;,
+        highlightedSequences: &#123;
+            &#123;&#123;#:highlighted_sequences&#125;&#125;
+            &#39;&#123;&#123;:csv_id&#125;&#125;&#39;: &#96;&#123;&#123;&#123;:html_content&#125;&#125;&#125;&#96;&#123;&#123;^.&#91;end&#93;&#125;&#125;,&#123;&#123;/.&#91;end&#93;&#125;&#125;
+            &#123;&#123;/:highlighted_sequences&#125;&#125;
+        &#125;
+    &#125;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; UTILITIES &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    const &#36; &#61; id &#61;&gt; document.getElementById&#40;id&#41;;
+    const &#36;&#36; &#61; selector &#61;&gt; document.querySelectorAll&#40;selector&#41;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; NAVIGATION MODULE &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    const Navigation &#61; &#123;
+        pageLabels: &#91;
+            &#39;Singleton motifs&#39;,
+            &#39;Paired motifs&#39;,
+            &#39;Triplet motifs&#39;,
+            &#39;Quadruplet motifs&#39;,
+            &#39;Quintuplet motifs&#39;,
+            &#39;Sextuplet motifs&#39;
+        &#93;,
+        
+        init&#40;&#41; &#123;
+            const links &#61; &#91;&#93;;
+            
+            for &#40;let i &#61; 1; i &lt;&#61; CONFIG.totalPages; i&#43;&#43;&#41; &#123;
+                const href &#61; &#96;index&#36;&#123;i&#125;.html&#96;;
+                const label &#61; this.pageLabels&#91;i - 1&#93;;
+                const isCurrent &#61; i &#61;&#61;&#61; CONFIG.currentPage;
+                const className &#61; isCurrent ? &#39; class&#61;&quot;current&quot;&#39; : &#39;&#39;;
+                links.push&#40;&#96;&lt;a href&#61;&quot;&#36;&#123;href&#125;&quot;&#36;&#123;className&#125;&gt;&#36;&#123;label&#125;&lt;/a&gt;&#96;&#41;;
+            &#125;
+            
+            // Add readme link
+            links.push&#40;&#96;&lt;a href&#61;&quot;../../../readme/readme.html&quot;&gt;Readme&lt;/a&gt;&#96;&#41;;
+            
+            &#36;&#40;&#39;nav&#39;&#41;.innerHTML &#61; links.join&#40;&#39; &amp;nbsp&amp;nbsp | &amp;nbsp&amp;nbsp &#39;&#41;;
+        &#125;
+    &#125;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; SLIDER MODULE &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    class MotifSlider &#123;
+        constructor&#40;modeIndex, modeData&#41; &#123;
+            this.modeIndex &#61; modeIndex;
+            this.data &#61; modeData;
+            this.elements &#61; this.getElements&#40;&#41;;
+            
+            if &#40;&#33;modeData.hasSlider&#41; &#123;
+                this.hideSlider&#40;&#41;;
+            &#125; else &#123;
+                this.attachEventListener&#40;&#41;;
+            &#125;
+            
+            this.setInitialState&#40;&#41;;
+        &#125;
+        
+        getElements&#40;&#41; &#123;
+            return &#123;
+                slider: &#36;&#40;&#96;valR&#36;&#123;this.modeIndex&#125;&#96;&#41;,
+                image: &#36;&#40;&#96;img&#36;&#123;this.modeIndex&#125;&#96;&#41;,
+                label: &#36;&#40;&#96;range&#36;&#123;this.modeIndex&#125;&#96;&#41;,
+                texts: Array.from&#40;&#123;length: 6&#125;, &#40;_, i&#41; &#61;&gt; 
+                    &#36;&#40;&#96;text&#36;&#123;this.modeIndex&#125;_&#36;&#123;i &#43; 1&#125;&#96;&#41;&#41;
+            &#125;;
+        &#125;
+        
+        hideSlider&#40;&#41; &#123;
+            if &#40;this.elements.slider&#41; &#123;
+                this.elements.slider.style.display &#61; &#39;none&#39;;
+            &#125;
+        &#125;
+        
+        attachEventListener&#40;&#41; &#123;
+            this.elements.slider?.addEventListener&#40;&#39;input&#39;, &#40;e&#41; &#61;&gt; &#123;
+                this.update&#40;parseInt&#40;e.target.value&#41;&#41;;
+            &#125;&#41;;
+        &#125;
+        
+        setInitialState&#40;&#41; &#123;
+            const combo &#61; this.data.combinations&#91;0&#93;;
+            this.elements.label.textContent &#61; combo.label;
+            this.elements.image.src &#61; combo.image;
+            combo.texts.forEach&#40;&#40;text, i&#41; &#61;&gt; &#123;
+                if &#40;this.elements.texts&#91;i&#93;&#41; &#123;
+                    this.elements.texts&#91;i&#93;.innerHTML &#61; text;
+                &#125;
+            &#125;&#41;;
+        &#125;
+        
+        update&#40;index&#41; &#123;
+            const combo &#61; this.data.combinations&#91;index&#93;;
+            const &#123;image, label, texts&#125; &#61; this.elements;
+            
+            // Fade out
+            image.style.opacity &#61; 0;
+            
+            setTimeout&#40;&#40;&#41; &#61;&gt; &#123;
+                label.textContent &#61; combo.label;
+                combo.texts.forEach&#40;&#40;text, i&#41; &#61;&gt; &#123;
+                    if &#40;texts&#91;i&#93;&#41; &#123;
+                        texts&#91;i&#93;.innerHTML &#61; text;
+                    &#125;
+                &#125;&#41;;
+                image.src &#61; combo.image;
+                image.style.opacity &#61; 1;
+            &#125;, 250&#41;;
+        &#125;
+    &#125;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; MODAL MODULE &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    const Modal &#61; &#123;
+        scrollPosition: 0,
+        
+        saveScrollPosition&#40;&#41; &#123;
+            this.scrollPosition &#61; window.pageYOffset || document.documentElement.scrollTop;
+        &#125;,
+        
+        restoreScrollPosition&#40;&#41; &#123;
+            window.scrollTo&#40;0, this.scrollPosition&#41;;
+        &#125;,
+        
+        openSequences&#40;csvId&#41; &#123;
+            this.saveScrollPosition&#40;&#41;;
+            const html &#61; DATA.highlightedSequences&#91;csvId&#93;;
+            &#36;&#40;&#39;highlightedSequences&#39;&#41;.innerHTML &#61; html;
+            &#36;&#40;&#39;highlightModal&#39;&#41;.style.display &#61; &#39;block&#39;;
+        &#125;,
+        
+        openImage&#40;imageFile&#41; &#123;
+            this.saveScrollPosition&#40;&#41;;
+            const modalImage &#61; &#36;&#40;&#39;modalImage1&#39;&#41;;
+            modalImage.src &#61; imageFile;
+            
+            modalImage.onload &#61; function&#40;&#41; &#123;
+                const modal &#61; &#36;&#40;&#39;highlightModal_img_content&#39;&#41;;
+                const imgWidth &#61; modalImage.naturalWidth;
+                modal.style.width &#61; &#40;imgWidth &gt; 800 ? 800 : imgWidth&#41; &#43; &#39;px&#39;;
+            &#125;;
+            
+            &#36;&#40;&#39;highlightModal_img&#39;&#41;.style.display &#61; &#39;block&#39;;
+        &#125;,
+        
+        openText&#40;textContent&#41; &#123;
+            this.saveScrollPosition&#40;&#41;;
+            const modalText &#61; &#36;&#40;&#39;modalText1&#39;&#41;;
+            modalText.innerHTML &#61; textContent;
+            
+            const modalContent &#61; &#36;&#40;&#39;highlightModal_text_content&#39;&#41;;
+            const width &#61; Math.min&#40;Math.max&#40;textContent.length * 10, 200&#41;, 800&#41;;
+            modalContent.style.width &#61; width &#43; &#39;px&#39;;
+            
+            &#36;&#40;&#39;highlightModal_text&#39;&#41;.style.display &#61; &#39;flex&#39;;
+        &#125;,
+        
+        openCluster&#40;imageFile, textContent&#41; &#123;
+            this.saveScrollPosition&#40;&#41;;
+            &#36;&#40;&#39;modalImage&#39;&#41;.src &#61; imageFile;
+            &#36;&#40;&#39;modalText&#39;&#41;.innerHTML &#61; textContent;
+            &#36;&#40;&#39;highlightModal_cluster&#39;&#41;.style.display &#61; &#39;block&#39;;
+        &#125;,
+        
+        close&#40;modalId&#41; &#123;
+            &#36;&#40;modalId&#41;.style.display &#61; &#39;none&#39;;
+            this.restoreScrollPosition&#40;&#41;;
+        &#125;,
+        
+        copyText&#40;&#41; &#123;
+            const modalTextElement &#61; &#36;&#40;&#39;modalText1&#39;&#41;;
+            const originalText &#61; modalTextElement.innerText;
+            
+            const textarea &#61; document.createElement&#40;&#39;textarea&#39;&#41;;
+            textarea.value &#61; originalText;
+            document.body.appendChild&#40;textarea&#41;;
+            textarea.select&#40;&#41;;
+            document.execCommand&#40;&#39;copy&#39;&#41;;
+            document.body.removeChild&#40;textarea&#41;;
+            
+            modalTextElement.innerHTML &#61; &#39;string copied successfully&#33;&#39;;
+            setTimeout&#40;&#40;&#41; &#61;&gt; &#123;
+                modalTextElement.innerHTML &#61; originalText;
+            &#125;, 1000&#41;;
+        &#125;
+    &#125;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; GLOBAL FUNCTIONS &#40;for onclick handlers&#41; &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    window.openHighlightPage &#61; &#40;csvId&#41; &#61;&gt; Modal.openSequences&#40;csvId&#41;;
+    window.openHtmlWindowImg &#61; &#40;imageFile&#41; &#61;&gt; Modal.openImage&#40;imageFile&#41;;
+    window.openHtmlWindowText &#61; &#40;textContent&#41; &#61;&gt; Modal.openText&#40;textContent&#41;;
+    window.openHtmlWindow &#61; &#40;imageFile, textContent&#41; &#61;&gt; Modal.openCluster&#40;imageFile, textContent&#41;;
+    window.closeModal &#61; &#40;&#41; &#61;&gt; Modal.close&#40;&#39;highlightModal&#39;&#41;;
+    window.closeModal_img &#61; &#40;&#41; &#61;&gt; Modal.close&#40;&#39;highlightModal_img&#39;&#41;;
+    window.closeModal_text &#61; &#40;&#41; &#61;&gt; Modal.close&#40;&#39;highlightModal_text&#39;&#41;;
+    window.closeModal_cluster &#61; &#40;&#41; &#61;&gt; Modal.close&#40;&#39;highlightModal_cluster&#39;&#41;;
+    window.copyText &#61; &#40;&#41; &#61;&gt; Modal.copyText&#40;&#41;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; EVENT HANDLERS &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    window.onclick &#61; function&#40;event&#41; &#123;
+        const modals &#61; &#91;&#39;highlightModal&#39;, &#39;highlightModal_cluster&#39;, 
+                       &#39;highlightModal_text&#39;, &#39;highlightModal_img&#39;&#93;;
+        modals.forEach&#40;modalId &#61;&gt; &#123;
+            const modal &#61; &#36;&#40;modalId&#41;;
+            if &#40;event.target &#61;&#61;&#61; modal&#41; &#123;
+                Modal.close&#40;modalId&#41;;
+            &#125;
+        &#125;&#41;;
+    &#125;;
+    
+    window.onkeydown &#61; function&#40;event&#41; &#123;
+        if &#40;event.key &#61;&#61;&#61; &#39;Escape&#39;&#41; &#123;
+            &#91;&#39;highlightModal&#39;, &#39;highlightModal_cluster&#39;, 
+             &#39;highlightModal_text&#39;, &#39;highlightModal_img&#39;&#93;.forEach&#40;modalId &#61;&gt; &#123;
+                Modal.close&#40;modalId&#41;;
+            &#125;&#41;;
+        &#125;
+    &#125;;
+    
+    // &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61; INITIALIZATION &#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;&#61;
+    document.addEventListener&#40;&#39;DOMContentLoaded&#39;, &#40;&#41; &#61;&gt; &#123;
+        Navigation.init&#40;&#41;;
+        
+        DATA.modes.forEach&#40;mode &#61;&gt; &#123;
+            new MotifSlider&#40;mode.index, mode&#41;;
+        &#125;&#41;;
+    &#125;&#41;;
+    
+&#125;&#41;&#40;&#41;;
+&lt;/script&gt;
+&quot;&quot;&quot;</code></pre>
+<hr />
+<h2 id="part_3_simplified_html_template"><a href="#part_3_simplified_html_template" class="header-anchor">Part 3: Simplified HTML Template</a></h2>
+<pre><code class="language-julia">html_template_v2 &#61; mt&quot;&quot;&quot;&lt;&#33;DOCTYPE html&gt;
+&lt;html lang&#61;&quot;en&quot;&gt;
+&lt;head&gt;
+    &lt;meta charset&#61;&quot;UTF-8&quot;&gt;
+    &lt;meta name&#61;&quot;viewport&quot; content&#61;&quot;width&#61;device-width, initial-scale&#61;1.0&quot;&gt;
+    &lt;title&gt;&#123;&#123;&#123;:protein_name&#125;&#125;&#125; motifs&lt;/title&gt;
+    &lt;style&gt;
+        /* Inline CSS here or load from data URL */
+        &#123;&#123;&#123;:css_content&#125;&#125;&#125;
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;    
+    &lt;br&gt;&lt;br&gt;
+    &lt;div class&#61;&quot;wrapper&quot;&gt;
+        &lt;div id&#61;&quot;nav&quot; style&#61;&quot;display: flex; justify-content: center;&quot;&gt;&lt;/div&gt;
+        &lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;
+        
+        &lt;div class&#61;&quot;container&quot;&gt;
+            &#123;&#123;#:modes&#125;&#125;
+            &lt;div class&#61;&quot;sliderGroup&quot;&gt;
+                &lt;div class&#61;&quot;imageTextContainer&quot;&gt;
+                    &lt;div id&#61;&quot;imageContainer&#123;&#123;:mode_index&#125;&#125;&quot; class&#61;&quot;imageContainer&quot;&gt;
+                        &lt;img id&#61;&quot;img&#123;&#123;:mode_index&#125;&#125;&quot; 
+                             src&#61;&quot;&#123;&#123;&#123;:first_image&#125;&#125;&#125;&quot; 
+                             alt&#61;&quot;Mode &#123;&#123;:mode_index&#125;&#125;&quot;&gt;
+                    &lt;/div&gt;
+                    &lt;div id&#61;&quot;textContainer&#123;&#123;:mode_index&#125;&#125;&quot; class&#61;&quot;textContainer&quot;&gt;
+                        &#123;&#123;#:first_texts&#125;&#125;
+                        &lt;p id&#61;&quot;text&#123;&#123;:mode_index&#125;&#125;_&#123;&#123;.&#91;index&#93;&#125;&#125;&quot; class&#61;&quot;imageText&quot;&gt;&#123;&#123;&#123;.&#125;&#125;&#125;&lt;/p&gt;
+                        &#123;&#123;/:first_texts&#125;&#125;
+                    &lt;/div&gt;
+                &lt;/div&gt;
+                
+                &#123;&#123;#:has_slider&#125;&#125;
+                &lt;div id&#61;&quot;sliderContainer&#123;&#123;:mode_index&#125;&#125;&quot; class&#61;&quot;sliderContainer&quot;&gt;
+                    &lt;input id&#61;&quot;valR&#123;&#123;:mode_index&#125;&#125;&quot; 
+                           type&#61;&quot;range&quot; 
+                           min&#61;&quot;0&quot; 
+                           max&#61;&quot;&#123;&#123;:max_index&#125;&#125;&quot; 
+                           value&#61;&quot;0&quot;&gt;
+                    &lt;span id&#61;&quot;range&#123;&#123;:mode_index&#125;&#125;&quot;&gt;&#123;&#123;&#123;:first_label&#125;&#125;&#125;&lt;/span&gt;
+                &lt;/div&gt;
+                &#123;&#123;/:has_slider&#125;&#125;
+            &lt;/div&gt;
+            &#123;&#123;/:modes&#125;&#125;
+        &lt;/div&gt;
+    &lt;/div&gt;
+    
+    &lt;&#33;-- Modals --&gt;
+    &lt;div id&#61;&quot;highlightModal&quot; class&#61;&quot;modal&quot;&gt;
+        &lt;div class&#61;&quot;modal-content&quot;&gt;
+            &lt;span class&#61;&quot;close&quot; onclick&#61;&quot;closeModal&#40;&#41;&quot;&gt;&amp;times;&lt;/span&gt;
+            &lt;div id&#61;&quot;highlightedSequences&quot;&gt;&lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div id&#61;&quot;highlightModal_cluster&quot;&gt;
+        &lt;div id&#61;&quot;highlightContent&quot;&gt;
+            &lt;span class&#61;&quot;close&quot; onclick&#61;&quot;closeModal_cluster&#40;&#41;&quot;&gt;&amp;times;&lt;/span&gt;
+            &lt;div class&#61;&quot;modal-column&quot;&gt;
+                &lt;img id&#61;&quot;modalImage&quot; src&#61;&quot;&quot; alt&#61;&quot;Image&quot;&gt;
+            &lt;/div&gt;
+            &lt;div class&#61;&quot;modal-column&quot;&gt;
+                &lt;p id&#61;&quot;modalText&quot;&gt;&lt;/p&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div id&#61;&quot;highlightModal_text&quot;&gt;
+        &lt;div id&#61;&quot;highlightModal_text_content&quot;&gt;
+            &lt;span class&#61;&quot;close&quot; onclick&#61;&quot;closeModal_text&#40;&#41;&quot;&gt;&amp;times;&lt;/span&gt;
+            &lt;div class&#61;&quot;modal-column&quot;&gt;
+                &lt;p id&#61;&quot;modalText1&quot;&gt;&lt;/p&gt;
+                &lt;button id&#61;&quot;copyButton&quot; onclick&#61;&quot;copyText&#40;&#41;&quot;&gt;copy string&lt;/button&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div id&#61;&quot;highlightModal_img&quot;&gt;
+        &lt;div id&#61;&quot;highlightModal_img_content&quot;&gt;
+            &lt;span class&#61;&quot;close&quot; onclick&#61;&quot;closeModal_img&#40;&#41;&quot;&gt;&amp;times;&lt;/span&gt;
+            &lt;div class&#61;&quot;modal-column&quot;&gt;
+                &lt;img id&#61;&quot;modalImage1&quot; src&#61;&quot;&quot; alt&#61;&quot;Image&quot;&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+    
+    &#123;&#123;&#123;:script_content&#125;&#125;&#125;
+&lt;/body&gt;
+&lt;/html&gt;
+&quot;&quot;&quot;</code></pre>
+<hr />
+<h2 id="part_4_main_generation_function"><a href="#part_4_main_generation_function" class="header-anchor">Part 4: Main Generation Function</a></h2>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Generate a complete, self-contained HTML page
+&quot;&quot;&quot;
+function generate_page&#40;j::Int, protein_name::String, mode_count::Int&#41;
+    # 1. Prepare all data
+    data &#61; prepare_page_data&#40;j, mode_count, protein_name&#41;
+    
+    # 2. Generate modular script
+    script_html &#61; render&#40;script_template_modular, data&#41;
+    
+    # 3. Load and inline CSS
+    css_content &#61; read&#40;&quot;styles.css&quot;, String&#41;
+    
+    # 4. Add script and CSS to data
+    data&#91;&quot;script_content&quot;&#93; &#61; script_html
+    data&#91;&quot;css_content&quot;&#93; &#61; css_content
+    
+    # 5. Render final HTML
+    html &#61; render&#40;html_template_v2, data&#41;
+    
+    # 6. Write to file
+    write&#40;&quot;output/index&#36;j.html&quot;, html&#41;
+    
+    println&#40;&quot;✓ Generated index&#36;j.html &#40;self-contained, no server needed&#41;&quot;&#41;
+end
+
+# Generate all pages
+for j in 1:6
+    generate_page&#40;j, &quot;MyProtein&quot;, get_mode_count&#40;j&#41;&#41;
+end</code></pre>
+<hr />
+<h2 id="key_improvements"><a href="#key_improvements" class="header-anchor">Key Improvements</a></h2>
+<h3 id="no_server_dependency"><a href="#no_server_dependency" class="header-anchor">✅ No Server Dependency</a></h3>
+<ul>
+<li><p>All data inline</p>
+</li>
+<li><p>No <code>fetch&#40;&#41;</code> calls</p>
+</li>
+<li><p>Open HTML directly in browser</p>
+</li>
+</ul>
+<h3 id="memory_efficient"><a href="#memory_efficient" class="header-anchor">✅ Memory Efficient</a></h3>
+<ul>
+<li><p>FASTA files processed once at build-time</p>
+</li>
+<li><p>Pre-rendered highlighted HTML</p>
+</li>
+<li><p>Browser only stores what&#39;s displayed</p>
+</li>
+</ul>
+<h3 id="modular_maintainable"><a href="#modular_maintainable" class="header-anchor">✅ Modular &amp; Maintainable</a></h3>
+<ul>
+<li><p>Clear separation: Navigation, Slider, Modal</p>
+</li>
+<li><p>Single responsibility per module</p>
+</li>
+<li><p>Easy to debug and extend</p>
+</li>
+</ul>
+<h3 id="performance"><a href="#performance" class="header-anchor">✅ Performance</a></h3>
+<ul>
+<li><p>No runtime parsing</p>
+</li>
+<li><p>Instant page load</p>
+</li>
+<li><p>Smooth interactions</p>
+</li>
+</ul>
+<h3 id="portable"><a href="#portable" class="header-anchor">✅ Portable</a></h3>
+<ul>
+<li><p>Single HTML file per page</p>
+</li>
+<li><p>Share via email, USB, static host</p>
+</li>
+<li><p>Works offline</p>
+</li>
+</ul>
+<hr />
+<h2 id="migration_path"><a href="#migration_path" class="header-anchor">Migration Path</a></h2>
+<h3 id="phase_1_start_simple"><a href="#phase_1_start_simple" class="header-anchor">Phase 1: Start Simple</a></h3>
+<ol>
+<li><p>Inline the JSON data first</p>
+</li>
+<li><p>Test that sliders still work</p>
+</li>
+<li><p>Gradually add pre-rendering</p>
+</li>
+</ol>
+<h3 id="phase_2_pre-render_sequences"><a href="#phase_2_pre-render_sequences" class="header-anchor">Phase 2: Pre-render Sequences</a></h3>
+<ol>
+<li><p>Add <code>prepare_highlighted_sequences&#40;&#41;</code></p>
+</li>
+<li><p>Store HTML in data structure</p>
+</li>
+<li><p>Update modal to use pre-rendered HTML</p>
+</li>
+</ol>
+<h3 id="phase_3_modularize_javascript"><a href="#phase_3_modularize_javascript" class="header-anchor">Phase 3: Modularize JavaScript</a></h3>
+<ol>
+<li><p>Wrap in IIFE &#40;Immediately Invoked Function Expression&#41;</p>
+</li>
+<li><p>Use classes for sliders</p>
+</li>
+<li><p>Create Modal module</p>
+</li>
+</ol>
+<h3 id="phase_4_inline_everything"><a href="#phase_4_inline_everything" class="header-anchor">Phase 4: Inline Everything</a></h3>
+<ol>
+<li><p>Embed CSS</p>
+</li>
+<li><p>Remove external script file</p>
+</li>
+<li><p>Create truly self-contained HTML</p>
+</li>
+</ol>
+<hr />
+<h2 id="testing_checklist"><a href="#testing_checklist" class="header-anchor">Testing Checklist</a></h2>
+<ul>
+<li><p>&#91; &#93; Open HTML file directly &#40;file://&#41; - should work</p>
+</li>
+<li><p>&#91; &#93; All sliders function correctly</p>
+</li>
+<li><p>&#91; &#93; Modals open/close properly</p>
+</li>
+<li><p>&#91; &#93; Sequence highlighting displays correctly</p>
+</li>
+<li><p>&#91; &#93; Navigation between pages works</p>
+</li>
+<li><p>&#91; &#93; Copy text functionality works</p>
+</li>
+<li><p>&#91; &#93; ESC key closes modals</p>
+</li>
+<li><p>&#91; &#93; File size reasonable &#40;&lt; 5MB per page&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="bonus_optional_optimizations"><a href="#bonus_optional_optimizations" class="header-anchor">Bonus: Optional Optimizations</a></h2>
+<h3 id="for_very_large_datasets"><a href="#for_very_large_datasets" class="header-anchor">For Very Large Datasets</a></h3>
+<pre><code class="language-julia"># Compress highlighted sequences
+using CodecZlib
+
+function compress_html&#40;html::String&#41;
+    compressed &#61; transcode&#40;GzipCompressor, Vector&#123;UInt8&#125;&#40;html&#41;&#41;
+    return base64encode&#40;compressed&#41;
+end
+
+# In template:
+&quot;&quot;&quot;
+highlightedSequences: &#123;
+    &#39;&#123;&#123;:csv_id&#125;&#125;&#39;: decompress&#40;&#39;&#123;&#123;:compressed_html&#125;&#125;&#39;&#41;
+&#125;
+
+function decompress&#40;base64&#41; &#123;
+    // Decompress on-demand
+    const compressed &#61; atob&#40;base64&#41;;
+    const decompressed &#61; pako.inflate&#40;compressed, &#123; to: &#39;string&#39; &#125;&#41;;
+    return decompressed;
+&#125;
+&quot;&quot;&quot;</code></pre>
+<h3 id="progressive_enhancement"><a href="#progressive_enhancement" class="header-anchor">Progressive Enhancement</a></h3>
+<pre><code class="language-julia"># Generate &quot;light&quot; version first, then enhance
+function generate_progressive_page&#40;j::Int&#41;
+    # Basic version with first combination only
+    basic_data &#61; prepare_basic_data&#40;j&#41;
+    
+    # Full version with all combinations
+    full_data &#61; prepare_full_data&#40;j&#41;
+    
+    # User can choose which to generate
+end</code></pre>
+<hr />
+<h2 id="summary"><a href="#summary" class="header-anchor">Summary</a></h2>
+<p>This refactored solution:</p>
+<ol>
+<li><p><strong>Eliminates all server dependencies</strong> - works with file:// protocol</p>
+</li>
+<li><p><strong>Reduces memory usage</strong> - pre-renders at build time</p>
+</li>
+<li><p><strong>Improves maintainability</strong> - modular, organized code</p>
+</li>
+<li><p><strong>Enhances performance</strong> - no runtime parsing</p>
+</li>
+<li><p><strong>Increases portability</strong> - single, self-contained HTML files</p>
+</li>
+</ol>
+<p>The key insight: <strong>Use Julia&#39;s power at build-time, keep runtime simple.</strong></p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 21, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

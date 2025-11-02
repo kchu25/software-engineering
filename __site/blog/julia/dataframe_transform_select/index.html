@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Deep Dive: `transform` and `select` in Julia DataFrames</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="deep_dive_transform_and_select_in_julia_dataframes"><a href="#deep_dive_transform_and_select_in_julia_dataframes" class="header-anchor">Deep Dive: <code>transform</code> and <code>select</code> in Julia DataFrames</a></h1>
+<h2 id="introduction"><a href="#introduction" class="header-anchor">Introduction</a></h2>
+<p>When working with DataFrames in Julia, two of the most powerful and frequently used operations are <code>transform</code> and <code>select</code>. While they might seem similar at first glance, understanding their nuances and capabilities is essential for effective data manipulation. This guide explores these functions in depth, covering their syntax, behavior, and practical applications.</p>
+<h2 id="prerequisites"><a href="#prerequisites" class="header-anchor">Prerequisites</a></h2>
+<pre><code class="language-julia">using DataFrames</code></pre>
+<h2 id="the_basics_whats_the_difference"><a href="#the_basics_whats_the_difference" class="header-anchor">The Basics: What&#39;s the Difference?</a></h2>
+<p>Before diving deep, let&#39;s establish the fundamental distinction:</p>
+<ul>
+<li><p><strong><code>select</code></strong>: Creates a new DataFrame with only the specified columns &#40;or transformations&#41;. It&#39;s primarily about choosing and reshaping columns.</p>
+</li>
+<li><p><strong><code>transform</code></strong>: Adds new columns or replaces existing ones while keeping all other columns intact. It&#39;s about augmenting your DataFrame.</p>
+</li>
+</ul>
+<p>Think of <code>select</code> as &quot;give me exactly these columns&quot; and <code>transform</code> as &quot;keep everything and add/modify these.&quot;</p>
+<h2 id="core_syntax_patterns"><a href="#core_syntax_patterns" class="header-anchor">Core Syntax Patterns</a></h2>
+<p>Both functions share similar syntax patterns, which makes learning one help you understand the other. The general form is:</p>
+<pre><code class="language-julia">select&#40;df, transformations...&#41;
+transform&#40;df, transformations...&#41;</code></pre>
+<p>Where <code>transformations</code> can be:</p>
+<ul>
+<li><p>Column names &#40;as <code>Symbol</code> or <code>String</code>&#41;</p>
+</li>
+<li><p>Column selections &#40;<code>:</code> for all columns&#41;</p>
+</li>
+<li><p><code>source &#61;&gt; function &#61;&gt; target</code> chains</p>
+</li>
+<li><p><code>source &#61;&gt; function</code> &#40;auto-named&#41;</p>
+</li>
+<li><p>Multiple columns <code>&#91;col1, col2&#93; &#61;&gt; function &#61;&gt; target</code></p>
+</li>
+</ul>
+<h2 id="pattern_1_simple_column_selection"><a href="#pattern_1_simple_column_selection" class="header-anchor">Pattern 1: Simple Column Selection</a></h2>
+<h3 id="using_select"><a href="#using_select" class="header-anchor">Using <code>select</code></a></h3>
+<pre><code class="language-julia">df &#61; DataFrame&#40;
+    name &#61; &#91;&quot;Alice&quot;, &quot;Bob&quot;, &quot;Charlie&quot;&#93;,
+    age &#61; &#91;25, 30, 35&#93;,
+    salary &#61; &#91;50000, 60000, 70000&#93;
+&#41;
+
+# Select specific columns
+select&#40;df, :name, :age&#41;
+# 3×2 DataFrame
+#  Row │ name     age
+#      │ String   Int64
+# ─────┼───────────────
+#    1 │ Alice       25
+#    2 │ Bob         30
+#    3 │ Charlie     35
+
+# Select and reorder
+select&#40;df, :age, :name&#41;
+# Age comes first now&#33;</code></pre>
+<h3 id="using_transform"><a href="#using_transform" class="header-anchor">Using <code>transform</code></a></h3>
+<pre><code class="language-julia"># Transform doesn&#39;t select - it adds/modifies
+transform&#40;df, :age &#61;&gt; &#40;x -&gt; x .&#43; 1&#41; &#61;&gt; :age_plus_one&#41;
+# 3×4 DataFrame &#40;keeps name, age, salary, adds age_plus_one&#41;</code></pre>
+<p><strong>Key insight</strong>: <code>select</code> controls which columns appear in the output. <code>transform</code> always keeps all original columns.</p>
+<h2 id="pattern_2_the_source_function_target_chain"><a href="#pattern_2_the_source_function_target_chain" class="header-anchor">Pattern 2: The <code>source &#61;&gt; function &#61;&gt; target</code> Chain</a></h2>
+<p>This is the most powerful pattern. Let&#39;s break it down:</p>
+<pre><code class="language-julia"># Basic transformation
+select&#40;df, :age &#61;&gt; &#40;x -&gt; x .* 12&#41; &#61;&gt; :age_in_months&#41;
+
+# What&#39;s happening:
+# 1. :age - source column
+# 2. &#40;x -&gt; x .* 12&#41; - transformation function
+# 3. :age_in_months - target column name</code></pre>
+<h3 id="broadcasting_in_transformations"><a href="#broadcasting_in_transformations" class="header-anchor">Broadcasting in Transformations</a></h3>
+<p>Notice the <code>.</code> in <code>.* 12</code> and <code>.&#43; 1</code>? This is crucial:</p>
+<pre><code class="language-julia"># Correct - broadcasting
+select&#40;df, :age &#61;&gt; &#40;x -&gt; x .&#43; 10&#41; &#61;&gt; :age_plus_ten&#41;
+
+# Also correct - if function naturally handles vectors
+select&#40;df, :salary &#61;&gt; sum &#61;&gt; :total_salary&#41;
+
+# Common mistake - forgetting to broadcast
+select&#40;df, :age &#61;&gt; &#40;x -&gt; x &#43; 10&#41; &#61;&gt; :age_plus_ten&#41;  # Error&#33;</code></pre>
+<p><strong>Rule of thumb</strong>: If you&#39;re doing element-wise operations, use broadcasting &#40;<code>.</code>&#41;. If you&#39;re doing aggregations &#40;like <code>sum</code>, <code>mean</code>&#41;, don&#39;t.</p>
+<h2 id="pattern_3_working_with_multiple_columns"><a href="#pattern_3_working_with_multiple_columns" class="header-anchor">Pattern 3: Working with Multiple Columns</a></h2>
+<h3 id="multiple_input_columns"><a href="#multiple_input_columns" class="header-anchor">Multiple Input Columns</a></h3>
+<pre><code class="language-julia">df &#61; DataFrame&#40;
+    first_name &#61; &#91;&quot;Alice&quot;, &quot;Bob&quot;, &quot;Charlie&quot;&#93;,
+    last_name &#61; &#91;&quot;Smith&quot;, &quot;Jones&quot;, &quot;Brown&quot;&#93;,
+    salary &#61; &#91;50000, 60000, 70000&#93;,
+    bonus &#61; &#91;5000, 6000, 7000&#93;
+&#41;
+
+# Combine two columns
+select&#40;df, 
+    &#91;:first_name, :last_name&#93; &#61;&gt; 
+    &#40;&#40;fn, ln&#41; -&gt; fn .* &quot; &quot; .* ln&#41; &#61;&gt; 
+    :full_name
+&#41;
+
+# Calculate total compensation
+transform&#40;df,
+    &#91;:salary, :bonus&#93; &#61;&gt; 
+    &#40;&#40;s, b&#41; -&gt; s .&#43; b&#41; &#61;&gt; 
+    :total_comp
+&#41;</code></pre>
+<p><strong>Important</strong>: When using multiple columns as input, they&#39;re passed as separate arguments to your function. Use <code>ByRow</code> &#40;discussed later&#41; for more intuitive row-wise operations.</p>
+<h3 id="multiple_output_columns"><a href="#multiple_output_columns" class="header-anchor">Multiple Output Columns</a></h3>
+<p>You can return a named tuple or DataFrame to create multiple columns:</p>
+<pre><code class="language-julia"># Return multiple columns
+transform&#40;df,
+    :salary &#61;&gt; 
+    &#40;x -&gt; &#40;
+        salary_k &#61; x ./ 1000,
+        salary_log &#61; log.&#40;x&#41;
+    &#41;&#41; &#61;&gt; AsTable
+&#41;</code></pre>
+<p>The <code>AsTable</code> tells DataFrames.jl to expand the named tuple into separate columns.</p>
+<h2 id="pattern_4_the_selector"><a href="#pattern_4_the_selector" class="header-anchor">Pattern 4: The <code>:</code> Selector</a></h2>
+<p>The <code>:</code> symbol means &quot;all columns&quot; and is incredibly useful:</p>
+<pre><code class="language-julia"># Keep all columns and add one
+transform&#40;df, :age &#61;&gt; &#40;x -&gt; x .^ 2&#41; &#61;&gt; :age_squared&#41;
+
+# Explicitly keep all columns with select
+select&#40;df, :, :age &#61;&gt; &#40;x -&gt; x .^ 2&#41; &#61;&gt; :age_squared&#41;
+
+# Transform all numeric columns
+select&#40;df, :name, AsTable&#40;Between&#40;:age, :salary&#41;&#41; &#61;&gt; 
+    ByRow&#40;values -&gt; values ./ 1000&#41; &#61;&gt; AsTable&#41;</code></pre>
+<h2 id="the_game_changer_byrow"><a href="#the_game_changer_byrow" class="header-anchor">The Game Changer: <code>ByRow</code></a></h2>
+<p><code>ByRow</code> is one of the most important concepts for intuitive data manipulation. It applies your function to each row individually rather than to entire columns.</p>
+<h3 id="without_byrow_column-wise"><a href="#without_byrow_column-wise" class="header-anchor">Without <code>ByRow</code> &#40;Column-wise&#41;</a></h3>
+<pre><code class="language-julia">df &#61; DataFrame&#40;
+    x &#61; &#91;1, 2, 3&#93;,
+    y &#61; &#91;4, 5, 6&#93;
+&#41;
+
+# This works on entire vectors
+select&#40;df, &#91;:x, :y&#93; &#61;&gt; &#40;&#40;x, y&#41; -&gt; x .&#43; y&#41; &#61;&gt; :sum&#41;</code></pre>
+<h3 id="with_byrow_row-wise"><a href="#with_byrow_row-wise" class="header-anchor">With <code>ByRow</code> &#40;Row-wise&#41;</a></h3>
+<pre><code class="language-julia"># More intuitive - work with scalars
+select&#40;df, &#91;:x, :y&#93; &#61;&gt; ByRow&#40;&#40;x, y&#41; -&gt; x &#43; y&#41; &#61;&gt; :sum&#41;
+
+# Notice: no broadcasting needed inside ByRow&#33;
+# You receive scalars, not vectors
+
+# Complex example - conditional logic per row
+transform&#40;df,
+    &#91;:x, :y&#93; &#61;&gt; ByRow&#40;function&#40;x, y&#41;
+        if x &gt; y
+            &quot;x wins&quot;
+        else
+            &quot;y wins&quot;
+        end
+    end&#41; &#61;&gt; :winner
+&#41;</code></pre>
+<p><strong>When to use <code>ByRow</code></strong>:</p>
+<ul>
+<li><p>When your logic is naturally row-oriented</p>
+</li>
+<li><p>When you&#39;re doing conditional logic on row values</p>
+</li>
+<li><p>When broadcasting syntax becomes awkward</p>
+</li>
+<li><p>When working with strings or complex per-row operations</p>
+</li>
+</ul>
+<h2 id="pattern_5_anonymous_functions_and_do-syntax"><a href="#pattern_5_anonymous_functions_and_do-syntax" class="header-anchor">Pattern 5: Anonymous Functions and Do-Syntax</a></h2>
+<p>For complex transformations, Julia&#39;s <code>do</code> syntax makes code more readable:</p>
+<pre><code class="language-julia"># Using do-syntax for multi-line functions
+transform&#40;df, &#91;:salary, :bonus&#93; &#61;&gt; ByRow&#40;:total_comp&#41; do sal, bon
+    base &#61; sal &#43; bon
+    if base &gt; 65000
+        base * 1.1  # 10&#37; boost for high earners
+    else
+        base
+    end
+end&#41;
+
+# Compare to cramped anonymous function
+transform&#40;df, &#91;:salary, :bonus&#93; &#61;&gt; 
+    ByRow&#40;&#40;s, b&#41; -&gt; &#40;base &#61; s &#43; b; base &gt; 65000 ? base * 1.1 : base&#41;&#41; &#61;&gt; 
+    :total_comp
+&#41;</code></pre>
+<h2 id="pattern_6_renamers_and_column_manipulation"><a href="#pattern_6_renamers_and_column_manipulation" class="header-anchor">Pattern 6: Renamers and Column Manipulation</a></h2>
+<h3 id="simple_renaming"><a href="#simple_renaming" class="header-anchor">Simple Renaming</a></h3>
+<pre><code class="language-julia"># Rename with select
+select&#40;df, :name &#61;&gt; :employee_name, :age, :salary&#41;
+
+# Rename with transform &#40;keeps all columns&#41;
+transform&#40;df, :name &#61;&gt; :employee_name&#41;
+# Note: This keeps BOTH :name and :employee_name</code></pre>
+<h3 id="transforming_column_names"><a href="#transforming_column_names" class="header-anchor">Transforming Column Names</a></h3>
+<pre><code class="language-julia"># Lowercase all column names
+select&#40;df, names&#40;df&#41; .&#61;&gt; Symbol.&#40;lowercase.&#40;string.&#40;names&#40;df&#41;&#41;&#41;&#41;&#41;
+
+# Add prefix to all columns
+select&#40;df, names&#40;df&#41; .&#61;&gt; Symbol.&#40;&quot;old_&quot; .* string.&#40;names&#40;df&#41;&#41;&#41;&#41;</code></pre>
+<h2 id="pattern_7_astable_for_structured_data"><a href="#pattern_7_astable_for_structured_data" class="header-anchor">Pattern 7: <code>AsTable</code> for Structured Data</a></h2>
+<p><code>AsTable</code> is powerful for working with multiple columns as a unit:</p>
+<pre><code class="language-julia">df &#61; DataFrame&#40;
+    id &#61; &#91;1, 2, 3&#93;,
+    q1_score &#61; &#91;85, 90, 78&#93;,
+    q2_score &#61; &#91;88, 92, 82&#93;,
+    q3_score &#61; &#91;90, 89, 85&#93;
+&#41;
+
+# Calculate statistics across score columns
+transform&#40;df,
+    AsTable&#40;r&quot;q\d_score&quot;&#41; &#61;&gt; ByRow&#40;function&#40;scores&#41;
+        &#40;
+            avg_score &#61; mean&#40;values&#40;scores&#41;&#41;,
+            max_score &#61; maximum&#40;values&#40;scores&#41;&#41;,
+            min_score &#61; minimum&#40;values&#40;scores&#41;&#41;
+        &#41;
+    end&#41; &#61;&gt; AsTable
+&#41;</code></pre>
+<p>The <code>AsTable&#40;selector&#41;</code> pattern:</p>
+<ol>
+<li><p>Groups specified columns into a named tuple for each row</p>
+</li>
+<li><p>Passes that tuple to your function</p>
+</li>
+<li><p>When returning, <code>&#61;&gt; AsTable</code> expands results back into columns</p>
+</li>
+</ol>
+<h2 id="pattern_8_conditional_column_selection"><a href="#pattern_8_conditional_column_selection" class="header-anchor">Pattern 8: Conditional Column Selection</a></h2>
+<h3 id="using_column_selectors"><a href="#using_column_selectors" class="header-anchor">Using Column Selectors</a></h3>
+<p>DataFrames.jl provides powerful selectors:</p>
+<pre><code class="language-julia"># Select columns by type
+select&#40;df, Int &#61;&gt; :numeric_cols&#41;
+
+# Select columns by name pattern
+select&#40;df, r&quot;^age&quot; &#61;&gt; :age_related&#41;
+
+# Select columns by predicate
+select&#40;df, names&#40;df, Real&#41;&#41;  # All numeric columns
+
+# Combine selectors
+select&#40;df, Not&#40;:id&#41;, Between&#40;:age, :salary&#41;&#41;</code></pre>
+<h3 id="common_selectors"><a href="#common_selectors" class="header-anchor">Common Selectors</a></h3>
+<ul>
+<li><p><code>Not&#40;cols&#41;</code> - Everything except these columns</p>
+</li>
+<li><p><code>Between&#40;first, last&#41;</code> - Columns in range &#40;inclusive&#41;</p>
+</li>
+<li><p><code>Cols&#40;predicate&#41;</code> - Columns matching a predicate</p>
+</li>
+<li><p><code>r&quot;pattern&quot;</code> - Regex match on column names</p>
+</li>
+<li><p><code>Type</code> - Columns of specific type</p>
+</li>
+</ul>
+<h2 id="advanced_pattern_chaining_operations"><a href="#advanced_pattern_chaining_operations" class="header-anchor">Advanced Pattern: Chaining Operations</a></h2>
+<p>Both <code>select</code> and <code>transform</code> work beautifully with Julia&#39;s pipe operator:</p>
+<pre><code class="language-julia">df |&gt;
+    df -&gt; transform&#40;df, :age &#61;&gt; &#40;x -&gt; x .&#43; 1&#41; &#61;&gt; :age_next_year&#41; |&gt;
+    df -&gt; select&#40;df, :name, :age_next_year, :salary&#41; |&gt;
+    df -&gt; transform&#40;df, :salary &#61;&gt; &#40;x -&gt; x ./ 1000&#41; &#61;&gt; :salary_k&#41;</code></pre>
+<p>Or more elegantly with <code>@chain</code> from Chain.jl:</p>
+<pre><code class="language-julia">using Chain
+
+@chain df begin
+    transform&#40;:age &#61;&gt; &#40;x -&gt; x .&#43; 1&#41; &#61;&gt; :age_next_year&#41;
+    select&#40;:name, :age_next_year, :salary&#41;
+    transform&#40;:salary &#61;&gt; &#40;x -&gt; x ./ 1000&#41; &#61;&gt; :salary_k&#41;
+end</code></pre>
+<h2 id="mutation_select_and_transform"><a href="#mutation_select_and_transform" class="header-anchor">Mutation: <code>select&#33;</code> and <code>transform&#33;</code></a></h2>
+<p>Both functions have in-place variants that modify the DataFrame directly:</p>
+<pre><code class="language-julia"># Non-mutating &#40;returns new DataFrame&#41;
+df2 &#61; select&#40;df, :name, :age&#41;
+
+# Mutating &#40;modifies df in-place&#41;
+select&#33;&#40;df, :name, :age&#41;  # df now only has these columns
+
+# Same for transform
+transform&#33;&#40;df, :age &#61;&gt; &#40;x -&gt; x .&#43; 1&#41; &#61;&gt; :age_plus_one&#41;</code></pre>
+<p><strong>Caution</strong>: Mutation can be efficient but makes debugging harder. Use when performance matters and you&#39;re sure about the operation.</p>
+<h2 id="common_patterns_and_idioms"><a href="#common_patterns_and_idioms" class="header-anchor">Common Patterns and Idioms</a></h2>
+<h3 id="create_indicator_variables"><a href="#create_indicator_variables" class="header-anchor"><ol>
+<li><p>Create Indicator Variables</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">transform&#40;df, 
+    :age &#61;&gt; ByRow&#40;x -&gt; x &gt;&#61; 30&#41; &#61;&gt; :is_senior
+&#41;</code></pre>
+<h3 id="ol_start2_normalize_columns"><a href="#ol_start2_normalize_columns" class="header-anchor"><ol start="2">
+<li><p>Normalize Columns</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">using Statistics
+
+transform&#40;df,
+    :salary &#61;&gt; &#40;x -&gt; &#40;x .- mean&#40;x&#41;&#41; ./ std&#40;x&#41;&#41; &#61;&gt; :salary_normalized
+&#41;</code></pre>
+<h3 id="ol_start3_binningcategorization"><a href="#ol_start3_binningcategorization" class="header-anchor"><ol start="3">
+<li><p>Binning/Categorization</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">transform&#40;df,
+    :age &#61;&gt; ByRow&#40;function&#40;age&#41;
+        if age &lt; 25
+            &quot;young&quot;
+        elseif age &lt; 40
+            &quot;middle&quot;
+        else
+            &quot;senior&quot;
+        end
+    end&#41; &#61;&gt; :age_group
+&#41;</code></pre>
+<h3 id="ol_start4_string_operations"><a href="#ol_start4_string_operations" class="header-anchor"><ol start="4">
+<li><p>String Operations</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">transform&#40;df,
+    :name &#61;&gt; ByRow&#40;x -&gt; uppercase&#40;x&#41;&#41; &#61;&gt; :name_upper,
+    :name &#61;&gt; ByRow&#40;x -&gt; length&#40;x&#41;&#41; &#61;&gt; :name_length
+&#41;</code></pre>
+<h3 id="ol_start5_lagged_values"><a href="#ol_start5_lagged_values" class="header-anchor"><ol start="5">
+<li><p>Lagged Values</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">transform&#40;df,
+    :salary &#61;&gt; &#40;x -&gt; &#91;missing; x&#91;1:end-1&#93;&#93;&#41; &#61;&gt; :prev_salary
+&#41;</code></pre>
+<h2 id="performance_considerations"><a href="#performance_considerations" class="header-anchor">Performance Considerations</a></h2>
+<h3 id="broadcasting_is_fast"><a href="#broadcasting_is_fast" class="header-anchor"><ol>
+<li><p>Broadcasting is Fast</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Fast
+select&#40;df, :salary &#61;&gt; &#40;x -&gt; x ./ 1000&#41; &#61;&gt; :salary_k&#41;
+
+# Slower &#40;but sometimes necessary&#41;
+select&#40;df, :salary &#61;&gt; ByRow&#40;x -&gt; x / 1000&#41; &#61;&gt; :salary_k&#41;</code></pre>
+<h3 id="ol_start2_minimize_allocations"><a href="#ol_start2_minimize_allocations" class="header-anchor"><ol start="2">
+<li><p>Minimize Allocations</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Creates intermediate array
+transform&#40;df, :age &#61;&gt; &#40;x -&gt; &#40;x .&#43; 1&#41; .* 2&#41; &#61;&gt; :result&#41;
+
+# Better - fused operation
+transform&#40;df, :age &#61;&gt; &#40;x -&gt; @. &#40;x &#43; 1&#41; * 2&#41; &#61;&gt; :result&#41;</code></pre>
+<h3 id="ol_start3_column_operations_vs_byrow"><a href="#ol_start3_column_operations_vs_byrow" class="header-anchor"><ol start="3">
+<li><p>Column Operations vs ByRow</p>
+</li>
+</ol>
+</a></h3>
+<p>Use column-wise operations when possible - they&#39;re vectorized and faster:</p>
+<pre><code class="language-julia"># Faster
+select&#40;df, &#91;:x, :y&#93; &#61;&gt; &#40;&#40;x, y&#41; -&gt; x .&#43; y&#41; &#61;&gt; :sum&#41;
+
+# Slower &#40;but more flexible&#41;
+select&#40;df, &#91;:x, :y&#93; &#61;&gt; ByRow&#40;&#40;x, y&#41; -&gt; x &#43; y&#41; &#61;&gt; :sum&#41;</code></pre>
+<h2 id="gotchas_and_common_mistakes"><a href="#gotchas_and_common_mistakes" class="header-anchor">Gotchas and Common Mistakes</a></h2>
+<h3 id="forgetting_broadcasting"><a href="#forgetting_broadcasting" class="header-anchor"><ol>
+<li><p>Forgetting Broadcasting</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Wrong - scalar operation on vector
+select&#40;df, :age &#61;&gt; &#40;x -&gt; x &#43; 1&#41; &#61;&gt; :age_plus&#41;  # Error&#33;
+
+# Correct
+select&#40;df, :age &#61;&gt; &#40;x -&gt; x .&#43; 1&#41; &#61;&gt; :age_plus&#41;</code></pre>
+<h3 id="ol_start2_multiple_column_arguments"><a href="#ol_start2_multiple_column_arguments" class="header-anchor"><ol start="2">
+<li><p>Multiple Column Arguments</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Function receives separate arguments, not a tuple
+select&#40;df, &#91;:x, :y&#93; &#61;&gt; &#40;&#40;x, y&#41; -&gt; x .&#43; y&#41; &#61;&gt; :sum&#41;
+
+# Not: &#40;&#40;xy&#41; -&gt; xy&#91;1&#93; .&#43; xy&#91;2&#93;&#41;</code></pre>
+<h3 id="ol_start3_select_vs_transform_confusion"><a href="#ol_start3_select_vs_transform_confusion" class="header-anchor"><ol start="3">
+<li><p><code>select</code> vs <code>transform</code> Confusion</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># select removes other columns
+select&#40;df, :age &#61;&gt; identity &#61;&gt; :age_copy&#41;  # Only has age_copy&#33;
+
+# transform keeps all columns
+transform&#40;df, :age &#61;&gt; identity &#61;&gt; :age_copy&#41;  # Has age AND age_copy</code></pre>
+<h3 id="ol_start4_astable_output_without_astable_target"><a href="#ol_start4_astable_output_without_astable_target" class="header-anchor"><ol start="4">
+<li><p>AsTable Output Without AsTable Target</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Wrong - returns nested structure
+transform&#40;df, &#91;:x, :y&#93; &#61;&gt; ByRow&#40;xy -&gt; &#40;sum&#61;xy.x&#43;xy.y, prod&#61;xy.x*xy.y&#41;&#41;&#41;
+
+# Correct - expands into columns
+transform&#40;df, AsTable&#40;&#91;:x, :y&#93;&#41; &#61;&gt; ByRow&#40;xy -&gt; &#40;sum&#61;xy.x&#43;xy.y, prod&#61;xy.x*xy.y&#41;&#41; &#61;&gt; AsTable&#41;</code></pre>
+<h2 id="comparison_table"><a href="#comparison_table" class="header-anchor">Comparison Table</a></h2>
+<table><tr><th align="right">Feature</th><th align="right"><code>select</code></th><th align="right"><code>transform</code></th></tr><tr><td align="right">Keeps all columns?</td><td align="right">No</td><td align="right">Yes</td></tr><tr><td align="right">Can reorder columns?</td><td align="right">Yes</td><td align="right">No &#40;new columns at end&#41;</td></tr><tr><td align="right">Can remove columns?</td><td align="right">Yes &#40;by not selecting&#41;</td><td align="right">No</td></tr><tr><td align="right">Can rename columns?</td><td align="right">Yes</td><td align="right">Yes &#40;keeps both&#41;</td></tr><tr><td align="right">Primary use case</td><td align="right">Choosing &amp; reshaping</td><td align="right">Adding &amp; modifying</td></tr><tr><td align="right">Performance</td><td align="right">Similar</td><td align="right">Similar</td></tr></table>
+<h2 id="real-world_example_data_cleaning_pipeline"><a href="#real-world_example_data_cleaning_pipeline" class="header-anchor">Real-World Example: Data Cleaning Pipeline</a></h2>
+<pre><code class="language-julia">using DataFrames, Statistics, Dates
+
+# Raw survey data
+df &#61; DataFrame&#40;
+    id &#61; 1:5,
+    name &#61; &#91;&quot;alice&quot;, &quot;bob&quot;, &quot;charlie&quot;, &quot;dave&quot;, &quot;eve&quot;&#93;,
+    age_str &#61; &#91;&quot;25&quot;, &quot;30&quot;, &quot;35&quot;, &quot;invalid&quot;, &quot;28&quot;&#93;,
+    salary &#61; &#91;50000, 60000, missing, 70000, 55000&#93;,
+    hire_date &#61; &#91;&quot;2020-01-15&quot;, &quot;2019-06-30&quot;, &quot;2021-03-20&quot;, &quot;2018-11-05&quot;, &quot;2022-02-14&quot;&#93;
+&#41;
+
+# Cleaning pipeline
+clean_df &#61; @chain df begin
+    # Parse age, handling invalids
+    transform&#40;:age_str &#61;&gt; ByRow&#40;s -&gt; tryparse&#40;Int, s&#41;&#41; &#61;&gt; :age&#41;
+    
+    # Fill missing salaries with median
+    transform&#40;:salary &#61;&gt; &#40;x -&gt; coalesce.&#40;x, median&#40;skipmissing&#40;x&#41;&#41;&#41;&#41; &#61;&gt; :salary&#41;
+    
+    # Parse dates
+    transform&#40;:hire_date &#61;&gt; ByRow&#40;s -&gt; Date&#40;s&#41;&#41; &#61;&gt; :hire_date&#41;
+    
+    # Calculate tenure
+    transform&#40;:hire_date &#61;&gt; ByRow&#40;d -&gt; &#40;today&#40;&#41; - d&#41;.value ÷ 365&#41; &#61;&gt; :years_tenure&#41;
+    
+    # Standardize names
+    transform&#40;:name &#61;&gt; ByRow&#40;titlecase&#41; &#61;&gt; :name&#41;
+    
+    # Select final columns
+    select&#40;:id, :name, :age, :salary, :years_tenure&#41;
+    
+    # Filter out invalid ages
+    subset&#40;:age &#61;&gt; ByRow&#40;&#33;isnothing&#41;&#41;
+end</code></pre>
+<h2 id="conclusion"><a href="#conclusion" class="header-anchor">Conclusion</a></h2>
+<p><code>select</code> and <code>transform</code> are the workhorses of DataFrames.jl manipulation. Understanding their patterns - especially <code>ByRow</code>, <code>AsTable</code>, and the <code>source &#61;&gt; function &#61;&gt; target</code> chain - unlocks powerful and expressive data transformations.</p>
+<p><strong>Key takeaways</strong>:</p>
+<ul>
+<li><p>Use <code>select</code> when you need to choose specific columns or reshape</p>
+</li>
+<li><p>Use <code>transform</code> when you want to add computed columns</p>
+</li>
+<li><p>Embrace <code>ByRow</code> for intuitive row-oriented logic</p>
+</li>
+<li><p>Master <code>AsTable</code> for working with multiple columns as units</p>
+</li>
+<li><p>Remember broadcasting for vectorized operations</p>
+</li>
+<li><p>Chain operations for readable pipelines</p>
+</li>
+</ul>
+<p>With these patterns internalized, you&#39;ll write clearer, more maintainable data manipulation code in Julia.</p>
+<h2 id="further_reading"><a href="#further_reading" class="header-anchor">Further Reading</a></h2>
+<ul>
+<li><p><a href="https://dataframes.juliadata.org/">DataFrames.jl Documentation</a></p>
+</li>
+<li><p><a href="https://github.com/JuliaData/DataFramesMeta.jl">DataFramesMeta.jl</a> - Macros for even more concise syntax</p>
+</li>
+<li><p><a href="https://github.com/queryverse/Query.jl">Query.jl</a> - LINQ-style queries for DataFrames</p>
+</li>
+</ul>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 22, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Julia DataFrames: The Complete Ninja Guide 🥷</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="julia_dataframes_the_complete_ninja_guide"><a href="#julia_dataframes_the_complete_ninja_guide" class="header-anchor">Julia DataFrames: The Complete Ninja Guide 🥷</a></h1>
+<h2 id="the_philosophy_split-apply-combine"><a href="#the_philosophy_split-apply-combine" class="header-anchor">The Philosophy: Split-Apply-Combine</a></h2>
+<p>DataFrames.jl follows the <strong>split-apply-combine</strong> pattern, which is incredibly intuitive once you get it:</p>
+<ol>
+<li><p><strong>Split</strong>: Divide your data into groups based on some criteria</p>
+</li>
+<li><p><strong>Apply</strong>: Perform operations on each group independently</p>
+</li>
+<li><p><strong>Combine</strong>: Merge the results back into a single DataFrame</p>
+</li>
+</ol>
+<p>The beauty is in how flexible and composable this becomes.</p>
+<blockquote>
+<p><strong>🧠 The Problem-Solving Philosophy Behind Split-Apply-Combine</strong></p>
+<p>This pattern comes from a fundamental insight about data analysis: <strong>most real-world questions involve comparing subgroups</strong>.</p>
+<p>Think about it:</p>
+<ul>
+<li><p>&quot;What&#39;s the average salary <strong>by department</strong>?&quot;</p>
+</li>
+<li><p>&quot;How did sales change <strong>per region</strong>?&quot;</p>
+</li>
+<li><p>&quot;Which customer <strong>segments</strong> have the highest retention?&quot;</p>
+</li>
+</ul>
+<p>Split-apply-combine formalizes this into a <strong>reusable mental model</strong>:</p>
+<p><strong>Instead of thinking</strong>: &quot;I need to loop through my data, find all rows where department&#61;&#39;Engineering&#39;, calculate the mean, store it, then find all rows where department&#61;&#39;Sales&#39;...&quot;</p>
+<p><strong>You think</strong>: &quot;I need to split by department, apply mean to each group, combine the results.&quot;</p>
+<p>This is powerful because:</p>
+<ol>
+<li><p><strong>Declarative over imperative</strong>: You describe <em>what</em> you want, not <em>how</em> to get it</p>
+</li>
+<li><p><strong>Composable</strong>: Each step is independent and can be swapped/modified</p>
+</li>
+<li><p><strong>Parallelizable</strong>: Groups are independent, so they can be processed in parallel</p>
+</li>
+<li><p><strong>Less error-prone</strong>: No manual bookkeeping of which rows belong to which group</p>
+</li>
+<li><p><strong>Universal</strong>: Works for simple aggregations AND complex analyses</p>
+</li>
+</ol>
+<p>The pattern originated in Hadley Wickham&#39;s 2011 paper and has become the foundation of modern data manipulation &#40;dplyr in R, pandas groupby, SQL GROUP BY&#41;. It&#39;s essentially a design pattern that <strong>maps human thinking about grouped data</strong> directly to code.</p>
+<p>The alternative &#40;writing explicit loops with if-statements and dictionaries to track groups&#41; is like building a house with raw materials instead of using pre-fabricated components - it works, but it&#39;s tedious and error-prone.</p>
+</blockquote>
+<h2 id="core_design_patterns"><a href="#core_design_patterns" class="header-anchor">Core Design Patterns</a></h2>
+<h3 id="pattern_1_the_basic_groupby_combine"><a href="#pattern_1_the_basic_groupby_combine" class="header-anchor">Pattern 1: The Basic <code>groupby</code> → <code>combine</code></a></h3>
+<pre><code class="language-julia">using DataFrames
+
+df &#61; DataFrame&#40;
+    name &#61; &#91;&quot;Alice&quot;, &quot;Bob&quot;, &quot;Alice&quot;, &quot;Bob&quot;, &quot;Charlie&quot;&#93;,
+    category &#61; &#91;&quot;A&quot;, &quot;B&quot;, &quot;A&quot;, &quot;A&quot;, &quot;B&quot;&#93;,
+    value &#61; &#91;10, 20, 15, 25, 30&#93;
+&#41;
+
+# Group by name, calculate mean of value
+result &#61; combine&#40;groupby&#40;df, :name&#41;, :value &#61;&gt; mean &#61;&gt; :avg_value&#41;</code></pre>
+<p><strong>What&#39;s happening</strong>: </p>
+<ul>
+<li><p><code>groupby&#40;df, :name&#41;</code> creates a <code>GroupedDataFrame</code> &#40;it doesn&#39;t copy data, just creates views&#33;&#41;</p>
+</li>
+<li><p><code>combine&#40;&#41;</code> applies the operation to each group and stacks results</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>📝 The General Syntax of <code>combine</code></strong></p>
+<p><code>combine</code> accepts multiple forms of arguments, which makes it incredibly flexible:</p>
+<ol>
+<li><p><strong>Column operations</strong>: <code>:col &#61;&gt; func &#61;&gt; :output_name</code></p>
+</li>
+<li><p><strong>Multiple columns</strong>: <code>&#91;:col1, :col2&#93; &#61;&gt; func &#61;&gt; :output</code></p>
+</li>
+<li><p><strong>Direct functions</strong>: <code>nrow</code> &#40;operates on the whole group DataFrame&#41;</p>
+</li>
+<li><p><strong>No transformation</strong>: <code>:col</code> &#40;just keeps the column if uniform within groups&#41;</p>
+</li>
+<li><p><strong>Multiple operations</strong>: Mix and match all of the above&#33;</p>
+</li>
+</ol>
+<p>Functions like <code>nrow</code>, <code>proprow</code>, and <code>groupindices</code> are <strong>special</strong>: they operate on the entire group DataFrame, not specific columns, so you use them directly without the <code>&#61;&gt;</code> syntax. You can still rename them: <code>nrow &#61;&gt; :count</code>.</p>
+</blockquote>
+<pre><code class="language-julia">&gt; combine&#40;gdf,
+&gt;     :value &#61;&gt; mean &#61;&gt; :avg,     # column operation
+&gt;     nrow,                        # special function &#40;gives &quot;nrow&quot; column&#41;
+&gt;     nrow &#61;&gt; :count,              # special function renamed
+&gt;     :category                    # keep as-is &#40;only works if uniform in each group&#33;&#41;
+&gt; &#41;
+&gt;</code></pre>
+<blockquote>
+<p>⚠️ <strong>Important</strong>: Using <code>:col</code> without a function only works if that column has the same value for all rows within each group. If values vary within a group, you&#39;ll get an error. When in doubt, use <code>:col &#61;&gt; first</code> or <code>:col &#61;&gt; unique</code> to be explicit about what you want.</p>
+</blockquote>
+<h3 id="pattern_2_the_operator_the_secret_sauce"><a href="#pattern_2_the_operator_the_secret_sauce" class="header-anchor">Pattern 2: The <code>&#61;&gt;</code> Operator &#40;The Secret Sauce&#41;</a></h3>
+<p>The <code>&#61;&gt;</code> operator is your bread and butter. It follows this pattern:</p>
+<pre><code class="language-julia">source &#61;&gt; function &#61;&gt; destination</code></pre>
+<p>Examples:</p>
+<pre><code class="language-julia"># Single column transformation
+combine&#40;gdf, :value &#61;&gt; sum &#61;&gt; :total&#41;
+
+# Multiple columns to function
+combine&#40;gdf, &#91;:value, :quantity&#93; &#61;&gt; &#40;&#40;v, q&#41; -&gt; sum&#40;v .* q&#41;&#41; &#61;&gt; :weighted_sum&#41;
+
+# Multiple outputs from one function
+combine&#40;gdf, :value &#61;&gt; &#40;x -&gt; &#40;min&#61;minimum&#40;x&#41;, max&#61;maximum&#40;x&#41;&#41;&#41; &#61;&gt; AsTable&#41;</code></pre>
+<h3 id="pattern_3_multiple_operations_at_once"><a href="#pattern_3_multiple_operations_at_once" class="header-anchor">Pattern 3: Multiple Operations at Once</a></h3>
+<p>You can pass multiple transformations to <code>combine</code>:</p>
+<pre><code class="language-julia">combine&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; sum &#61;&gt; :total,
+    :value &#61;&gt; mean &#61;&gt; :average,
+    :value &#61;&gt; length &#61;&gt; :count,
+    :name &#61;&gt; &#40;x -&gt; join&#40;unique&#40;x&#41;, &quot;, &quot;&#41;&#41; &#61;&gt; :names
+&#41;</code></pre>
+<p>Each operation runs independently and gets merged into the output.</p>
+<h3 id="pattern_4_the_astable_trick"><a href="#pattern_4_the_astable_trick" class="header-anchor">Pattern 4: The <code>AsTable</code> Trick</a></h3>
+<p>When your function returns a named tuple or DataFrame row, use <code>AsTable</code>:</p>
+<pre><code class="language-julia">function stats&#40;x&#41;
+    &#40;mean &#61; mean&#40;x&#41;, 
+     std &#61; std&#40;x&#41;, 
+     median &#61; median&#40;x&#41;&#41;
+end
+
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; stats &#61;&gt; AsTable&#41;</code></pre>
+<p>This unpacks the named tuple into separate columns&#33;</p>
+<h3 id="pattern_5_keeping_group_keys"><a href="#pattern_5_keeping_group_keys" class="header-anchor">Pattern 5: Keeping Group Keys</a></h3>
+<p>Sometimes you want to perform operations but keep all original columns:</p>
+<pre><code class="language-julia"># Add a column with group means &#40;broadcasting within groups&#41;
+transform&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; mean &#61;&gt; :category_mean&#41;
+
+# This keeps all original rows&#33;</code></pre>
+<p><strong>The difference</strong>:</p>
+<ul>
+<li><p><code>combine</code>: Returns one row per group &#40;aggregation&#41;</p>
+</li>
+<li><p><code>transform</code>: Returns same number of rows as input &#40;broadcasting&#41;</p>
+</li>
+<li><p><code>select</code>: Like transform but can drop columns</p>
+</li>
+</ul>
+<h3 id="pattern_6_multiple_grouping_columns"><a href="#pattern_6_multiple_grouping_columns" class="header-anchor">Pattern 6: Multiple Grouping Columns</a></h3>
+<pre><code class="language-julia"># Group by multiple columns
+combine&#40;groupby&#40;df, &#91;:category, :region&#93;&#41;, 
+    :value &#61;&gt; sum &#61;&gt; :total&#41;</code></pre>
+<p>This creates groups for each unique combination of category and region.</p>
+<h3 id="pattern_7_anonymous_functions"><a href="#pattern_7_anonymous_functions" class="header-anchor">Pattern 7: Anonymous Functions</a></h3>
+<p>For quick operations:</p>
+<pre><code class="language-julia"># Coefficient of variation
+combine&#40;groupby&#40;df, :category&#41;, 
+    :value &#61;&gt; &#40;x -&gt; std&#40;x&#41; / mean&#40;x&#41;&#41; &#61;&gt; :cv&#41;
+
+# Custom complex logic
+combine&#40;groupby&#40;df, :name&#41;,
+    &#91;:value, :quantity&#93; &#61;&gt; &#40;&#40;v, q&#41; -&gt; begin
+        total &#61; sum&#40;v .* q&#41;
+        avg &#61; mean&#40;v .* q&#41;
+        &#40;total&#61;total, avg&#61;avg&#41;
+    end&#41; &#61;&gt; AsTable&#41;</code></pre>
+<h3 id="pattern_8_using_by_macro_shorthand"><a href="#pattern_8_using_by_macro_shorthand" class="header-anchor">Pattern 8: Using <code>@by</code> Macro &#40;Shorthand&#41;</a></h3>
+<p>DataFramesMeta.jl provides convenient macros:</p>
+<pre><code class="language-julia">using DataFramesMeta
+
+# Instead of: combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; sum &#61;&gt; :total&#41;
+@by&#40;df, :category, :total &#61; sum&#40;:value&#41;&#41;
+
+# Multiple operations
+@by&#40;df, :category, 
+    :total &#61; sum&#40;:value&#41;,
+    :avg &#61; mean&#40;:value&#41;,
+    :count &#61; length&#40;:value&#41;&#41;</code></pre>
+<h3 id="pattern_9_conditional_aggregation"><a href="#pattern_9_conditional_aggregation" class="header-anchor">Pattern 9: Conditional Aggregation</a></h3>
+<pre><code class="language-julia"># Sum only values above threshold
+combine&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; &#40;x -&gt; sum&#40;x&#91;x .&gt; 10&#93;&#41;&#41; &#61;&gt; :sum_above_10&#41;
+
+# Count with condition
+combine&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; &#40;x -&gt; count&#40;&gt;&#40;10&#41;, x&#41;&#41; &#61;&gt; :count_above_10&#41;</code></pre>
+<h3 id="pattern_10_window_functions"><a href="#pattern_10_window_functions" class="header-anchor">Pattern 10: Window Functions</a></h3>
+<pre><code class="language-julia"># Rank within groups
+transform&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; &#40;x -&gt; ordinalrank&#40;x, rev&#61;true&#41;&#41; &#61;&gt; :rank&#41;
+
+# Running sum within groups
+transform&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; cumsum &#61;&gt; :running_total&#41;
+
+# Difference from group mean
+transform&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; &#40;x -&gt; x .- mean&#40;x&#41;&#41; &#61;&gt; :deviation_from_mean&#41;</code></pre>
+<h2 id="advanced_ninja_techniques"><a href="#advanced_ninja_techniques" class="header-anchor">Advanced Ninja Techniques</a></h2>
+<h3 id="technique_1_nested_grouping"><a href="#technique_1_nested_grouping" class="header-anchor">Technique 1: Nested Grouping</a></h3>
+<pre><code class="language-julia"># First group by category, then apply complex logic
+by_category &#61; groupby&#40;df, :category&#41;
+result &#61; combine&#40;by_category&#41; do subdf
+    # Within each category, do another groupby
+    by_name &#61; groupby&#40;subdf, :name&#41;
+    DataFrame&#40;
+        unique_names &#61; length&#40;by_name&#41;,
+        total_value &#61; sum&#40;subdf.value&#41;
+    &#41;
+end</code></pre>
+<h3 id="technique_2_do_block_syntax"><a href="#technique_2_do_block_syntax" class="header-anchor">Technique 2: <code>do</code> Block Syntax</a></h3>
+<p>For complex operations, use <code>do</code> blocks:</p>
+<pre><code class="language-julia">combine&#40;groupby&#40;df, :category&#41;&#41; do subdf
+    # subdf is the DataFrame for this group
+    # You can do ANYTHING here
+    top_3 &#61; sort&#40;subdf, :value, rev&#61;true&#41;&#91;1:min&#40;3, nrow&#40;subdf&#41;&#41;, :&#93;
+    DataFrame&#40;
+        top_values &#61; &#91;top_3.value&#93;,
+        top_names &#61; &#91;top_3.name&#93;
+    &#41;
+end</code></pre>
+<h3 id="technique_3_the_ungroup_pattern"><a href="#technique_3_the_ungroup_pattern" class="header-anchor">Technique 3: The <code>ungroup</code> Pattern</a></h3>
+<p>Sometimes you need to work with the grouped structure:</p>
+<pre><code class="language-julia">gdf &#61; groupby&#40;df, :category&#41;
+
+# Access individual groups
+first_group &#61; gdf&#91;1&#93;
+
+# Get group keys
+keys&#40;gdf&#41;
+
+# Number of groups
+length&#40;gdf&#41;
+
+# Convert back
+ungroup_df &#61; combine&#40;gdf, identity&#41;  # or just DataFrame&#40;gdf&#41;</code></pre>
+<h3 id="technique_4_column_selectors"><a href="#technique_4_column_selectors" class="header-anchor">Technique 4: Column Selectors</a></h3>
+<pre><code class="language-julia"># All numeric columns
+combine&#40;groupby&#40;df, :category&#41;, 
+    valuecols&#40;df&#41; .&#61;&gt; mean&#41;
+
+# Exclude certain columns
+combine&#40;groupby&#40;df, :category&#41;, 
+    Not&#40;:id&#41; .&#61;&gt; mean&#41;
+
+# Match pattern
+combine&#40;groupby&#40;df, :category&#41;,
+    r&quot;^value&quot; .&#61;&gt; sum&#41;  # All columns starting with &quot;value&quot;</code></pre>
+<h3 id="technique_5_custom_aggregation_functions"><a href="#technique_5_custom_aggregation_functions" class="header-anchor">Technique 5: Custom Aggregation Functions</a></h3>
+<pre><code class="language-julia"># Weighted mean
+weighted_mean&#40;values, weights&#41; &#61; sum&#40;values .* weights&#41; / sum&#40;weights&#41;
+
+combine&#40;groupby&#40;df, :category&#41;,
+    &#91;:value, :weight&#93; &#61;&gt; weighted_mean &#61;&gt; :weighted_avg&#41;
+
+# Mode &#40;most common value&#41;
+mode_value&#40;x&#41; &#61; begin
+    counts &#61; countmap&#40;x&#41;
+    argmax&#40;counts&#41;
+end
+
+combine&#40;groupby&#40;df, :category&#41;, :name &#61;&gt; mode_value &#61;&gt; :most_common&#41;</code></pre>
+<h2 id="common_gotchas_solutions"><a href="#common_gotchas_solutions" class="header-anchor">Common Gotchas &amp; Solutions</a></h2>
+<h3 id="gotcha_1_scalar_vs_vector_returns"><a href="#gotcha_1_scalar_vs_vector_returns" class="header-anchor">Gotcha 1: Scalar vs. Vector Returns</a></h3>
+<pre><code class="language-julia"># This errors&#33; Function returns vector but we said &#61;&gt; :result &#40;scalar&#41;
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; identity &#61;&gt; :result&#41;
+
+# Fix: Don&#39;t give output name for vector, or use proper name
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; identity&#41;
+# OR wrap in a container
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; &#40;x -&gt; &#91;x&#93;&#41; &#61;&gt; :values&#41;</code></pre>
+<h3 id="gotcha_2_missing_data"><a href="#gotcha_2_missing_data" class="header-anchor">Gotcha 2: Missing Data</a></h3>
+<pre><code class="language-julia"># Handle missing values
+combine&#40;groupby&#40;df, :category&#41;,
+    :value &#61;&gt; &#40;x -&gt; mean&#40;skipmissing&#40;x&#41;&#41;&#41; &#61;&gt; :avg&#41;
+
+# Or drop groups with missing
+combine&#40;groupby&#40;dropmissing&#40;df, :category&#41;, :category&#41;, 
+    :value &#61;&gt; mean &#61;&gt; :avg&#41;</code></pre>
+<h3 id="gotcha_3_empty_groups"><a href="#gotcha_3_empty_groups" class="header-anchor">Gotcha 3: Empty Groups</a></h3>
+<pre><code class="language-julia"># Some functions fail on empty vectors
+safe_mean&#40;x&#41; &#61; isempty&#40;x&#41; ? missing : mean&#40;x&#41;
+
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; safe_mean &#61;&gt; :avg&#41;</code></pre>
+<h2 id="performance_tips"><a href="#performance_tips" class="header-anchor">Performance Tips</a></h2>
+<ol>
+<li><p><strong>Use views when possible</strong>: <code>groupby</code> creates views, which is fast</p>
+</li>
+<li><p><strong>Avoid row iteration</strong>: Vectorized operations are much faster</p>
+</li>
+<li><p><strong>Type stability</strong>: Make sure your functions return consistent types</p>
+</li>
+<li><p><strong>Pre-allocate</strong>: For large operations, pre-allocate result containers</p>
+</li>
+<li><p><strong>Use <code>@views</code></strong>: When slicing in functions, use <code>@views</code> to avoid copying</p>
+</li>
+</ol>
+<pre><code class="language-julia"># Slow
+combine&#40;groupby&#40;df, :category&#41;&#41; do subdf
+    sum&#40;&#91;row.value for row in eachrow&#40;subdf&#41;&#93;&#41;
+end
+
+# Fast
+combine&#40;groupby&#40;df, :category&#41;, :value &#61;&gt; sum &#61;&gt; :total&#41;</code></pre>
+<h2 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h2>
+<p>Think of it like this:</p>
+<pre><code class="language-julia">DataFrame
+    ↓ groupby&#40;:column&#41;
+GroupedDataFrame &#40;like a collection of DataFrames&#41;
+    ↓ combine/transform/select
+DataFrame &#40;back to a single table&#41;</code></pre>
+<ul>
+<li><p><strong>combine</strong>: I want summary statistics &#40;fewer rows&#41;</p>
+</li>
+<li><p><strong>transform</strong>: I want to add columns based on groups &#40;same rows&#41;</p>
+</li>
+<li><p><strong>select</strong>: I want to keep only certain columns after grouping &#40;same rows&#41;</p>
+</li>
+</ul>
+<h2 id="quick_reference_table"><a href="#quick_reference_table" class="header-anchor">Quick Reference Table</a></h2>
+<table><tr><th align="right">Operation</th><th align="right">Rows in Output</th><th align="right">Use Case</th></tr><tr><td align="right"><code>combine</code></td><td align="right">One per group</td><td align="right">Aggregation</td></tr><tr><td align="right"><code>transform</code></td><td align="right">Same as input</td><td align="right">Add group-level info</td></tr><tr><td align="right"><code>select</code></td><td align="right">Same as input</td><td align="right">Transform &#43; drop columns</td></tr><tr><td align="right"><code>subset</code></td><td align="right">Filtered</td><td align="right">Keep groups matching condition</td></tr></table>
+<h2 id="putting_it_all_together"><a href="#putting_it_all_together" class="header-anchor">Putting It All Together</a></h2>
+<pre><code class="language-julia">using DataFrames, Statistics
+
+sales &#61; DataFrame&#40;
+    date &#61; repeat&#40;Date&#40;2024,1,1&#41;:Day&#40;1&#41;:Date&#40;2024,1,10&#41;, inner&#61;3&#41;,
+    product &#61; repeat&#40;&#91;&quot;A&quot;, &quot;B&quot;, &quot;C&quot;&#93;, 10&#41;,
+    region &#61; rand&#40;&#91;&quot;North&quot;, &quot;South&quot;&#93;, 30&#41;,
+    revenue &#61; rand&#40;100:1000, 30&#41;,
+    units &#61; rand&#40;1:20, 30&#41;
+&#41;
+
+# Ninja-level analysis
+result &#61; combine&#40;groupby&#40;sales, &#91;:product, :region&#93;&#41;,
+    :revenue &#61;&gt; sum &#61;&gt; :total_revenue,
+    :units &#61;&gt; sum &#61;&gt; :total_units,
+    &#91;:revenue, :units&#93; &#61;&gt; &#40;&#40;r, u&#41; -&gt; sum&#40;r&#41; / sum&#40;u&#41;&#41; &#61;&gt; :revenue_per_unit,
+    :date &#61;&gt; &#40;d -&gt; &#40;first&#61;minimum&#40;d&#41;, last&#61;maximum&#40;d&#41;&#41;&#41; &#61;&gt; AsTable,
+    nrow &#61;&gt; :num_transactions
+&#41;
+
+# Add rankings within product
+transform&#33;&#40;groupby&#40;result, :product&#41;,
+    :total_revenue &#61;&gt; &#40;x -&gt; ordinalrank&#40;x, rev&#61;true&#41;&#41; &#61;&gt; :rank_in_product
+&#41;</code></pre>
+<p>Now go forth and aggregate&#33; 🥷✨</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 22, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

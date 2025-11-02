@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Simplified Julia Data Structures for motifs</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="simplified_julia_data_structures"><a href="#simplified_julia_data_structures" class="header-anchor">Simplified Julia Data Structures</a></h1>
+<h2 id="original_problems"><a href="#original_problems" class="header-anchor">Original Problems</a></h2>
+<ul>
+<li><p>6 separate motif types &#40;pair, triplet, quadruplet, quintuplet, sextuplet&#41;</p>
+</li>
+<li><p>6 separate distance types</p>
+</li>
+<li><p>6 parallel arrays for keys/values/positions/contributions</p>
+</li>
+<li><p>Complex Union types hard to maintain</p>
+</li>
+<li><p>Inconsistent naming conventions</p>
+</li>
+</ul>
+<h2 id="proposed_solution"><a href="#proposed_solution" class="header-anchor">Proposed Solution</a></h2>
+<h3 id="unified_motif_and_distance_types"><a href="#unified_motif_and_distance_types" class="header-anchor"><ol>
+<li><p>Unified Motif and Distance Types</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Use parametric types instead of separate definitions
+const MotifTuple&#123;N&#125; &#61; NamedTuple&#123;ntuple&#40;i -&gt; Symbol&#40;:m, i&#41;, N&#41;, NTuple&#123;N, String&#125;&#125;
+const DistanceTuple&#123;N&#125; &#61; NamedTuple&#123;ntuple&#40;i -&gt; Symbol&#40;:d, i, i&#43;1&#41;, N&#41;, NTuple&#123;N, Int&#125;&#125;
+
+# Helper functions to create them
+motif_tuple&#40;vals::NTuple&#123;N, String&#125;&#41; where N &#61; 
+    NamedTuple&#123;ntuple&#40;i -&gt; Symbol&#40;:m, i&#41;, N&#41;&#125;&#40;vals&#41;
+
+distance_tuple&#40;vals::NTuple&#123;N, Int&#125;&#41; where N &#61; 
+    NamedTuple&#123;ntuple&#40;i -&gt; Symbol&#40;:d, i, i&#43;1&#41;, N&#41;&#125;&#40;vals&#41;</code></pre>
+<h3 id="ol_start2_consolidated_data_container"><a href="#ol_start2_consolidated_data_container" class="header-anchor"><ol start="2">
+<li><p>Consolidated Data Container</p>
+</li>
+</ol>
+</a></h3>
+<p>Instead of separate parallel arrays, use a single struct:</p>
+<pre><code class="language-julia">struct MotifData&#123;K, N&#125;
+    key::K
+    freq::Matrix&#123;float_type&#125;
+    positions::Vector&#123;NTuple&#123;4, Int&#125;&#125;
+    contrib::Vector&#123;float_type&#125;
+    avg_contrib::float_type
+    is_positive::Bool
+    weights::Vector&#123;Float64&#125;
+    distances::Matrix&#123;Float64&#125;
+    pval::Float64
+end
+
+# For contributions with exclusions
+struct MotifDataWithExclusions&#123;K, N&#125;
+    key::K
+    excluded::Vector&#123;Int&#125;
+    contrib::Dict&#123;DistanceTuple&#123;N&#125;, Vector&#123;float_type&#125;&#125;
+end</code></pre>
+<h3 id="ol_start3_simplified_type_definitions"><a href="#ol_start3_simplified_type_definitions" class="header-anchor"><ol start="3">
+<li><p>Simplified Type Definitions</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Main storage types - much cleaner&#33;
+const SingleMotifKey &#61; String
+const PairMotifKey &#61; MotifTuple&#123;2&#125;
+const TripletMotifKey &#61; Tuple&#123;MotifTuple&#123;3&#125;, DistanceTuple&#123;2&#125;&#125;
+const QuadrupletMotifKey &#61; Tuple&#123;MotifTuple&#123;4&#125;, DistanceTuple&#123;3&#125;&#125;
+const QuintupletMotifKey &#61; Tuple&#123;MotifTuple&#123;5&#125;, DistanceTuple&#123;4&#125;&#125;
+const SextupletMotifKey &#61; Tuple&#123;MotifTuple&#123;6&#125;, DistanceTuple&#123;5&#125;&#125;
+
+const AnyMotifKey &#61; Union&#123;
+    SingleMotifKey,
+    PairMotifKey,
+    TripletMotifKey,
+    QuadrupletMotifKey,
+    QuintupletMotifKey,
+    SextupletMotifKey
+&#125;
+
+# Now you only need these simple type aliases
+const freq_matrix_t &#61; Dict&#123;AnyMotifKey, Matrix&#123;float_type&#125;&#125;
+const freq_pos_t &#61; Dict&#123;AnyMotifKey, Vector&#123;NTuple&#123;4, Int&#125;&#125;&#125;
+const contrib_t &#61; Dict&#123;AnyMotifKey, Vector&#123;float_type&#125;&#125;
+const avg_contrib_t &#61; Dict&#123;AnyMotifKey, float_type&#125;
+const is_pos_contrib_t &#61; Dict&#123;AnyMotifKey, Bool&#125;
+const weights_t &#61; Dict&#123;AnyMotifKey, Vector&#123;Float64&#125;&#125;
+const distances_t &#61; Dict&#123;AnyMotifKey, Matrix&#123;Float64&#125;&#125;
+const pvals_t &#61; Dict&#123;AnyMotifKey, Float64&#125;</code></pre>
+<h3 id="ol_start4_alternative_abstract_type_hierarchy"><a href="#ol_start4_alternative_abstract_type_hierarchy" class="header-anchor"><ol start="4">
+<li><p>Alternative: Abstract Type Hierarchy</p>
+</li>
+</ol>
+</a></h3>
+<p>For even more type safety:</p>
+<pre><code class="language-julia">abstract type MotifKey end
+
+struct SingleMotif &lt;: MotifKey
+    m::String
+end
+
+struct PairMotif &lt;: MotifKey
+    motifs::MotifTuple&#123;2&#125;
+    d12::Int
+end
+
+struct TripletMotif &lt;: MotifKey
+    motifs::MotifTuple&#123;3&#125;
+    distances::DistanceTuple&#123;2&#125;
+end
+
+struct QuadrupletMotif &lt;: MotifKey
+    motifs::MotifTuple&#123;4&#125;
+    distances::DistanceTuple&#123;3&#125;
+end
+
+# ... and so on
+
+# Then all your types become:
+const freq_matrix_t &#61; Dict&#123;&lt;:MotifKey, Matrix&#123;float_type&#125;&#125;
+const freq_pos_t &#61; Dict&#123;&lt;:MotifKey, Vector&#123;NTuple&#123;4, Int&#125;&#125;&#125;
+# etc.</code></pre>
+<h3 id="ol_start5_utility_functions_updated"><a href="#ol_start5_utility_functions_updated" class="header-anchor"><ol start="5">
+<li><p>Utility Functions &#40;Updated&#41;</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># Infer size from any motif key
+infer_size&#40;::SingleMotif&#41; &#61; 1
+infer_size&#40;::PairMotif&#41; &#61; 2
+infer_size&#40;m::TripletMotif&#41; &#61; 3
+infer_size&#40;m::QuadrupletMotif&#41; &#61; 4
+infer_size&#40;m::QuintupletMotif&#41; &#61; 5
+infer_size&#40;m::SextupletMotif&#41; &#61; 6
+
+# Or for tuple-based approach:
+infer_size&#40;k::String&#41; &#61; 1
+infer_size&#40;k::MotifTuple&#123;N&#125;&#41; where N &#61; N
+infer_size&#40;k::Tuple&#123;MotifTuple&#123;N&#125;, DistanceTuple&#125;&#41; where N &#61; N
+
+# Config conversion remains similar
+function config2namedtup_fil&#40;config, fil2ind, hp&#41;
+    n &#61; length&#40;config&#41; ÷ 2 &#43; 1
+    vals &#61; Vector&#123;String&#125;&#40;undef, n&#41;
+    for i &#61; 1:n
+        fi &#61; config&#91;2*&#40;i-1&#41;&#43;1&#93;
+        vals&#91;i&#93; &#61; fi &gt; hp.M ? &quot;&#36;&#40;fil2ind&#91;fi-hp.M&#93;&#41;r&quot; : &quot;&#36;&#40;fil2ind&#91;fi&#93;&#41;&quot;
+    end
+    return motif_tuple&#40;Tuple&#40;vals&#41;&#41;
+end
+
+function config2namedtup_d&#40;config&#41;
+    length&#40;config&#41; &#61;&#61; 3 &amp;&amp; return config&#91;2&#93;
+    vals &#61; Tuple&#40;config&#91;2*i&#93; for i &#61; 1:&#40;length&#40;config&#41;÷2&#41;&#41;
+    return distance_tuple&#40;vals&#41;
+end
+
+# Unified config to key conversion
+function config_to_key&#40;config&#41;
+    motifs &#61; config2namedtup_fil&#40;config, fil2ind, hp&#41;
+    length&#40;config&#41; &#61;&#61; 1 &amp;&amp; return motifs.m1
+    length&#40;config&#41; &#61;&#61; 3 &amp;&amp; return motifs
+    distances &#61; config2namedtup_d&#40;config&#41;
+    return &#40;motifs, distances&#41;
+end</code></pre>
+<h2 id="benefits"><a href="#benefits" class="header-anchor">Benefits</a></h2>
+<ol>
+<li><p><strong>Less code duplication</strong>: One parametric type instead of 6 definitions</p>
+</li>
+<li><p><strong>Type safety</strong>: Compiler can check N parameter matches</p>
+</li>
+<li><p><strong>Easier to extend</strong>: Adding 7-tuplets just works automatically</p>
+</li>
+<li><p><strong>Cleaner API</strong>: All operations work uniformly across sizes</p>
+</li>
+<li><p><strong>Better maintainability</strong>: Change once, applies everywhere</p>
+</li>
+<li><p><strong>More Julian</strong>: Uses parametric types and multiple dispatch properly</p>
+</li>
+</ol>
+<h2 id="migration_strategy"><a href="#migration_strategy" class="header-anchor">Migration Strategy</a></h2>
+<ol>
+<li><p>Keep old type aliases temporarily for backwards compatibility</p>
+</li>
+<li><p>Add new types alongside existing ones</p>
+</li>
+<li><p>Gradually migrate functions to use new types</p>
+</li>
+<li><p>Remove old types once migration complete</p>
+</li>
+</ol>
+<pre><code class="language-julia"># Backwards compatibility layer
+const pair_motifs_t &#61; MotifTuple&#123;2&#125;
+const triplet_motifs_t &#61; MotifTuple&#123;3&#125;
+# etc.</code></pre>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: October 21, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

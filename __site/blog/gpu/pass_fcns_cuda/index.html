@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>CUDA Design Patterns: A Friendly Guide</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="passing_functions_to_cuda_kernels_in_julia"><a href="#passing_functions_to_cuda_kernels_in_julia" class="header-anchor">Passing Functions to CUDA Kernels in Julia</a></h1>
+<h2 id="overview"><a href="#overview" class="header-anchor">Overview</a></h2>
+<p>You can pass functions to CUDA kernels in Julia using several approaches. Functors &#40;callable objects&#41; are the preferred method for most use cases.</p>
+<h2 id="method_1_functors_recommended"><a href="#method_1_functors_recommended" class="header-anchor">Method 1: Functors &#40;Recommended&#41;</a></h2>
+<p>Create a callable struct that holds parameters and function logic.</p>
+<pre><code class="language-julia">using CUDA
+
+struct LinearFunc
+    a::Float32
+    b::Float32
+end
+
+# Make it callable
+&#40;f::LinearFunc&#41;&#40;x&#41; &#61; f.a * x &#43; f.b
+
+function kernel&#33;&#40;y, x, f&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        @inbounds y&#91;i&#93; &#61; f&#40;x&#91;i&#93;&#41;
+    end
+    return nothing
+end
+
+# Usage
+x &#61; CuArray&#40;1.0f0:10.0f0&#41;
+y &#61; similar&#40;x&#41;
+f &#61; LinearFunc&#40;2.0f0, 3.0f0&#41;  # 2x &#43; 3
+
+@cuda threads&#61;256 blocks&#61;cld&#40;length&#40;x&#41;, 256&#41; kernel&#33;&#40;y, x, f&#41;</code></pre>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li><p>Type-stable and concrete types enable optimal compilation</p>
+</li>
+<li><p>Bundles function logic with parameters cleanly</p>
+</li>
+<li><p>Zero runtime overhead &#40;passed by value, inlined&#41;</p>
+</li>
+<li><p>Idiomatic Julia/CUDA pattern</p>
+</li>
+</ul>
+<h2 id="method_2_direct_function_passing"><a href="#method_2_direct_function_passing" class="header-anchor">Method 2: Direct Function Passing</a></h2>
+<p>Pass functions directly for simple cases.</p>
+<pre><code class="language-julia">function apply_function&#33;&#40;y, x, f&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        @inbounds y&#91;i&#93; &#61; f&#40;x&#91;i&#93;&#41;
+    end
+    return nothing
+end
+
+# Built-in functions
+@cuda threads&#61;256 blocks&#61;cld&#40;length&#40;x&#41;, 256&#41; apply_function&#33;&#40;y, x, exp&#41;
+
+# Anonymous functions
+@cuda threads&#61;256 blocks&#61;cld&#40;length&#40;x&#41;, 256&#41; apply_function&#33;&#40;y, x, x -&gt; 2x &#43; 3&#41;</code></pre>
+<p><strong>Best for:</strong></p>
+<ul>
+<li><p>Simple built-in functions &#40;<code>exp</code>, <code>sin</code>, <code>cos</code>, etc.&#41;</p>
+</li>
+<li><p>Quick prototyping</p>
+</li>
+<li><p>Functions without parameters</p>
+</li>
+</ul>
+<h2 id="method_3_inline_functions"><a href="#method_3_inline_functions" class="header-anchor">Method 3: Inline Functions</a></h2>
+<p>Define functions that will be inlined into the kernel.</p>
+<pre><code class="language-julia">@inline my_exp&#40;x&#41; &#61; exp&#40;x&#41;
+@inline linear&#40;x, a, b&#41; &#61; a * x &#43; b
+
+function kernel&#33;&#40;y, x, a, b&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        @inbounds y&#91;i&#93; &#61; linear&#40;x&#91;i&#93;, a, b&#41;
+    end
+    return nothing
+end</code></pre>
+<h2 id="important_considerations"><a href="#important_considerations" class="header-anchor">Important Considerations</a></h2>
+<h3 id="type_stability"><a href="#type_stability" class="header-anchor">Type Stability</a></h3>
+<ul>
+<li><p>Use concrete types &#40;e.g., <code>Float32</code> not <code>Float64</code> unless needed&#41;</p>
+</li>
+<li><p>Avoid abstract types in performance-critical code</p>
+</li>
+<li><p>Functors naturally enforce type stability</p>
+</li>
+</ul>
+<h3 id="gpu_compatibility"><a href="#gpu_compatibility" class="header-anchor">GPU Compatibility</a></h3>
+<p>Functions passed to kernels must be GPU-compatible:</p>
+<ul>
+<li><p>❌ No allocations</p>
+</li>
+<li><p>❌ No unsupported operations &#40;I/O, system calls&#41;</p>
+</li>
+<li><p>✅ Mathematical operations</p>
+</li>
+<li><p>✅ Control flow &#40;if/else, loops&#41;</p>
+</li>
+</ul>
+<h3 id="performance"><a href="#performance" class="header-anchor">Performance</a></h3>
+<ul>
+<li><p>Functors provide the best performance for parameterized functions</p>
+</li>
+<li><p>Anonymous functions work but may have compilation overhead</p>
+</li>
+<li><p>Built-in functions are optimized and efficient</p>
+</li>
+</ul>
+<h2 id="quick_comparison"><a href="#quick_comparison" class="header-anchor">Quick Comparison</a></h2>
+<table><tr><th align="right">Approach</th><th align="right">Best For</th><th align="right">Type Stable</th><th align="right">Parameters</th></tr><tr><td align="right"><strong>Functors</strong></td><td align="right">Parameterized functions, production code</td><td align="right">✅ Yes</td><td align="right">Easy</td></tr><tr><td align="right"><strong>Direct passing</strong></td><td align="right">Built-ins, prototypes</td><td align="right">⚠️ Depends</td><td align="right">Limited</td></tr><tr><td align="right"><strong>Inline functions</strong></td><td align="right">Simple helpers</td><td align="right">✅ Yes</td><td align="right">Manual</td></tr></table>
+<h2 id="recommendation"><a href="#recommendation" class="header-anchor">Recommendation</a></h2>
+<p><strong>Use functors</strong> &#40;Method 1&#41; when:</p>
+<ul>
+<li><p>You need to pass parameters with your function</p>
+</li>
+<li><p>Writing production/reusable code</p>
+</li>
+<li><p>Performance is critical</p>
+</li>
+</ul>
+<p><strong>Use direct passing</strong> &#40;Method 2&#41; when:</p>
+<ul>
+<li><p>Using simple built-in functions</p>
+</li>
+<li><p>Rapid prototyping</p>
+</li>
+<li><p>Parameters aren&#39;t needed</p>
+</li>
+</ul>
+<hr />
+<h2 id="advanced_exotic_techniques"><a href="#advanced_exotic_techniques" class="header-anchor">Advanced &amp; Exotic Techniques</a></h2>
+<h3 id="function_pointers_controversial"><a href="#function_pointers_controversial" class="header-anchor">Function Pointers &#40;Controversial&#33;&#41;</a></h3>
+<p>You can technically use function pointers, but this is <strong>discouraged</strong>:</p>
+<pre><code class="language-julia">function kernel_with_fptr&#33;&#40;y, x, fptr::Core.LLVMPtr&#123;Cvoid&#125;&#41;
+    # This can work but is fragile and not recommended
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        # Calling through function pointer...
+    end
+    return nothing
+end</code></pre>
+<p><strong>Why avoid:</strong> </p>
+<ul>
+<li><p>Prevents inlining and optimization</p>
+</li>
+<li><p>Type-unstable</p>
+</li>
+<li><p>Can break with Julia/CUDA.jl updates</p>
+</li>
+<li><p>Performance penalty</p>
+</li>
+</ul>
+<h3 id="multiple_dispatch_on_gpu"><a href="#multiple_dispatch_on_gpu" class="header-anchor">Multiple Dispatch on GPU</a></h3>
+<p>You can leverage Julia&#39;s multiple dispatch in kernels:</p>
+<pre><code class="language-julia">struct ExpFunc end
+struct LinearFunc
+    a::Float32
+    b::Float32
+end
+
+# Define behavior via dispatch
+@inline apply&#40;::ExpFunc, x&#41; &#61; exp&#40;x&#41;
+@inline apply&#40;f::LinearFunc, x&#41; &#61; f.a * x &#43; f.b
+
+function kernel&#33;&#40;y, x, f&#41;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        @inbounds y&#91;i&#93; &#61; apply&#40;f, x&#91;i&#93;&#41;
+    end
+    return nothing
+end
+
+# Works with different function types&#33;
+@cuda kernel&#33;&#40;y, x, ExpFunc&#40;&#41;&#41;
+@cuda kernel&#33;&#40;y, x, LinearFunc&#40;2.0f0, 3.0f0&#41;&#41;</code></pre>
+<p><strong>Exotic benefit:</strong> Same kernel code handles different functions via dispatch&#33;</p>
+<h3 id="val_types_for_compile-time_selection"><a href="#val_types_for_compile-time_selection" class="header-anchor">Val Types for Compile-Time Selection</a></h3>
+<p>Use <code>Val</code> to select functions at compile time:</p>
+<pre><code class="language-julia">@inline select_op&#40;::Val&#123;:exp&#125;, x&#41; &#61; exp&#40;x&#41;
+@inline select_op&#40;::Val&#123;:sin&#125;, x&#41; &#61; sin&#40;x&#41;
+@inline select_op&#40;::Val&#123;:cos&#125;, x&#41; &#61; cos&#40;x&#41;
+
+function kernel&#33;&#40;y, x, ::Val&#123;op&#125;&#41; where &#123;op&#125;
+    i &#61; threadIdx&#40;&#41;.x &#43; &#40;blockIdx&#40;&#41;.x - 1&#41; * blockDim&#40;&#41;.x
+    if i &lt;&#61; length&#40;x&#41;
+        @inbounds y&#91;i&#93; &#61; select_op&#40;Val&#40;op&#41;, x&#91;i&#93;&#41;
+    end
+    return nothing
+end
+
+# Generates specialized kernels for each operation
+@cuda kernel&#33;&#40;y, x, Val&#40;:exp&#41;&#41;
+@cuda kernel&#33;&#40;y, x, Val&#40;:sin&#41;&#41;</code></pre>
+<p><strong>Trade-off:</strong> Creates separate kernel for each <code>Val</code> type &#40;compilation overhead vs. runtime flexibility&#41;.</p>
+<h3 id="closures_sometimes_work_sometimes_dont"><a href="#closures_sometimes_work_sometimes_dont" class="header-anchor">Closures &#40;Sometimes Work, Sometimes Don&#39;t&#41;</a></h3>
+<p>Closures can be tricky on GPU:</p>
+<pre><code class="language-julia">function make_scaler&#40;factor&#41;
+    return x -&gt; factor * x  # Captures &#39;factor&#39;
+end
+
+# May work, but...
+f &#61; make_scaler&#40;2.0f0&#41;
+@cuda kernel&#33;&#40;y, x, f&#41;</code></pre>
+<p><strong>Gotchas:</strong></p>
+<ul>
+<li><p>Closure must capture only GPU-compatible values</p>
+</li>
+<li><p>Boxing/heap allocation &#61; 💥 crash</p>
+</li>
+<li><p>Type instability common</p>
+</li>
+<li><p>Better to use functors explicitly</p>
+</li>
+</ul>
+<h3 id="generated_functions_expert_level"><a href="#generated_functions_expert_level" class="header-anchor">Generated Functions &#40;Expert Level&#41;</a></h3>
+<p>Use <code>@generated</code> for ultra-specialized kernels:</p>
+<pre><code class="language-julia">@generated function apply_op&#40;::Val&#123;op&#125;, x&#41; where &#123;op&#125;
+    if op &#61;&#61; :exp
+        return :&#40;exp&#40;x&#41;&#41;
+    elseif op &#61;&#61; :log
+        return :&#40;log&#40;x&#41;&#41;
+    else
+        return :&#40;x&#41;
+    end
+end</code></pre>
+<p><strong>When to use:</strong> Rare&#33; Only when you need code generation based on types.</p>
+<h3 id="controversial_device_override"><a href="#controversial_device_override" class="header-anchor">Controversial: <code>@device_override</code></a></h3>
+<p>Override how functions work on GPU vs CPU:</p>
+<pre><code class="language-julia">@device_override @inline my_func&#40;x&#41; &#61; exp&#40;x&#41;  # GPU version
+my_func&#40;x&#41; &#61; expensive_cpu_computation&#40;x&#41;      # CPU version</code></pre>
+<p><strong>Controversy:</strong> Can make code harder to reason about &#40;different behavior on CPU/GPU&#41;.</p>
+<hr />
+<h2 id="performance_gotchas"><a href="#performance_gotchas" class="header-anchor">Performance Gotchas</a></h2>
+<h3 id="kernel_recompilation"><a href="#kernel_recompilation" class="header-anchor">Kernel Recompilation</a></h3>
+<p>Passing different function types triggers recompilation:</p>
+<pre><code class="language-julia">@cuda kernel&#33;&#40;y, x, LinearFunc&#40;1.0f0, 0.0f0&#41;&#41;  # Compiles once
+@cuda kernel&#33;&#40;y, x, LinearFunc&#40;2.0f0, 0.0f0&#41;&#41;  # Reuses compiled kernel ✅
+@cuda kernel&#33;&#40;y, x, ExpFunc&#40;&#41;&#41;                 # New compilation&#33; ⚠️</code></pre>
+<h3 id="type_piracy_risk"><a href="#type_piracy_risk" class="header-anchor">Type Piracy Risk</a></h3>
+<p>Don&#39;t make external types callable without careful consideration:</p>
+<pre><code class="language-julia"># Dangerous&#33; You don&#39;t own Float32
+&#40;x::Float32&#41;&#40;y&#41; &#61; x * y  # Type piracy&#33; ❌</code></pre>
+<h3 id="union_types"><a href="#union_types" class="header-anchor">Union Types</a></h3>
+<p>Union types can work but may hurt performance:</p>
+<pre><code class="language-julia">function kernel&#33;&#40;y, x, f::Union&#123;ExpFunc, LinearFunc&#125;&#41;
+    # Works but less optimal than concrete type
+end</code></pre>
+<hr />
+<h2 id="ecosystem-specific_notes"><a href="#ecosystem-specific_notes" class="header-anchor">Ecosystem-Specific Notes</a></h2>
+<h3 id="kernelabstractionsjl"><a href="#kernelabstractionsjl" class="header-anchor">KernelAbstractions.jl</a></h3>
+<p>If using KernelAbstractions.jl for portable GPU code, functors work across CUDA, ROCm, oneAPI:</p>
+<pre><code class="language-julia">using KernelAbstractions
+
+@kernel function my_kernel&#33;&#40;y, x, @Const&#40;f&#41;&#41;
+    i &#61; @index&#40;Global&#41;
+    @inbounds y&#91;i&#93; &#61; f&#40;x&#91;i&#93;&#41;
+end
+
+# Same functor works on any GPU backend&#33;</code></pre>
+<h3 id="enzymejl_integration"><a href="#enzymejl_integration" class="header-anchor">Enzyme.jl Integration</a></h3>
+<p>Functors play nicely with automatic differentiation:</p>
+<pre><code class="language-julia">using Enzyme
+
+# Can differentiate through custom functors&#33;
+Enzyme.autodiff&#40;Reverse, gpu_computation&#33;, Duplicated&#40;y, dy&#41;, 
+                Const&#40;x&#41;, Const&#40;my_func&#41;&#41;</code></pre>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 02, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
