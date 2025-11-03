@@ -1,6 +1,6 @@
-@def title = "Passing Functions to CUDA Kernels in Julia"
+@def title = "The Ultimate Guide to Makie & CairoMakie in Julia"
 @def published = "27 October 2025"
-@def tags = ["gpu-programming", "cuda", "julia"]
+@def tags = ["plotting", "julia"]
 
 # The Ultimate Guide to Makie & CairoMakie in Julia
 
