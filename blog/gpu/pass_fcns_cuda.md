@@ -1,6 +1,7 @@
-@def title = "CUDA Design Patterns: A Friendly Guide"
+@def title = "Passing Functions to CUDA Kernels in Julia"
 @def published = "2 November 2025"
 @def tags = ["gpu-programming", "cuda", "julia"]
+
 # Passing Functions to CUDA Kernels in Julia
 
 ## Overview

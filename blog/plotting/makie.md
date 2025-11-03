@@ -1,3 +1,7 @@
+@def title = "Passing Functions to CUDA Kernels in Julia"
+@def published = "27 October 2025"
+@def tags = ["gpu-programming", "cuda", "julia"]
+
 # The Ultimate Guide to Makie & CairoMakie in Julia
 
 Hey there! Welcome to your friendly guide to creating beautiful, publication-ready plots in Julia using Makie. Think of Makie as the Swiss Army knife of plotting libraries—it's incredibly powerful, but once you get the hang of it, you'll wonder how you ever lived without it.
