@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Understanding Log Transform Trade-offs in Regression</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="understanding_log_transform_trade-offs_in_regression"><a href="#understanding_log_transform_trade-offs_in_regression" class="header-anchor">Understanding Log Transform Trade-offs in Regression</a></h1>
+<p>You&#39;ve hit on something really important here&#33; Log transforms have this weird dual nature - they help you predict large values better, but they also make your model hypersensitive to tiny differences near zero. Let&#39;s dig into <em>why</em> this happens and what you can do about it.</p>
+<h2 id="why_log_transforms_help_with_large_values"><a href="#why_log_transforms_help_with_large_values" class="header-anchor">Why Log Transforms Help With Large Values</a></h2>
+<p>Here&#39;s the key insight: when you log-transform your targets, you&#39;re changing what &quot;error&quot; means to your model.</p>
+<h3 id="without_log_transform_raw_values"><a href="#without_log_transform_raw_values" class="header-anchor">Without log transform &#40;raw values&#41;</a></h3>
+<p>Your loss function sees absolute errors:</p>
+\[L = (y_{pred} - y_{true})^2\]
+<p>So the model treats these errors the same:</p>
+<ul>
+<li><p>Predicting 10 when truth is 5 → error &#61; 5</p>
+</li>
+<li><p>Predicting 1000 when truth is 995 → error &#61; 5</p>
+</li>
+</ul>
+<p>But wait - the first one is 100&#37; off, the second is only 0.5&#37; off&#33; Your model doesn&#39;t care about percentages, just absolute differences.</p>
+<h3 id="with_log_transform"><a href="#with_log_transform" class="header-anchor">With log transform</a></h3>
+<p>Now your loss is:</p>
+\[L = (\log(y_{pred}) - \log(y_{true}))^2\]
+<p>Using the property that \(\log(a) - \log(b) = \log(a/b)\), this becomes:</p>
+\[L = \log^2\left(\frac{y_{pred}}{y_{true}}\right)\]
+<p><strong>This is a multiplicative/relative error&#33;</strong> The model now learns:</p>
+<ul>
+<li><p>Predicting 10 when truth is 5 → \(\log(10/5) = 0.69\)</p>
+</li>
+<li><p>Predicting 2000 when truth is 1000 → \(\log(2000/1000) = 0.69\)</p>
+</li>
+</ul>
+<p>Same error in log-space&#33; The model treats a 2x mistake the same whether you&#39;re at scale 5 or scale 1000.</p>
+<h3 id="why_this_helps_large_values"><a href="#why_this_helps_large_values" class="header-anchor">Why this helps large values</a></h3>
+<p>When you transform back, an error of ±0.5 in log-space means:</p>
+\[y_{pred} = y_{true} \times e^{\pm 0.5}\]
+<p>At different scales:</p>
+<ul>
+<li><p>True value &#61; 10 → Prediction range: &#91;6.1, 16.5&#93;</p>
+</li>
+<li><p>True value &#61; 1000 → Prediction range: &#91;606, 1649&#93;</p>
+</li>
+</ul>
+<p>The <strong>relative accuracy stays constant</strong> across scales. This is exactly what you want for multiplicative data like prices, populations, or counts&#33;</p>
+<h2 id="the_sensitivity_problem_near_zero"><a href="#the_sensitivity_problem_near_zero" class="header-anchor">The Sensitivity Problem Near Zero</a></h2>
+<p>Okay, so log transforms are great for large values. But here&#39;s where things get tricky...</p>
+<h3 id="the_derivative_tells_the_story"><a href="#the_derivative_tells_the_story" class="header-anchor">The derivative tells the story</a></h3>
+<p>The derivative of \(\log(y)\) is:</p>
+\[\frac{d}{dy}\log(y) = \frac{1}{y}\]
+<p>Let&#39;s see what this means at different values:</p>
+<table><tr><th align="right">y value</th><th align="right">Derivative \(\frac{1}{y}\)</th><th align="right">Meaning</th></tr><tr><td align="right">0.001</td><td align="right">1000</td><td align="right">A change of 0.001 → change of 1.0 in log-space&#33;</td></tr><tr><td align="right">0.01</td><td align="right">100</td><td align="right">A change of 0.001 → change of 0.1 in log-space</td></tr><tr><td align="right">0.1</td><td align="right">10</td><td align="right">A change of 0.001 → change of 0.01 in log-space</td></tr><tr><td align="right">1.0</td><td align="right">1</td><td align="right">A change of 0.001 → change of 0.001 in log-space</td></tr><tr><td align="right">10</td><td align="right">0.1</td><td align="right">A change of 0.001 → change of 0.0001 in log-space</td></tr><tr><td align="right">100</td><td align="right">0.01</td><td align="right">A change of 0.001 → change of 0.00001 in log-space</td></tr></table>
+<p><strong>The same tiny change of 0.001 creates wildly different impacts in log-space depending on where you are&#33;</strong></p>
+<p>Near zero, the derivative explodes to infinity. This means:</p>
+<h3 id="in_gradient-based_training"><a href="#in_gradient-based_training" class="header-anchor">In gradient-based training:</a></h3>
+<p>When your model makes an error near zero, the gradient is:</p>
+\[\frac{\partial L}{\partial \theta} = 2(\log(y_{pred}) - \log(y_{true})) \cdot \frac{1}{y_{pred}} \cdot \frac{\partial y_{pred}}{\partial \theta}\]
+<p>That \(\frac{1}{y_{pred}}\) term means:</p>
+<ul>
+<li><p>Small errors near zero → <strong>HUGE gradients</strong> → model updates aggressively</p>
+</li>
+<li><p>Same-sized errors at large values → tiny gradients → model barely updates</p>
+</li>
+</ul>
+<h3 id="concrete_example"><a href="#concrete_example" class="header-anchor">Concrete example</a></h3>
+<p>Say your model predicts 0.02 when truth is 0.01:</p>
+<pre><code class="language-julia">Log-space error: log&#40;0.02&#41; - log&#40;0.01&#41; &#61; 0.693
+This is the same as predicting 200 when truth is 100&#33;</code></pre>
+<p>But now say it predicts 101 when truth is 100:</p>
+<pre><code class="language-julia">Log-space error: log&#40;101&#41; - log&#40;100&#41; &#61; 0.00995
+This is 70x smaller&#33;</code></pre>
+<p>Your model sees the tiny error near zero as <strong>70 times more important</strong> than a similar absolute error at large values. During training, it will obsess over getting those tiny values &quot;right&quot; and may sacrifice accuracy on large values.</p>
+<h2 id="the_sensitivity_ratio"><a href="#the_sensitivity_ratio" class="header-anchor">The Sensitivity Ratio</a></h2>
+<p>Let&#39;s formalize this. Define the <strong>sensitivity ratio</strong> as how much more sensitive the transform is at small values vs. large values:</p>
+\[\text{Sensitivity Ratio} = \frac{|\frac{d}{dy}f(y)|_{y=small}}{|\frac{d}{dy}f(y)|_{y=large}}\]
+<p>For \(\log(y)\):</p>
+\[\text{Ratio} = \frac{1/0.1}{1/50} = \frac{10}{0.02} = 500\times\]
+<p><strong>The model is 500x more sensitive to changes at 0.1 than at 50&#33;</strong></p>
+<p>This is why log transforms make your model super accurate on small values but can hurt performance on large values, even though the multiplicative property should help large values. The gradient dynamics dominate during training.</p>
+<h2 id="solutions_controlling_the_sensitivity_profile"><a href="#solutions_controlling_the_sensitivity_profile" class="header-anchor">Solutions: Controlling the Sensitivity Profile</a></h2>
+<p>Here&#39;s where it gets interesting. We can modify the transformation to keep the &quot;good&quot; multiplicative property for large values while reducing the hypersensitivity near zero.</p>
+<h3 id="solution_1_log_with_large_constant"><a href="#solution_1_log_with_large_constant" class="header-anchor">Solution 1: Log with Large Constant</a></h3>
+<p>Instead of \(\log(y)\), use \(\log(y + c)\) where \(c\) is large.</p>
+<p>The derivative becomes:</p>
+\[\frac{d}{dy}\log(y + c) = \frac{1}{y + c}\]
+<p>Let&#39;s compare sensitivity ratios:</p>
+<table><tr><th align="right">Transform</th><th align="right">Deriv at y&#61;0.1</th><th align="right">Deriv at y&#61;50</th><th align="right">Ratio</th><th align="right">Effect</th></tr><tr><td align="right">\(\log(y)\)</td><td align="right">10.0</td><td align="right">0.02</td><td align="right"><strong>500x</strong></td><td align="right">Extremely sensitive at zero</td></tr><tr><td align="right">\(\log(y+1)\)</td><td align="right">0.91</td><td align="right">0.020</td><td align="right"><strong>45x</strong></td><td align="right">Still very sensitive</td></tr><tr><td align="right">\(\log(y+10)\)</td><td align="right">0.099</td><td align="right">0.017</td><td align="right"><strong>6x</strong></td><td align="right">Much better</td></tr><tr><td align="right">\(\log(y+50)\)</td><td align="right">0.020</td><td align="right">0.010</td><td align="right"><strong>2x</strong></td><td align="right">Nearly uniform&#33;</td></tr><tr><td align="right">\(\log(y+100)\)</td><td align="right">0.010</td><td align="right">0.0067</td><td align="right"><strong>1.5x</strong></td><td align="right">Almost flat</td></tr></table>
+<p><strong>The gradient behavior:</strong> With \(\log(y+100)\), the model treats errors at y&#61;0.1 only 1.5x more importantly than errors at y&#61;50. Much more balanced&#33;</p>
+<p><strong>Trade-off:</strong> You lose some of the logarithmic compression for large values. But if you care about large values, that&#39;s actually good&#33;</p>
+<h3 id="solution_2_arcsinh_transform"><a href="#solution_2_arcsinh_transform" class="header-anchor">Solution 2: arcsinh Transform</a></h3>
+<p>The inverse hyperbolic sine: \(\text{arcsinh}(y) = \log(y + \sqrt{y^2 + 1})\)</p>
+<p>The derivative is:</p>
+\[\frac{d}{dy}\text{arcsinh}(y) = \frac{1}{\sqrt{y^2 + 1}}\]
+<p>Near zero: \(\sqrt{0^2 + 1} = 1\), so derivative ≈ 1 For large y: \(\sqrt{y^2 + 1} \approx y\), so derivative ≈ \(\frac{1}{y}\) &#40;like log&#33;&#41;</p>
+<table><tr><th align="right">y value</th><th align="right">\(\text{arcsinh}(y)\)</th><th align="right">Derivative</th><th align="right">Log derivative &#40;for comparison&#41;</th></tr><tr><td align="right">0.01</td><td align="right">0.0100</td><td align="right">1.000</td><td align="right">100</td></tr><tr><td align="right">0.1</td><td align="right">0.0998</td><td align="right">0.995</td><td align="right">10</td></tr><tr><td align="right">1.0</td><td align="right">0.881</td><td align="right">0.707</td><td align="right">1</td></tr><tr><td align="right">10</td><td align="right">2.998</td><td align="right">0.100</td><td align="right">0.1</td></tr><tr><td align="right">50</td><td align="right">4.605</td><td align="right">0.020</td><td align="right">0.02</td></tr><tr><td align="right">100</td><td align="right">5.298</td><td align="right">0.010</td><td align="right">0.01</td></tr></table>
+<p><strong>Beautiful property:</strong> Linear near zero &#40;derivative &#61; 1&#41;, logarithmic for large values&#33;</p>
+<p><strong>Sensitivity ratio:</strong> At y&#61;0.1 vs y&#61;50 → 0.995/0.020 &#61; <strong>50x</strong></p>
+<p>Still sensitive, but the crucial difference is <strong>near zero it acts like identity</strong>, so small noise doesn&#39;t explode. For large values, it&#39;s still logarithmic so you keep the multiplicative scaling property.</p>
+<h3 id="solution_3_two-regime_transform"><a href="#solution_3_two-regime_transform" class="header-anchor">Solution 3: Two-Regime Transform</a></h3>
+<p>Explicitly define different behavior for small vs. large values:</p>
+\[f(y) = \begin{cases}
+y & \text{if } y < \theta \\
+\theta + \log\left(\frac{y}{\theta}\right) & \text{if } y \geq \theta
+\end{cases}\]
+<p>The derivative is:</p>
+\[f'(y) = \begin{cases}
+1 & \text{if } y < \theta \\
+\frac{1}{y} & \text{if } y \geq \theta
+\end{cases}\]
+<p>With \(\theta = 1.0\):</p>
+<ul>
+<li><p>For y &lt; 1: Model treats it like untransformed data &#40;uniform sensitivity&#41;</p>
+</li>
+<li><p>For y ≥ 1: Model gets logarithmic compression</p>
+</li>
+</ul>
+<p><strong>Intuition:</strong> You&#39;re explicitly telling the model &quot;treat small values normally, compress large values logarithmically.&quot;</p>
+<p>No hypersensitivity near zero, but you keep the good properties for large values&#33;</p>
+<h3 id="solution_4_inverse_box-cox_λ_1"><a href="#solution_4_inverse_box-cox_λ_1" class="header-anchor">Solution 4: Inverse Box-Cox &#40;λ &gt; 1&#41;</a></h3>
+<p>The Box-Cox transform with \(\lambda > 1\):</p>
+\[f(y) = \frac{y^\lambda - 1}{\lambda}\]
+<p>For \(\lambda = 2\):</p>
+\[f(y) = \frac{y^2 - 1}{2}\]
+<p>Derivative:</p>
+\[f'(y) = y\]
+<table><tr><th align="right">y value</th><th align="right">Derivative</th><th align="right">Meaning</th></tr><tr><td align="right">0.1</td><td align="right">0.1</td><td align="right">Very insensitive&#33;</td></tr><tr><td align="right">1.0</td><td align="right">1.0</td><td align="right">Normal sensitivity</td></tr><tr><td align="right">10</td><td align="right">10</td><td align="right">More sensitive</td></tr><tr><td align="right">50</td><td align="right">50</td><td align="right">Very sensitive</td></tr><tr><td align="right">100</td><td align="right">100</td><td align="right">Extremely sensitive</td></tr></table>
+<p><strong>Sensitivity ratio:</strong> At y&#61;0.1 vs y&#61;50 → 0.1/50 &#61; <strong>0.002x</strong></p>
+<p>This is the <strong>opposite</strong> of log&#33; The model cares 500x MORE about large values than small ones.</p>
+<p><strong>When to use:</strong> When large values are what really matter and you want the model to focus gradient updates on getting them right. Small errors near zero barely affect the loss.</p>
+<h2 id="practical_recommendations"><a href="#practical_recommendations" class="header-anchor">Practical Recommendations</a></h2>
+<p>Here&#39;s a decision tree based on your data and goals:</p>
+<h3 id="case_1_large_values_matter_most_small_values_are_noise"><a href="#case_1_large_values_matter_most_small_values_are_noise" class="header-anchor">Case 1: Large values matter most, small values are noise</a></h3>
+<p><strong>Use:</strong> Box-Cox with λ &#61; 2 or 3</p>
+<pre><code class="language-python">y_transformed &#61; &#40;y**2 - 1&#41; / 2  # or y**3 - 1&#41; / 3</code></pre>
+<ul>
+<li><p>Model focuses on large values</p>
+</li>
+<li><p>Errors near zero have minimal impact on loss</p>
+</li>
+</ul>
+<h3 id="case_2_both_small_and_large_values_matter_want_multiplicative_scaling"><a href="#case_2_both_small_and_large_values_matter_want_multiplicative_scaling" class="header-anchor">Case 2: Both small and large values matter, want multiplicative scaling</a></h3>
+<p><strong>Use:</strong> arcsinh transform</p>
+<pre><code class="language-python">y_transformed &#61; np.arcsinh&#40;y&#41;</code></pre>
+<ul>
+<li><p>Linear near zero &#40;no explosion&#41;</p>
+</li>
+<li><p>Logarithmic for large values &#40;multiplicative&#41;</p>
+</li>
+<li><p>Smooth transition between regimes</p>
+</li>
+</ul>
+<h3 id="case_3_want_log-like_behavior_but_less_sensitivity_near_zero"><a href="#case_3_want_log-like_behavior_but_less_sensitivity_near_zero" class="header-anchor">Case 3: Want log-like behavior but less sensitivity near zero</a></h3>
+<p><strong>Use:</strong> Log with large constant</p>
+<pre><code class="language-python">y_transformed &#61; np.log&#40;y &#43; 50&#41;  # or &#43; 100</code></pre>
+<ul>
+<li><p>Still logarithmic overall</p>
+</li>
+<li><p>Much flatter gradient near zero</p>
+</li>
+<li><p>Simple and interpretable</p>
+</li>
+</ul>
+<h3 id="case_4_want_explicit_control_over_threshold"><a href="#case_4_want_explicit_control_over_threshold" class="header-anchor">Case 4: Want explicit control over threshold</a></h3>
+<p><strong>Use:</strong> Two-regime transform</p>
+<pre><code class="language-python">theta &#61; 1.0
+y_transformed &#61; np.where&#40;y &lt; theta, 
+                         y, 
+                         theta &#43; np.log&#40;y / theta&#41;&#41;</code></pre>
+<ul>
+<li><p>You decide exactly where behavior changes</p>
+</li>
+<li><p>Clear interpretation</p>
+</li>
+<li><p>Can tune threshold based on domain knowledge</p>
+</li>
+</ul>
+<h3 id="case_5_only_large_values_exist_in_your_data_min_value_0"><a href="#case_5_only_large_values_exist_in_your_data_min_value_0" class="header-anchor">Case 5: Only large values exist in your data &#40;min value &gt;&gt; 0&#41;</a></h3>
+<p><strong>Use:</strong> Standard log transform</p>
+<pre><code class="language-python">y_transformed &#61; np.log&#40;y&#41;</code></pre>
+<ul>
+<li><p>If your minimum value is like 100, sensitivity near zero doesn&#39;t matter</p>
+</li>
+<li><p>Keep it simple&#33;</p>
+</li>
+</ul>
+<h2 id="visualizing_gradient_behavior"><a href="#visualizing_gradient_behavior" class="header-anchor">Visualizing Gradient Behavior</a></h2>
+<p>Let&#39;s see how gradients flow during training with different transforms:</p>
+<p>Imagine your model predicts \(\hat{y} = 10\) when truth is \(y = 11\) &#40;error of 1&#41;.</p>
+<table><tr><th align="right">Transform</th><th align="right">Transformed error</th><th align="right">Gradient magnitude</th><th align="right">Update strength</th></tr><tr><td align="right">None</td><td align="right">\(10 - 11 = -1\)</td><td align="right">1.0</td><td align="right">Medium</td></tr><tr><td align="right">\(\log(y)\)</td><td align="right">\(\log(10) - \log(11) = -0.095\)</td><td align="right">0.1 &#40;since \(\frac{1}{10}\)&#41;</td><td align="right">Small</td></tr><tr><td align="right">\(\log(y+100)\)</td><td align="right">\(\log(110) - \log(111) = -0.009\)</td><td align="right">0.009 &#40;since \(\frac{1}{110}\)&#41;</td><td align="right">Tiny</td></tr><tr><td align="right">\(\text{arcsinh}(y)\)</td><td align="right">\(2.998 - 3.092 = -0.094\)</td><td align="right">0.1</td><td align="right">Small</td></tr><tr><td align="right">Box-Cox λ&#61;2</td><td align="right">\(49.5 - 60 = -10.5\)</td><td align="right">10.0 &#40;since y&#61;10&#41;</td><td align="right">Huge&#33;</td></tr></table>
+<p>Now same absolute error but at \(\hat{y} = 0.1\), truth \(y = 0.11\):</p>
+<table><tr><th align="right">Transform</th><th align="right">Transformed error</th><th align="right">Gradient magnitude</th><th align="right">Update strength</th></tr><tr><td align="right">None</td><td align="right">\(0.1 - 0.11 = -0.01\)</td><td align="right">0.01</td><td align="right">Tiny</td></tr><tr><td align="right">\(\log(y)\)</td><td align="right">\(\log(0.1) - \log(0.11) = -0.095\)</td><td align="right">10.0 &#40;since \(\frac{1}{0.1}\)&#41;</td><td align="right"><strong>Huge&#33;</strong></td></tr><tr><td align="right">\(\log(y+100)\)</td><td align="right">\(\log(100.1) - \log(100.11) = -0.001\)</td><td align="right">0.001</td><td align="right">Tiny</td></tr><tr><td align="right">\(\text{arcsinh}(y)\)</td><td align="right">\(0.0998 - 0.1098 = -0.010\)</td><td align="right">1.0</td><td align="right">Medium</td></tr><tr><td align="right">Box-Cox λ&#61;2</td><td align="right">\(-0.495 - -0.494 = -0.001\)</td><td align="right">0.1</td><td align="right">Tiny</td></tr></table>
+<p><strong>Key insight:</strong> Log transforms make gradient updates <strong>100x stronger</strong> for errors near zero compared to errors at 10. Box-Cox λ&#61;2 does the opposite - 100x stronger at 10 than at 0.1&#33;</p>
+<h2 id="the_bottom_line"><a href="#the_bottom_line" class="header-anchor">The Bottom Line</a></h2>
+<p>You found that log transforms help predict large values but are sensitive near zero - this is because:</p>
+<ol>
+<li><p><strong>The multiplicative property helps large values</strong> &#40;relative errors stay constant across scales&#41;</p>
+</li>
+<li><p><strong>But the derivative \(\frac{1}{y}\) creates huge gradients near zero</strong> &#40;model obsesses over tiny differences&#41;</p>
+</li>
+</ol>
+<p>To keep #1 while fixing #2:</p>
+<ul>
+<li><p><strong>arcsinh</strong> is the most elegant &#40;smooth transition, handles everything&#41;</p>
+</li>
+<li><p><strong>log&#40;y &#43; large constant&#41;</strong> is simplest &#40;just add one parameter&#41;</p>
+</li>
+<li><p><strong>Box-Cox λ&gt;1</strong> if you genuinely don&#39;t care about small values at all</p>
+</li>
+</ul>
+<p>The transform you choose should match your actual business/scientific goal: what errors hurt most in the real world? Let that guide whether you want uniform, logarithmic, or custom sensitivity profiles&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 15, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

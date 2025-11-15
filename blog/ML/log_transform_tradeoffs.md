@@ -1,4 +1,4 @@
-@def title = "Loss Functions for Log-Scale Regression"
+@def title = "Understanding Log Transform Trade-offs in Regression"
 @def published = "4 November 2025"
 @def tags = ["neural-nets", "julia"]
 

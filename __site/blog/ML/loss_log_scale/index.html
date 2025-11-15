@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Loss Functions for Log-Scale Regression</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="loss_functions_for_log-scale_regression"><a href="#loss_functions_for_log-scale_regression" class="header-anchor">Loss Functions for Log-Scale Regression</a></h1>
+<p>When dealing with data that spans multiple orders of magnitude, choosing the right loss function is crucial. Let&#39;s break down your options and when to use each.</p>
+<h2 id="the_standard_approach_transform_then_mse"><a href="#the_standard_approach_transform_then_mse" class="header-anchor">The Standard Approach: Transform Then MSE</a></h2>
+<p><strong>What most people do:</strong></p>
+<pre><code class="language-julia">y_log &#61; log.&#40;y&#41;
+# Fit your model to y_log
+log_pred &#61; predict&#40;model, X&#41;
+y_pred &#61; exp.&#40;log_pred&#41;  # Transform back</code></pre>
+<p><strong>What you&#39;re actually optimizing:</strong></p>
+\[L = \mathbb{E}[(\log(\hat{y}) - \log(y))^2] = \text{MSLE (Mean Squared Log Error)}\]
+<h3 id="pros"><a href="#pros" class="header-anchor">Pros:</a></h3>
+<p>✅ Simple - just transform targets before training ✅ Multiplicative errors &#40;10&#37; off at 10 same as 10&#37; off at 1000&#41; ✅ Works with any model &#40;linear regression, neural nets, trees, etc.&#41; ✅ Automatically handles heteroscedasticity</p>
+<h3 id="cons"><a href="#cons" class="header-anchor">Cons:</a></h3>
+<p>❌ <strong>Biased predictions</strong> when transformed back &#40;systematically underestimates&#41; ❌ Requires strictly positive values ❌ Hypersensitive to near-zero values ❌ Model learns to predict <strong>median</strong> not mean</p>
+<h3 id="the_bias_problem"><a href="#the_bias_problem" class="header-anchor">The Bias Problem</a></h3>
+<p>Due to Jensen&#39;s inequality, \(\mathbb{E}[e^X] > e^{\mathbb{E}[X]}\).</p>
+<p>If residuals in log-space have variance \(\sigma^2\), you need to correct:</p>
+\[\hat{y}_{\text{unbiased}} = \exp(\hat{y}_{\log} + \frac{\sigma^2}{2})\]
+<p><strong>Example:</strong></p>
+<pre><code class="language-julia">using Statistics
+
+# Calculate residual variance on validation set
+residuals &#61; y_log_true .- y_log_pred
+sigma_squared &#61; var&#40;residuals&#41;
+
+# Correct bias when transforming back
+y_pred &#61; exp.&#40;log_pred .&#43; sigma_squared / 2&#41;</code></pre>
+<p>Most people skip this and their predictions are too low&#33;</p>
+<h2 id="alternative_1_direct_msle_no_transform"><a href="#alternative_1_direct_msle_no_transform" class="header-anchor">Alternative 1: Direct MSLE &#40;No Transform&#41;</a></h2>
+<p><strong>Keep targets in original scale, use custom loss:</strong></p>
+<pre><code class="language-julia"># Custom loss function
+function msle_loss&#40;y_pred, y_true&#41;
+    return mean&#40;&#40;log.&#40;y_pred&#41; .- log.&#40;y_true&#41;&#41;.^2&#41;
+end
+
+# For Flux.jl
+using Flux
+loss&#40;x, y&#41; &#61; Flux.Losses.msle&#40;model&#40;x&#41;, y&#41;
+
+# Or manual implementation
+function msle_loss&#40;ŷ, y&#41;
+    log_diff &#61; log.&#40;ŷ&#41; .- log.&#40;y&#41;
+    return mean&#40;log_diff.^2&#41;
+end</code></pre>
+<p><strong>What you&#39;re optimizing:</strong></p>
+\[L = \mathbb{E}[(\log(\hat{y}) - \log(y))^2]\]
+<p>Same as before, but no manual transformation needed&#33;</p>
+<h3 id="pros__2"><a href="#pros__2" class="header-anchor">Pros:</a></h3>
+<p>✅ No need to transform targets manually ✅ No inverse transform needed ✅ Can apply bias correction during training ✅ Predictions are directly in original scale</p>
+<h3 id="cons__2"><a href="#cons__2" class="header-anchor">Cons:</a></h3>
+<p>❌ Still has bias issue ❌ Requires custom loss implementation ❌ Gradients can be unstable if \(\hat{y}\) gets close to zero ❌ Need to clip predictions: \(\hat{y} > \epsilon\) to avoid log&#40;0&#41;</p>
+<h3 id="gradient_behavior"><a href="#gradient_behavior" class="header-anchor">Gradient Behavior:</a></h3>
+\[\frac{\partial L}{\partial \hat{y}} = \frac{2(\log(\hat{y}) - \log(y))}{\hat{y}}\]
+<p>Notice that \(\frac{1}{\hat{y}}\) term - if prediction is small, gradient explodes&#33; Need to be careful.</p>
+<h2 id="alternative_2_rmsle_root_mean_squared_log_error"><a href="#alternative_2_rmsle_root_mean_squared_log_error" class="header-anchor">Alternative 2: RMSLE &#40;Root Mean Squared Log Error&#41;</a></h2>
+<p>Just the square root of MSLE: \(L = \sqrt{\mathbb{E}[(\log(\hat{y}) - \log(y))^2]}\)</p>
+<pre><code class="language-julia">function rmsle_loss&#40;y_pred, y_true&#41;
+    return sqrt&#40;mean&#40;&#40;log.&#40;y_pred .&#43; 1&#41; .- log.&#40;y_true .&#43; 1&#41;&#41;.^2&#41;&#41;
+end</code></pre>
+<p>Note the <code>&#43;1</code> to handle zeros&#33; This makes it technically:</p>
+\[L = \sqrt{\mathbb{E}[(\log(\hat{y}+1) - \log(y+1))^2]}\]
+<h3 id="pros__3"><a href="#pros__3" class="header-anchor">Pros:</a></h3>
+<p>✅ Same scale as log&#40;y&#41;, easier to interpret ✅ The &#43;1 offset handles zeros ✅ Popular in Kaggle competitions</p>
+<h3 id="cons__3"><a href="#cons__3" class="header-anchor">Cons:</a></h3>
+<p>❌ Still has all the MSLE issues ❌ The &#43;1 is arbitrary ❌ Square root in loss can slow convergence</p>
+<h2 id="alternative_3_mean_absolute_log_error_male"><a href="#alternative_3_mean_absolute_log_error_male" class="header-anchor">Alternative 3: Mean Absolute Log Error &#40;MALE&#41;</a></h2>
+<p>Use L1 instead of L2 in log-space: \(L = \mathbb{E}[|\log(\hat{y}) - \log(y)|]\)</p>
+<pre><code class="language-julia">function male_loss&#40;y_pred, y_true&#41;
+    return mean&#40;abs.&#40;log.&#40;y_pred&#41; .- log.&#40;y_true&#41;&#41;&#41;
+end</code></pre>
+<h3 id="pros__4"><a href="#pros__4" class="header-anchor">Pros:</a></h3>
+<p>✅ More robust to outliers than MSLE ✅ Predicts <strong>median</strong> explicitly &#40;no pretense of predicting mean&#41; ✅ No bias correction needed &#40;for median estimation&#41; ✅ Simpler gradients</p>
+<h3 id="cons__4"><a href="#cons__4" class="header-anchor">Cons:</a></h3>
+<p>❌ If you want mean predictions, this is wrong objective ❌ L1 gradients don&#39;t go to zero &#40;can be jumpy&#41; ❌ Still sensitive near zero</p>
+<h3 id="gradient"><a href="#gradient" class="header-anchor">Gradient:</a></h3>
+\[\frac{\partial L}{\partial \hat{y}} = \frac{\text{sign}(\log(\hat{y}) - \log(y))}{\hat{y}}\]
+<p>Constant magnitude &#40;±1/ŷ&#41;, just changes sign. Can be more stable than L2.</p>
+<h2 id="alternative_4_weighted_mse_in_original_space"><a href="#alternative_4_weighted_mse_in_original_space" class="header-anchor">Alternative 4: Weighted MSE in Original Space</a></h2>
+<p><strong>Don&#39;t transform at all, just weight the loss based on what you care about:</strong></p>
+<h3 id="option_a_optimize_relativepercentage_errors_weights_1y"><a href="#option_a_optimize_relativepercentage_errors_weights_1y" class="header-anchor">Option A: Optimize Relative/Percentage Errors &#40;weights &#61; 1/y²&#41;</a></h3>
+<pre><code class="language-julia"># Makes relative errors equal across all scales
+function relative_mse&#40;y_pred, y_true; epsilon&#61;1e-6&#41;
+    weights &#61; 1.0 ./ &#40;y_true .&#43; epsilon&#41;.^2
+    return mean&#40;weights .* &#40;y_pred .- y_true&#41;.^2&#41;
+end
+
+# Or more directly:
+function relative_mse&#40;y_pred, y_true; epsilon&#61;1e-6&#41;
+    return mean&#40;&#40;&#40;y_pred .- y_true&#41; ./ &#40;y_true .&#43; epsilon&#41;&#41;.^2&#41;
+end</code></pre>
+<p>This optimizes <strong>percentage error squared</strong>: \(L = \mathbb{E}\left[\frac{(\hat{y} - y)^2}{y^2}\right] = \mathbb{E}\left[\left(\frac{\hat{y} - y}{y}\right)^2\right]\)</p>
+<p><strong>Effect:</strong> 10&#37; error at y&#61;10 has same loss as 10&#37; error at y&#61;1000</p>
+<ul>
+<li><p>Error of 1 at y&#61;10 → loss &#61; &#40;1/10&#41;² &#61; 0.01</p>
+</li>
+<li><p>Error of 100 at y&#61;1000 → loss &#61; &#40;100/1000&#41;² &#61; 0.01</p>
+</li>
+</ul>
+<p>⚠️ <strong>This makes small values MORE important in absolute terms&#33;</strong> A weight of 1/y² means smaller y → larger weight.</p>
+<h3 id="option_b_prioritize_large_values_weights_yᵖ"><a href="#option_b_prioritize_large_values_weights_yᵖ" class="header-anchor">Option B: Prioritize Large Values &#40;weights &#61; yᵖ&#41;</a></h3>
+<pre><code class="language-julia"># Makes large values MORE important
+function large_value_mse&#40;y_pred, y_true; power&#61;1, epsilon&#61;1e-6&#41;
+    weights &#61; &#40;y_true .&#43; epsilon&#41;.^power
+    return mean&#40;weights .* &#40;y_pred .- y_true&#41;.^2&#41;
+end</code></pre>
+<p>With <code>power&#61;1</code>: \(L = \mathbb{E}[y \cdot (\hat{y} - y)^2]\)</p>
+<p><strong>Effect:</strong> Errors on large values dominate the loss</p>
+<ul>
+<li><p>Error of 1 at y&#61;10 → loss &#61; 10 × 1² &#61; 10</p>
+</li>
+<li><p>Error of 1 at y&#61;1000 → loss &#61; 1000 × 1² &#61; 1000</p>
+</li>
+</ul>
+<p>The large value contributes <strong>100x more</strong> to the loss&#33;</p>
+<p>With <code>power&#61;2</code>, it&#39;s even more extreme &#40;10,000x difference&#41;.</p>
+<h3 id="which_weighting_should_you_use"><a href="#which_weighting_should_you_use" class="header-anchor">Which Weighting Should You Use?</a></h3>
+<table><tr><th align="right">Your Goal</th><th align="right">Use This Weighting</th><th align="right">Formula</th></tr><tr><td align="right"><strong>Relative errors matter</strong> &#40;10&#37; at any scale is equally bad&#41;</td><td align="right"><code>weights &#61; 1/y²</code></td><td align="right">Percentage errors</td></tr><tr><td align="right"><strong>Large absolute values matter more</strong></td><td align="right"><code>weights &#61; y</code> or <code>y²</code></td><td align="right">Large value focus</td></tr><tr><td align="right"><strong>Uniform treatment</strong></td><td align="right"><code>weights &#61; 1</code></td><td align="right">Plain MSE</td></tr></table>
+<h3 id="pros__5"><a href="#pros__5" class="header-anchor">Pros:</a></h3>
+<p>✅ No transformation needed at all ✅ <strong>No bias issues</strong> - predictions are naturally unbiased ✅ Interpretable: can optimize for relative errors OR large value focus ✅ Works with any model ✅ Direct control over what matters</p>
+<h3 id="cons__5"><a href="#cons__5" class="header-anchor">Cons:</a></h3>
+<p>❌ Can blow up if \(y \approx 0\) with 1/y² weighting &#40;need epsilon&#41; ❌ Requires custom loss function ❌ Need to decide on weighting scheme &#40;relative vs absolute focus&#41;</p>
+<h3 id="relationship_to_msle"><a href="#relationship_to_msle" class="header-anchor">Relationship to MSLE:</a></h3>
+<p>For <strong>relative errors</strong> &#40;weights &#61; 1/y²&#41;, small errors satisfy: \(\left(\frac{\hat{y} - y}{y}\right)^2 \approx \left(\frac{\hat{y}}{y} - 1\right)^2 \approx (\log(\hat{y}) - \log(y))^2\)</p>
+<p>So for small relative errors, relative MSE ≈ MSLE&#33; But:</p>
+<ul>
+<li><p>Relative MSE has <strong>no bias issues</strong></p>
+</li>
+<li><p>MSLE needs bias correction when transforming back</p>
+</li>
+<li><p>For large errors, they diverge</p>
+</li>
+</ul>
+<h2 id="alternative_5_huber_loss_in_log_space"><a href="#alternative_5_huber_loss_in_log_space" class="header-anchor">Alternative 5: Huber Loss in Log Space</a></h2>
+<p>Combines L2 &#40;MSLE&#41; for small errors with L1 &#40;MALE&#41; for large errors: \(L = \begin{cases}
+\frac{1}{2}(\log(\hat{y}) - \log(y))^2 & \text{if } |\log(\hat{y}) - \log(y)| \leq \delta \\
+\delta \cdot (|\log(\hat{y}) - \log(y)| - \frac{\delta}{2}) & \text{otherwise}
+\end{cases}\)</p>
+<pre><code class="language-julia">function log_huber_loss&#40;y_pred, y_true; delta&#61;1.0&#41;
+    log_diff &#61; log.&#40;y_pred&#41; .- log.&#40;y_true&#41;
+    abs_diff &#61; abs.&#40;log_diff&#41;
+    quadratic &#61; 0.5 .* log_diff.^2
+    linear &#61; delta .* &#40;abs_diff .- 0.5 * delta&#41;
+    return mean&#40;ifelse.&#40;abs_diff .&lt;&#61; delta, quadratic, linear&#41;&#41;
+end</code></pre>
+<h3 id="pros__6"><a href="#pros__6" class="header-anchor">Pros:</a></h3>
+<p>✅ Robust to outliers &#40;doesn&#39;t penalize huge errors as much&#41; ✅ Still smooth around zero &#40;better optimization than L1&#41; ✅ Tunable threshold δ</p>
+<h3 id="cons__6"><a href="#cons__6" class="header-anchor">Cons:</a></h3>
+<p>❌ Another hyperparameter to tune &#40;δ&#41; ❌ Still has bias issues from log transform</p>
+<h2 id="alternative_6_quantile_regression"><a href="#alternative_6_quantile_regression" class="header-anchor">Alternative 6: Quantile Regression</a></h2>
+<p>Instead of predicting the mean or median, predict a specific quantile: \(L = \mathbb{E}[\rho_\tau(\log(y) - \log(\hat{y}))]\)</p>
+<p>where \(\rho_\tau(u) = u(\tau - \mathbb{1}_{u < 0})\) is the quantile loss.</p>
+<pre><code class="language-julia">function quantile_log_loss&#40;y_pred, y_true; tau&#61;0.5&#41;
+    log_diff &#61; log.&#40;y_true&#41; .- log.&#40;y_pred&#41;
+    return mean&#40;ifelse.&#40;log_diff .&gt; 0, 
+                        tau .* log_diff,
+                        &#40;tau - 1&#41; .* log_diff&#41;&#41;
+end
+
+# For training multiple quantiles:
+function train_quantile_models&#40;X, y, quantiles&#61;&#91;0.25, 0.5, 0.75&#93;&#41;
+    models &#61; Dict&#40;&#41;
+    for tau in quantiles
+        loss&#40;ŷ, y&#41; &#61; quantile_log_loss&#40;ŷ, y; tau&#61;tau&#41;
+        # Train your model with this loss
+        models&#91;tau&#93; &#61; trained_model
+    end
+    return models
+end</code></pre>
+<p>Set \(\tau = 0.5\) for median, \(\tau = 0.75\) for upper quartile, etc.</p>
+<h3 id="pros__7"><a href="#pros__7" class="header-anchor">Pros:</a></h3>
+<p>✅ Gives you prediction intervals, not just point estimates ✅ Can focus on underestimation risk &#40;τ &gt; 0.5&#41; or overestimation &#40;τ &lt; 0.5&#41; ✅ Very robust</p>
+<h3 id="cons__7"><a href="#cons__7" class="header-anchor">Cons:</a></h3>
+<p>❌ More complex ❌ Need to train separate models for different quantiles ❌ Harder to interpret than mean predictions</p>
+<h2 id="alternative_7_poisson_deviance_loss"><a href="#alternative_7_poisson_deviance_loss" class="header-anchor">Alternative 7: Poisson Deviance Loss</a></h2>
+<p>If your data is count-like &#40;non-negative integers or positive reals&#41;, consider: \(L = \mathbb{E}[y \log(y/\hat{y}) + (\hat{y} - y)]\)</p>
+<p>This is the negative log-likelihood for Poisson distribution.</p>
+<pre><code class="language-julia">function poisson_deviance&#40;y_pred, y_true&#41;
+    return mean&#40;y_true .* log.&#40;y_true ./ y_pred&#41; .&#43; &#40;y_pred .- y_true&#41;&#41;
+end
+
+# More stable version that handles zeros:
+function poisson_deviance_stable&#40;y_pred, y_true; epsilon&#61;1e-10&#41;
+    y_pred &#61; max.&#40;y_pred, epsilon&#41;  # Clip predictions
+    # When y_true &#61; 0, the y*log&#40;y/ŷ&#41; term is 0
+    log_term &#61; ifelse.&#40;y_true .&gt; 0, 
+                       y_true .* log.&#40;y_true ./ y_pred&#41;,
+                       0.0&#41;
+    return mean&#40;log_term .&#43; &#40;y_pred .- y_true&#41;&#41;
+end</code></pre>
+<h3 id="pros__8"><a href="#pros__8" class="header-anchor">Pros:</a></h3>
+<p>✅ Natural for count data ✅ Handles zeros properly ✅ Well-studied statistical properties ✅ Predictions are naturally unbiased</p>
+<h3 id="cons__8"><a href="#cons__8" class="header-anchor">Cons:</a></h3>
+<p>❌ Only appropriate for count/rate data ❌ Assumes Poisson variance structure &#40;variance &#61; mean&#41;</p>
+<h2 id="comparison_table"><a href="#comparison_table" class="header-anchor">Comparison Table</a></h2>
+<table><tr><th align="right">Loss Function</th><th align="right">Bias?</th><th align="right">Handles Zeros?</th><th align="right">Sensitivity Near Zero</th><th align="right">Prioritizes Large Values?</th><th align="right">Good For</th></tr><tr><td align="right"><strong>MSLE &#40;transform&#41;</strong></td><td align="right">⚠️ Yes, needs correction</td><td align="right">❌ No</td><td align="right">🔥 Very high</td><td align="right">❌ No, relative errors</td><td align="right">Quick &amp; dirty, multiplicative data</td></tr><tr><td align="right"><strong>Direct MSLE</strong></td><td align="right">⚠️ Yes</td><td align="right">❌ No</td><td align="right">🔥 Very high</td><td align="right">❌ No, relative errors</td><td align="right">Custom training loop</td></tr><tr><td align="right"><strong>MALE</strong></td><td align="right">✅ No &#40;for median&#41;</td><td align="right">❌ No</td><td align="right">🔥 High</td><td align="right">❌ No</td><td align="right">Robust outliers, median prediction</td></tr><tr><td align="right"><strong>Relative MSE &#40;1/y²&#41;</strong></td><td align="right">✅ No</td><td align="right">⚠️ Need epsilon</td><td align="right">🔥 High &#40;small values matter more&#33;&#41;</td><td align="right">❌ No, percentage errors</td><td align="right"><strong>Relative/percentage error optimization</strong></td></tr><tr><td align="right"><strong>Large Value MSE &#40;yᵖ&#41;</strong></td><td align="right">✅ No</td><td align="right">✅ Yes</td><td align="right">Low &#40;large values matter more&#33;&#41;</td><td align="right">✅ Yes&#33;</td><td align="right"><strong>When large values are what matters</strong></td></tr><tr><td align="right"><strong>Huber &#40;log&#41;</strong></td><td align="right">⚠️ Yes</td><td align="right">❌ No</td><td align="right">🔥 High</td><td align="right">❌ No</td><td align="right">Outlier-robust MSLE</td></tr><tr><td align="right"><strong>Quantile</strong></td><td align="right">✅ No</td><td align="right">❌ No</td><td align="right">🔥 High</td><td align="right">❌ No</td><td align="right">Uncertainty estimates</td></tr><tr><td align="right"><strong>Poisson</strong></td><td align="right">✅ No</td><td align="right">✅ Yes</td><td align="right">Medium</td><td align="right">⚠️ Somewhat</td><td align="right">Count data specifically</td></tr></table>
+<h2 id="my_recommendations"><a href="#my_recommendations" class="header-anchor">My Recommendations</a></h2>
+<h3 id="for_optimizing_relativepercentage_errors_relative_mse"><a href="#for_optimizing_relativepercentage_errors_relative_mse" class="header-anchor">For optimizing relative/percentage errors: Relative MSE</a></h3>
+<pre><code class="language-julia">function relative_mse_loss&#40;y_pred, y_true; epsilon&#61;1e-6&#41;
+    weights &#61; 1.0 ./ &#40;y_true .&#43; epsilon&#41;.^2
+    return mean&#40;weights .* &#40;y_pred .- y_true&#41;.^2&#41;
+end
+
+# Or more directly:
+function relative_mse_loss&#40;y_pred, y_true; epsilon&#61;1e-6&#41;
+    return mean&#40;&#40;&#40;y_pred .- y_true&#41; ./ &#40;y_true .&#43; epsilon&#41;&#41;.^2&#41;
+end</code></pre>
+<p><strong>Why:</strong></p>
+<ul>
+<li><p>No transformation headaches</p>
+</li>
+<li><p>No bias issues  </p>
+</li>
+<li><p>Optimizes relative errors &#40;10&#37; error equally bad at any scale&#41;</p>
+</li>
+<li><p>Clean gradients</p>
+</li>
+</ul>
+<p><strong>⚠️ Important:</strong> This makes small values MORE important in absolute terms&#33; It&#39;s optimizing percentage errors, not prioritizing large values.</p>
+<h3 id="for_prioritizing_large_values_large_value_mse"><a href="#for_prioritizing_large_values_large_value_mse" class="header-anchor">For prioritizing large values: Large Value MSE</a></h3>
+<pre><code class="language-julia">function large_value_mse&#40;y_pred, y_true; power&#61;1, epsilon&#61;1e-6&#41;
+    weights &#61; &#40;y_true .&#43; epsilon&#41;.^power
+    return mean&#40;weights .* &#40;y_pred .- y_true&#41;.^2&#41;
+end</code></pre>
+<p><strong>Why:</strong></p>
+<ul>
+<li><p>No transformations</p>
+</li>
+<li><p>No bias issues</p>
+</li>
+<li><p>Errors on large values contribute much more to loss</p>
+</li>
+<li><p>Power parameter controls how much you prioritize large values</p>
+</li>
+</ul>
+<p><strong>Use when:</strong> You genuinely care more about getting 1000 → 1001 right than 1 → 2.</p>
+<h3 id="if_you_must_use_log_transform_apply_bias_correction"><a href="#if_you_must_use_log_transform_apply_bias_correction" class="header-anchor">If you must use log transform: Apply bias correction</a></h3>
+<pre><code class="language-julia">using Statistics
+
+# During training
+y_log &#61; log.&#40;y&#41;
+# ... train your model on y_log ...
+
+# At inference
+log_pred &#61; predict&#40;model, X&#41;
+residuals &#61; y_log_val .- predict&#40;model, X_val&#41;
+sigma_squared &#61; var&#40;residuals&#41;
+y_pred &#61; exp.&#40;log_pred .&#43; sigma_squared / 2&#41;  # ← Don&#39;t forget this&#33;</code></pre>
+<p><strong>Why:</strong> Without correction, you&#39;re predicting the geometric mean &#40;median in log space&#41;, which systematically underestimates large values.</p>
+<h3 id="for_production_systems_quantile_regression"><a href="#for_production_systems_quantile_regression" class="header-anchor">For production systems: Quantile regression</a></h3>
+<pre><code class="language-julia"># Train 3 models: 25th, 50th, 75th percentile
+quantiles &#61; &#91;0.25, 0.5, 0.75&#93;
+models &#61; Dict&#40;&#41;
+
+for tau in quantiles
+    loss&#40;ŷ, y&#41; &#61; quantile_log_loss&#40;ŷ, y; tau&#61;tau&#41;
+    models&#91;tau&#93; &#61; train_model&#40;X, y, loss&#41;
+end
+
+# Now you have uncertainty bounds&#33;
+y_lower &#61; predict&#40;models&#91;0.25&#93;, X_test&#41;
+y_median &#61; predict&#40;models&#91;0.5&#93;, X_test&#41;
+y_upper &#61; predict&#40;models&#91;0.75&#93;, X_test&#41;</code></pre>
+<p>Especially valuable when large predictions have high stakes.</p>
+<h2 id="the_real_question_what_are_you_optimizing_for"><a href="#the_real_question_what_are_you_optimizing_for" class="header-anchor">The Real Question: What Are You Optimizing For?</a></h2>
+<p>The &quot;right&quot; loss depends on your actual business/scientific goal:</p>
+<table><tr><th align="right">Your Goal</th><th align="right">Use This Loss</th><th align="right">Why</th></tr><tr><td align="right">Minimize <strong>relative/percentage errors</strong> equally across all scales</td><td align="right">Relative MSE &#40;weights &#61; 1/y²&#41; or MSLE</td><td align="right">10&#37; error at 10 &#61; 10&#37; error at 1000</td></tr><tr><td align="right">Minimize <strong>absolute errors</strong> uniformly</td><td align="right">Plain MSE &#40;no transform&#33;&#41;</td><td align="right">All errors weighted equally</td></tr><tr><td align="right"><strong>Large values matter more</strong> in absolute terms</td><td align="right">Large Value MSE &#40;weights &#61; yᵖ&#41;</td><td align="right">Error of 1 at y&#61;1000 matters more than error of 1 at y&#61;10</td></tr><tr><td align="right">Predict <strong>median</strong> &#40;robust to outliers&#41;</td><td align="right">MALE or quantile &#40;τ&#61;0.5&#41;</td><td align="right">Median is more robust</td></tr><tr><td align="right">Predict <strong>mean</strong> unbiased</td><td align="right">Large Value MSE or MSLE with correction</td><td align="right">Avoid systematic bias</td></tr><tr><td align="right"><strong>Underestimation is worse</strong> than overestimation</td><td align="right">Quantile &#40;τ &gt; 0.5&#41; or asymmetric loss</td><td align="right">Penalize low predictions more</td></tr><tr><td align="right"><strong>Overestimation is worse</strong></td><td align="right">Quantile &#40;τ &lt; 0.5&#41; or asymmetric loss</td><td align="right">Penalize high predictions more</td></tr><tr><td align="right">Need <strong>prediction intervals</strong></td><td align="right">Quantile regression &#40;multiple τ&#41;</td><td align="right">Get uncertainty bounds</td></tr><tr><td align="right">Data is <strong>counts/rates</strong></td><td align="right">Poisson deviance</td><td align="right">Natural for count data</td></tr></table>
+<p><strong>Key Insight:</strong> </p>
+<ul>
+<li><p><strong>Relative MSE &#40;1/y²&#41;</strong>: Treats percentage errors equally → small values get MORE weight in absolute terms</p>
+</li>
+<li><p><strong>Large Value MSE &#40;yᵖ&#41;</strong>: Large values get MORE weight → absolute errors on large values dominate</p>
+</li>
+<li><p><strong>Plain MSE</strong>: Uniform weighting → absolute errors treated equally</p>
+</li>
+<li><p><strong>Log transform</strong>: Like relative MSE but with bias issues</p>
+</li>
+</ul>
+<p><strong>Bottom line:</strong> If you care about predicting large quantities accurately in absolute terms, use <strong>Large Value MSE with power&#61;1 or 2</strong>, NOT relative MSE or log transforms&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 04, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

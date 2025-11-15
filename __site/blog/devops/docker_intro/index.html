@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Docker Explained Like You're 5</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="docker_explained_like_youre_5"><a href="#docker_explained_like_youre_5" class="header-anchor">Docker Explained Like You&#39;re 5</a></h1>
+<h2 id="what_is_docker"><a href="#what_is_docker" class="header-anchor">What is Docker?</a></h2>
+<p>Imagine you have a really cool toy that only works with specific batteries and specific accessories. If you want to share this toy with your friend, you&#39;d have to also give them all the right batteries and accessories, or it won&#39;t work at their house.</p>
+<p><strong>Docker is like a magic lunchbox that holds your toy AND all the things it needs to work.</strong> When you give your friend the lunchbox, everything just works&#33; They don&#39;t need to find the right batteries or accessories themselves.</p>
+<h2 id="whats_a_virtual_machine_vm"><a href="#whats_a_virtual_machine_vm" class="header-anchor">What&#39;s a Virtual Machine &#40;VM&#41;?</a></h2>
+<p>A <strong>Virtual Machine is like building an entire pretend house inside your house.</strong> </p>
+<ul>
+<li><p>It has its own pretend walls, pretend electricity, pretend everything</p>
+</li>
+<li><p>It&#39;s very heavy and takes up a lot of space</p>
+</li>
+<li><p>It&#39;s like you&#39;re running a whole computer inside your computer</p>
+</li>
+</ul>
+<h2 id="how_is_docker_different"><a href="#how_is_docker_different" class="header-anchor">How is Docker Different?</a></h2>
+<p><strong>Docker is like having separate rooms in the same house instead of building a whole new house.</strong></p>
+<ul>
+<li><p>It&#39;s much lighter and faster</p>
+</li>
+<li><p>All the rooms share the same foundation &#40;your computer&#41;</p>
+</li>
+<li><p>Each room still keeps its stuff separate from the other rooms</p>
+</li>
+</ul>
+<h2 id="running_software_without_dependencies"><a href="#running_software_without_dependencies" class="header-anchor">Running Software Without Dependencies</a></h2>
+<p><strong>Dependencies</strong> are like needing special ingredients to bake a cake. Your program might need:</p>
+<ul>
+<li><p>A specific version of Python &#40;like needing eggs&#41;</p>
+</li>
+<li><p>Certain libraries &#40;like needing flour and sugar&#41;</p>
+</li>
+<li><p>Specific settings &#40;like needing the oven at exactly 350°F&#41;</p>
+</li>
+</ul>
+<p><strong>Docker packages everything together</strong> so you don&#39;t have to worry about:</p>
+<ul>
+<li><p>&quot;Does my friend have Python installed?&quot;</p>
+</li>
+<li><p>&quot;Do they have the right version?&quot;</p>
+</li>
+<li><p>&quot;Will it work on their computer?&quot;</p>
+</li>
+</ul>
+<p>It&#39;s all in the container, ready to go&#33; 🎁</p>
+<hr />
+<h1 id="docker_technical_concepts_explained"><a href="#docker_technical_concepts_explained" class="header-anchor">Docker Technical Concepts Explained</a></h1>
+<h2 id="container_manager"><a href="#container_manager" class="header-anchor"><strong>Container Manager</strong></a></h2>
+<p>Docker is software that creates and manages containers. Like a zookeeper manages animals in different enclosures.</p>
+<h2 id="lightweight_virtualisation_shared_kernel"><a href="#lightweight_virtualisation_shared_kernel" class="header-anchor"><strong>Lightweight Virtualisation &#40;shared kernel&#41;</strong></a></h2>
+<ul>
+<li><p><strong>Kernel</strong> &#61; the core of your operating system that talks to hardware</p>
+</li>
+<li><p>VMs need their own full kernel &#40;heavy&#41;</p>
+</li>
+<li><p>Docker containers share the host&#39;s kernel &#40;light&#41;</p>
+</li>
+<li><p>It&#39;s like roommates sharing one kitchen instead of each building their own kitchen</p>
+</li>
+</ul>
+<h2 id="based_on_linux_namespaces_and_cgroups"><a href="#based_on_linux_namespaces_and_cgroups" class="header-anchor"><strong>Based on Linux Namespaces and Cgroups</strong></a></h2>
+<p>These are Linux features Docker uses:</p>
+<ul>
+<li><p><strong>Namespaces</strong> &#61; isolation &#40;each container thinks it&#39;s alone&#41;</p>
+</li>
+<li><p><strong>Cgroups</strong> &#61; resource limits &#40;controls how much CPU/memory each container gets&#41;</p>
+</li>
+<li><p>Think: separate bedrooms with locks &#40;namespaces&#41; &#43; rules about electricity usage &#40;cgroups&#41;</p>
+</li>
+</ul>
+<h2 id="massively_copy-on-write"><a href="#massively_copy-on-write" class="header-anchor"><strong>Massively Copy-on-Write</strong></a></h2>
+<ul>
+<li><p>Containers share base files until they need to change something</p>
+</li>
+<li><p>Only differences are stored separately</p>
+</li>
+<li><p>Like 100 students using the same textbook, but only making personal notes when needed</p>
+</li>
+<li><p>Saves tons of disk space&#33;</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>📝 Copy-on-Write Explained:</strong></p>
+<p><strong>Normal copying:</strong> You have a file, make a copy → 2 files &#61; 2x space</p>
+<p><strong>Copy-on-Write:</strong> You make a &quot;copy&quot; but it&#39;s just a pointer to the original. Only when you WRITE/change something does it actually copy that specific part.</p>
+<p><strong>Docker example:</strong> Base Ubuntu image &#61; 200MB. Create 10 containers.</p>
+<ul>
+<li><p>Without CoW: 10 × 200MB &#61; 2GB</p>
+</li>
+<li><p>With CoW: All share the same 200MB &#43; only differences stored &#61; ~250MB total&#33;</p>
+</li>
+</ul>
+<p><strong>Analogy:</strong> Like a teacher&#39;s worksheet - everyone reads from the same master copy, you only write on your own paper when adding answers. The original never changes&#33;</p>
+</blockquote>
+<h2 id="immutable_images"><a href="#immutable_images" class="header-anchor"><strong>Immutable Images</strong></a></h2>
+<ul>
+<li><p>Once created, images don&#39;t change</p>
+</li>
+<li><p>You don&#39;t &quot;edit&quot; an image, you build a new version</p>
+</li>
+<li><p>Like a recipe card you never modify—you write a new card if you want changes</p>
+</li>
+</ul>
+<h2 id="instant_deployment"><a href="#instant_deployment" class="header-anchor"><strong>Instant Deployment</strong></a></h2>
+<p>Containers start in seconds &#40;not minutes like VMs&#41; because they&#39;re just processes, not full computers.</p>
+<h2 id="suitable_for_microservices_one_process_one_container"><a href="#suitable_for_microservices_one_process_one_container" class="header-anchor"><strong>Suitable for Microservices &#40;one process, one container&#41;</strong></a></h2>
+<p>Best practice: each container runs ONE thing</p>
+<ul>
+<li><p>Container 1: web server</p>
+</li>
+<li><p>Container 2: database  </p>
+</li>
+<li><p>Container 3: cache</p>
+</li>
+</ul>
+<p><strong>Not:</strong> one giant container running everything</p>
+<blockquote>
+<p><strong>📝 What are Microservices?</strong></p>
+<p><strong>Old way &#40;Monolith&#41;:</strong> Build one giant application that does everything</p>
+<ul>
+<li><p>Like a Swiss Army knife - all tools attached together</p>
+</li>
+<li><p>If one part breaks, the whole thing breaks</p>
+</li>
+<li><p>Hard to update just one feature</p>
+</li>
+</ul>
+<p><strong>New way &#40;Microservices&#41;:</strong> Break your app into small, independent services</p>
+<ul>
+<li><p>Like separate tools in a toolbox</p>
+</li>
+<li><p>Each service does ONE job really well</p>
+</li>
+<li><p>Example e-commerce app:</p>
+<ul>
+<li><p>User service &#40;handles logins&#41;</p>
+</li>
+<li><p>Product service &#40;manages inventory&#41;</p>
+</li>
+<li><p>Payment service &#40;processes payments&#41;</p>
+</li>
+<li><p>Shipping service &#40;tracks orders&#41;</p>
+</li>
+</ul>
+</li>
+<li><p>Each can be updated, scaled, or fixed independently</p>
+</li>
+<li><p>If payment service crashes, users can still browse products</p>
+</li>
+</ul>
+<p><strong>Why Docker loves microservices:</strong> One container &#61; one microservice. Perfect match&#33;</p>
+</blockquote>
+<h2 id="immutable_architecture"><a href="#immutable_architecture" class="header-anchor"><strong>Immutable Architecture</strong></a></h2>
+<p>You never change running containers. Instead:</p>
+<ol>
+<li><p>Build new image with changes</p>
+</li>
+<li><p>Stop old container</p>
+</li>
+<li><p>Start new container</p>
+</li>
+</ol>
+<p>Like replacing a Lego brick instead of trying to reshape it. Clean, predictable, no &quot;it works on my machine but broke in production&quot; surprises&#33;</p>
+<blockquote>
+<p><strong>📝 Wait, how do I modify my code then?</strong></p>
+<p>Docker has TWO main concepts:</p>
+<ul>
+<li><p><strong>Image</strong> &#61; The blueprint/recipe &#40;immutable, doesn&#39;t change&#41;</p>
+</li>
+<li><p><strong>Container</strong> &#61; The running instance created from an image</p>
+</li>
+</ul>
+<p><strong>Your actual code lives in your project folder</strong>, not &quot;in&quot; Docker initially.</p>
+<p><strong>The workflow:</strong></p>
+<ol>
+<li><p><strong>Write your code</strong> on your computer &#40;<code>app.py</code>&#41;</p>
+</li>
+<li><p><strong>Create a Dockerfile</strong> &#40;instructions for building an image&#41;</p>
+</li>
+</ol>
+</blockquote>
+<pre><code class="language-julia">&gt;    FROM python:3.9
+&gt;    COPY app.py /app/
+&gt;    RUN pip install flask
+&gt;    CMD python /app/app.py
+&gt;</code></pre>
+<blockquote>
+<ol start="3">
+<li><p><strong>Build an image</strong> from your code: <code>docker build -t myapp:v1</code></p>
+<ul>
+<li><p>This packages your code INTO an image</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Run a container</strong>: <code>docker run myapp:v1</code></p>
+</li>
+</ol>
+<p><strong>When you change your code:</strong></p>
+<ol>
+<li><p>Edit <code>app.py</code> on your computer &#40;add new feature&#41;</p>
+</li>
+<li><p>Build a NEW image: <code>docker build -t myapp:v2</code></p>
+</li>
+<li><p>Stop old container</p>
+</li>
+<li><p>Start new container from new image</p>
+</li>
+</ol>
+<p><strong>The image is like a snapshot of your code at a specific moment.</strong> You modify the source code, then create a new snapshot &#40;new image&#41;, then run it&#33;</p>
+</blockquote>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 15, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
