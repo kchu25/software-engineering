@@ -11,4 +11,6 @@
 - [cuda](tag/cuda)
 - [gpu-programming](tag/gpu-programming)
 - [research-tasks](tag/research-tasks)
+- [data-engineering](tag/research-tasks)
+- [devops](tag/devops)
 
