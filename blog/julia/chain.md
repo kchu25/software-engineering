@@ -1,4 +1,4 @@
-@def title = "GChain.jl: Key Insights & Code Techniques"
+@def title = "Chain.jl: Key Insights & Code Techniques"
 @def published = "27 November 2025"
 @def tags = ["julia"]
 
