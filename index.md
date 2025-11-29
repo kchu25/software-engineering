@@ -13,4 +13,8 @@
 - [research-tasks](tag/research-tasks)
 - [data-engineering](tag/data-engineering)
 - [devops](tag/devops)
+- [crypto](tag/crypto)
+- [block-chain](tag/block-chain)
+- [smart-contract](tag/smart-contract)
+- [eth](tag/eth)
 

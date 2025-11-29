@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Formal Model of Solidity Memory Semantics</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="formal_model_of_solidity_memory_semantics"><a href="#formal_model_of_solidity_memory_semantics" class="header-anchor">Formal Model of Solidity Memory Semantics</a></h1>
+<h2 id="data_locations_as_disjoint_address_spaces"><a href="#data_locations_as_disjoint_address_spaces" class="header-anchor"><ol>
+<li><p>Data Locations as Disjoint Address Spaces</p>
+</li>
+</ol>
+</a></h2>
+<p>Let \(L = \{\text{storage}, \text{memory}, \text{calldata}\}\) be the set of data locations.</p>
+<p>For each location \(\ell \in L\), we have a disjoint address space \(A_\ell\):</p>
+\[A_{\text{storage}} \cap A_{\text{memory}} \cap A_{\text{calldata}} = \emptyset\]
+<p>Each address \(a \in A_\ell\) maps to a value via \(M_\ell : A_\ell \to V\) where \(V\) is the value domain.</p>
+<p><strong>Intuition:</strong> Think of storage as the blockchain ledger, memory as scratch RAM during execution, and calldata as immutable transaction input. These are completely separate &quot;universes&quot; - an address in one space means nothing in another.</p>
+<h2 id="ol_start2_value_types_vs_reference_types"><a href="#ol_start2_value_types_vs_reference_types" class="header-anchor"><ol start="2">
+<li><p>Value Types vs Reference Types</p>
+</li>
+</ol>
+</a></h2>
+<h3 id="value_types"><a href="#value_types" class="header-anchor">Value Types</a></h3>
+<p>Let \(T_v = \{\texttt{uint}, \texttt{bool}, \texttt{address}, \ldots\}\).</p>
+<p>For \(t \in T_v\), a variable \(x\) stores the value directly: \(x \in V\)</p>
+<p><strong>Assignment:</strong> \(y := x\) means \(y\) gets a copy of \(x\)&#39;s value.</p>
+<h3 id="reference_types"><a href="#reference_types" class="header-anchor">Reference Types  </a></h3>
+<p>Let \(T_r = \{\texttt{string}, \texttt{array}, \texttt{struct}, \ldots\}\).</p>
+<p>For \(t \in T_r\), a variable \(x\) stores a pointer: \(x = (a, \ell)\) where \(a \in A_\ell\)</p>
+<p><strong>Key insight:</strong> The variable doesn&#39;t hold the data - it holds <em>where</em> the data lives.</p>
+<h2 id="ol_start3_assignment_within_same_location_aliasing"><a href="#ol_start3_assignment_within_same_location_aliasing" class="header-anchor"><ol start="3">
+<li><p>Assignment Within Same Location &#40;Aliasing&#41;</p>
+</li>
+</ol>
+</a></h2>
+<p>For reference variables \(x = (a_x, \ell)\) and \(y = (a_y, \ell)\) in the same location \(\ell\):</p>
+\[y := x \implies a_y = a_x\]
+<p>Both now point to the same address. Modifying through \(y\) affects \(x\):</p>
+\[M_\ell(a_y) := v \implies M_\ell(a_x) = v\]
+<p><strong>Why?</strong> Within one memory space, assignment just copies the pointer, not the data.</p>
+<h2 id="ol_start4_assignment_across_different_locations_copying"><a href="#ol_start4_assignment_across_different_locations_copying" class="header-anchor"><ol start="4">
+<li><p>Assignment Across Different Locations &#40;Copying&#41;</p>
+</li>
+</ol>
+</a></h2>
+<p>For \(x = (a_x, \ell_1)\) and \(y = (a_y, \ell_2)\) where \(\ell_1 \neq \ell_2\):</p>
+\[y := x \implies M_{\ell_2}(a_y) := M_{\ell_1}(a_x)\]
+<p>The <em>data</em> is copied from one address space to another. Now:</p>
+\[M_{\ell_2}(a_y) := v \not\Rightarrow M_{\ell_1}(a_x) = v\]
+<p><strong>Why?</strong> You can&#39;t have a pointer from storage to memory - they&#39;re disjoint spaces. Must copy the actual data.</p>
+<h2 id="ol_start5_function_modifiers_as_state_predicates"><a href="#ol_start5_function_modifiers_as_state_predicates" class="header-anchor"><ol start="5">
+<li><p>Function Modifiers as State Predicates</p>
+</li>
+</ol>
+</a></h2>
+<p>Let \(S\) represent blockchain state &#40;all storage variables&#41; and \(C\) represent context &#40;block data, msg data, etc.&#41;.</p>
+<p><strong>Pure functions:</strong> \(f : \text{Params} \to \text{Result}\)</p>
+\[\text{pure} \iff f \text{ accesses neither } S \text{ nor } C\]
+<p><strong>View functions:</strong> \(f : S \times C \times \text{Params} \to \text{Result}\)</p>
+\[\text{view} \iff f \text{ may read } S \text{ and } C \text{ but } \forall s \in S : s' = s \text{ (no modification)}\]
+<p><strong>State-modifying:</strong> Can both read and write \(S\).</p>
+<h2 id="ol_start6_concrete_example_with_formal_notation"><a href="#ol_start6_concrete_example_with_formal_notation" class="header-anchor"><ol start="6">
+<li><p>Concrete Example with Formal Notation</p>
+</li>
+</ol>
+</a></h2>
+<pre><code class="language-solidity">uint&#91;&#93; storage arr1;           // arr1 &#61; &#40;a₁, storage&#41;
+uint&#91;&#93; memory arr2 &#61; arr1;     // arr2 &#61; &#40;a₂, memory&#41;
+uint&#91;&#93; memory arr3 &#61; arr2;     // arr3 &#61; &#40;a₃, memory&#41;</code></pre>
+<p><strong>Step by step:</strong></p>
+<ol>
+<li><p>\(\texttt{arr1} = (a_1, \text{storage})\) where \(a_1 \in A_{\text{storage}}\)</p>
+</li>
+<li><p>\(\texttt{arr2} = (a_2, \text{memory})\) where \(a_2 \in A_{\text{memory}}\)</p>
+<ul>
+<li><p>Since \(\text{storage} \neq \text{memory}\): \(M_{\text{memory}}(a_2) := M_{\text{storage}}(a_1)\) &#40;COPY&#41;</p>
+</li>
+</ul>
+</li>
+<li><p>\(\texttt{arr3} = (a_3, \text{memory})\)</p>
+<ul>
+<li><p>Since both in \(\text{memory}\): \(a_3 := a_2\) so \(a_3 = a_2\) &#40;ALIAS&#41;</p>
+</li>
+</ul>
+</li>
+</ol>
+<p><strong>Result:</strong></p>
+<ul>
+<li><p>Modifying <code>arr3&#91;0&#93;</code> also changes <code>arr2&#91;0&#93;</code> &#40;same address \(a_2 = a_3\)&#41;</p>
+</li>
+<li><p>Neither affects <code>arr1</code> &#40;different location, was copied&#41;</p>
+</li>
+</ul>
+<h2 id="ol_start7_the_core_rules"><a href="#ol_start7_the_core_rules" class="header-anchor"><ol start="7">
+<li><p>The Core Rules</p>
+</li>
+</ol>
+</a></h2>
+\[
+\begin{align}
+&\text{Value types:} && x := y &&\implies \text{always COPY} \\
+&\text{Reference, same } \ell: && (a_x, \ell) := (a_y, \ell) &&\implies a_x = a_y \text{ (ALIAS)} \\
+&\text{Reference, different } \ell: && (a_x, \ell_1) := (a_y, \ell_2) &&\implies \text{COPY where } \ell_1 \neq \ell_2
+\end{align}
+\]
+<h2 id="ol_start8_why_the_memory_keyword"><a href="#ol_start8_why_the_memory_keyword" class="header-anchor"><ol start="8">
+<li><p>Why the <code>memory</code> Keyword?</p>
+</li>
+</ol>
+</a></h2>
+<p>For reference types, Solidity needs to know which address space \(A_\ell\) your pointer lives in:</p>
+<pre><code class="language-solidity">function f&#40;&#41; public pure returns &#40;string memory&#41; &#123;  // Must specify&#33;
+    return &quot;Hello&quot;;
+&#125;</code></pre>
+<p>Without specifying the location, the compiler can&#39;t determine:</p>
+<ul>
+<li><p>Whether assignment should alias or copy</p>
+</li>
+<li><p>How to allocate/access the data</p>
+</li>
+<li><p>What gas costs apply</p>
+</li>
+</ul>
+<p>Value types don&#39;t need this because they always copy - no ambiguity about location.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 29, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
