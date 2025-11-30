@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Understanding Solidity Through a Zombie Factory</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="understanding_solidity_through_a_zombie_factory"><a href="#understanding_solidity_through_a_zombie_factory" class="header-anchor">Understanding Solidity Through a Zombie Factory</a></h1>
+<p>Hey&#33; Let me walk you through Solidity using this zombie creation code. Think of it like learning a new language by reading a fun story.</p>
+<h2 id="the_complete_code"><a href="#the_complete_code" class="header-anchor">The Complete Code</a></h2>
+<pre><code class="language-solidity">pragma solidity &gt;&#61;0.5.0 &lt;0.6.0;
+
+contract ZombieFactory &#123;
+    event NewZombie&#40;uint zombieId, string name, uint dna&#41;;
+    
+    uint dnaDigits &#61; 16;
+    uint dnaModulus &#61; 10 ** dnaDigits;
+    
+    struct Zombie &#123;
+        string name;
+        uint dna;
+    &#125;
+    
+    Zombie&#91;&#93; public zombies;
+    
+    // declare mappings here
+    
+    function _createZombie&#40;string memory _name, uint _dna&#41; private &#123;
+        uint id &#61; zombies.push&#40;Zombie&#40;_name, _dna&#41;&#41; - 1;
+        emit NewZombie&#40;id, _name, _dna&#41;;
+    &#125;
+    
+    function _generateRandomDna&#40;string memory _str&#41; private view returns &#40;uint&#41; &#123;
+        uint rand &#61; uint&#40;keccak256&#40;abi.encodePacked&#40;_str&#41;&#41;&#41;;
+        return rand &#37; dnaModulus;
+    &#125;
+    
+    function createRandomZombie&#40;string memory _name&#41; public &#123;
+        uint randDna &#61; _generateRandomDna&#40;_name&#41;;
+        _createZombie&#40;_name, randDna&#41;;
+    &#125;
+&#125;</code></pre>
+<h2 id="the_contract_declaration"><a href="#the_contract_declaration" class="header-anchor">The Contract Declaration</a></h2>
+<pre><code class="language-solidity">pragma solidity &gt;&#61;0.5.0 &lt;0.6.0;
+contract ZombieFactory &#123;</code></pre>
+<p>Every Solidity program starts with <code>pragma</code> - this is like saying &quot;Hey, I wrote this code for Solidity version 0.5.x, so use that to compile it.&quot; Then <code>contract</code> is basically like a class in other languages. It&#39;s your main container for all the code.</p>
+<h2 id="events_broadcasting_to_the_world"><a href="#events_broadcasting_to_the_world" class="header-anchor">Events: Broadcasting to the World</a></h2>
+<pre><code class="language-solidity">event NewZombie&#40;uint zombieId, string name, uint dna&#41;;</code></pre>
+<p>Events are super cool&#33; They&#39;re like announcements that get logged on the blockchain. When you create a zombie, this event fires off and anyone watching can see &quot;Hey, zombie #42 named &#39;Fluffy&#39; just got created with DNA 1234567890123456&#33;&quot; Front-end apps listen to these to update in real-time.</p>
+<p>When you <code>emit</code> an event, it gets permanently written to the blockchain&#39;s transaction logs - like an immortal newspaper that everyone can read. It&#39;s way cheaper than storing in state variables, and off-chain apps can search through all historical events. The catch? Your contract can&#39;t read its own events - they&#39;re write-only, meant for the outside world to observe what happened.</p>
+<blockquote>
+<p><strong>Why no <code>memory</code> keyword for the string here?</strong></p>
+<p>Great catch&#33; Events are special - they&#39;re not actually executable code, they&#39;re just <em>definitions</em> of what data to log. When you define an event, you&#39;re creating a template that says &quot;when this event fires, log these types of data.&quot; You only specify data location keywords &#40;<code>memory</code>, <code>storage</code>, <code>calldata</code>&#41; when you&#39;re dealing with actual function parameters that need to be stored somewhere during execution.</p>
+<p>Think of it like this: the event definition is like designing a form &#40;&quot;Name: _____, DNA: _____&quot;&#41;, while function parameters are like actually filling out that form and needing a desk &#40;memory&#41; to write on. The event itself doesn&#39;t need to know <em>where</em> the data lives - it just cares <em>what type</em> it is. When you later <code>emit NewZombie&#40;id, _name, _dna&#41;</code>, Solidity figures out where that data is coming from and logs it appropriately.</p>
+</blockquote>
+<h2 id="state_variables_your_contracts_memory"><a href="#state_variables_your_contracts_memory" class="header-anchor">State Variables: Your Contract&#39;s Memory</a></h2>
+<pre><code class="language-solidity">uint dnaDigits &#61; 16;
+uint dnaModulus &#61; 10 ** dnaDigits;</code></pre>
+<p>These live permanently on the blockchain. <code>uint</code> means &quot;unsigned integer&quot; &#40;no negative numbers&#41;. Here we&#39;re saying DNA will be 16 digits long, and <code>dnaModulus</code> &#40;10^16&#41; helps us keep random numbers in that range. Every time you read or write these, you&#39;re literally reading/writing to the Ethereum blockchain&#33;</p>
+<h2 id="structs_custom_data_types"><a href="#structs_custom_data_types" class="header-anchor">Structs: Custom Data Types</a></h2>
+<pre><code class="language-solidity">struct Zombie &#123;
+    string name;
+    uint dna;
+&#125;
+Zombie&#91;&#93; public zombies;</code></pre>
+<p>A <code>struct</code> is like creating your own custom data type. Think of it as a blueprint: &quot;Every zombie has a name and DNA.&quot; The <code>Zombie&#91;&#93;</code> creates a dynamic array - a list that can grow forever. The <code>public</code> keyword automatically creates a getter function, so anyone can look up zombie info&#33;</p>
+<h2 id="functions_where_the_action_happens"><a href="#functions_where_the_action_happens" class="header-anchor">Functions: Where the Action Happens</a></h2>
+<h3 id="private_function_internal_use_only"><a href="#private_function_internal_use_only" class="header-anchor">Private Function &#40;Internal Use Only&#41;</a></h3>
+<pre><code class="language-solidity">function _createZombie&#40;string memory _name, uint _dna&#41; private &#123;</code></pre>
+<p>The underscore <code>_</code> is a naming convention for private functions. <code>private</code> means only this contract can call it. The <code>memory</code> keyword says &quot;_name is temporary, just keep it in memory during this function call.&quot; Parameters prefixed with <code>_</code> help avoid naming conflicts.</p>
+<h3 id="the_push_trick"><a href="#the_push_trick" class="header-anchor">The Push Trick</a></h3>
+<pre><code class="language-solidity">uint id &#61; zombies.push&#40;Zombie&#40;_name, _dna&#41;&#41; - 1;
+emit NewZombie&#40;id, _name, _dna&#41;;</code></pre>
+<p><code>zombies.push&#40;&#41;</code> adds a new zombie to the array and returns the new length. Subtracting 1 gives us the index &#40;arrays start at 0&#41;. Then we <code>emit</code> that event we talked about&#33;</p>
+<h3 id="view_functions_just_looking_not_touching"><a href="#view_functions_just_looking_not_touching" class="header-anchor">View Functions: Just Looking, Not Touching</a></h3>
+<pre><code class="language-solidity">function _generateRandomDna&#40;string memory _str&#41; private view returns &#40;uint&#41; &#123;</code></pre>
+<p><code>view</code> means &quot;I promise I&#39;m only reading data, not changing anything.&quot; This is important because it means calling this function is FREE - it doesn&#39;t cost gas&#33; The <code>returns &#40;uint&#41;</code> tells you what data type comes back.</p>
+<h3 id="hashing_for_randomness"><a href="#hashing_for_randomness" class="header-anchor">Hashing for Randomness</a></h3>
+<pre><code class="language-solidity">uint rand &#61; uint&#40;keccak256&#40;abi.encodePacked&#40;_str&#41;&#41;&#41;;
+return rand &#37; dnaModulus;</code></pre>
+<p><code>keccak256</code> is a cryptographic hash function - give it any input, it spits out a &#40;seemingly&#41; random 256-bit number. <code>abi.encodePacked</code> just converts the string to bytes. The <code>&#37; dnaModulus</code> operation ensures the result fits within our 16-digit range.</p>
+<blockquote>
+<p><strong>⚠️ The Randomness Problem on Blockchain</strong></p>
+<p>This isn&#39;t truly random - miners can manipulate it since everything on-chain is deterministic and public. They can see transactions before confirming them and potentially game the system.</p>
+<p><strong>When simple hash-based randomness is okay:</strong></p>
+<ul>
+<li><p>Low-stakes games where manipulation doesn&#39;t matter much</p>
+</li>
+<li><p>Generating cosmetic traits &#40;like zombie DNA&#41;</p>
+</li>
+<li><p>Any scenario where the cost to manipulate exceeds potential profit</p>
+</li>
+</ul>
+<p><strong>When you need real randomness:</strong></p>
+<ul>
+<li><p>Lotteries, gambling, anything with money at stake</p>
+</li>
+<li><p>NFT drops where rarity equals value</p>
+</li>
+<li><p>Fair distribution mechanisms</p>
+</li>
+</ul>
+<p>For these high-stakes scenarios, you&#39;d use <strong>Chainlink VRF</strong> &#40;the dominant solution&#41; or alternatives like API3 or Band Protocol. These oracle services provide provably random numbers, but add complexity: you make a request, <strong>pay fees in LINK tokens</strong> &#40;yes, every random number costs money&#33;&#41;, wait for a callback, then use the random number. The fee covers the oracle nodes doing the work and provides economic security. So that &quot;free&quot; one-line hash? Suddenly becomes an ongoing operational cost. Other approaches include commit-reveal schemes or block hash randomness, but each has tradeoffs.</p>
+<p>Welcome to blockchain: verifiable and deterministic by design, which means random numbers need their own infrastructure&#33; 😅</p>
+</blockquote>
+<h3 id="public_functions_the_world_can_call_these"><a href="#public_functions_the_world_can_call_these" class="header-anchor">Public Functions: The World Can Call These</a></h3>
+<pre><code class="language-solidity">function createRandomZombie&#40;string memory _name&#41; public &#123;</code></pre>
+<p><code>public</code> means anyone with an Ethereum wallet can call this function&#33; They&#39;ll pay gas fees to execute it. This is your main entry point - users call this, it generates random DNA, then calls the private function to actually create the zombie.</p>
+<h2 id="key_takeaways"><a href="#key_takeaways" class="header-anchor">Key Takeaways</a></h2>
+<ul>
+<li><p><strong>Contracts</strong> are like classes that live on the blockchain</p>
+</li>
+<li><p><strong>State variables</strong> cost gas to write but stick around forever</p>
+</li>
+<li><p><strong>Events</strong> broadcast important changes to the outside world</p>
+</li>
+<li><p><strong>Function visibility</strong> &#40;<code>public</code>, <code>private</code>&#41; controls who can call what</p>
+</li>
+<li><p><strong><code>view</code></strong> functions don&#39;t change state and are free to call</p>
+</li>
+<li><p><strong>Memory</strong> vs storage matters for performance and cost</p>
+</li>
+<li><p>Everything costs gas except reading/view functions&#33;</p>
+</li>
+</ul>
+<h2 id="whats_gas_anyway"><a href="#whats_gas_anyway" class="header-anchor">What&#39;s Gas Anyway?</a></h2>
+<p>Think of gas as the &quot;computation fee&quot; for running code on Ethereum. Every operation &#40;storing data, doing math, creating zombies&#41; costs a tiny amount of ETH. Why? Because your code runs on thousands of computers worldwide - miners/validators need compensation. Writing to storage is expensive, reading is cheap, and view functions are free. When you call <code>createRandomZombie&#40;&#41;</code>, you pay gas. When someone just looks up a zombie with the auto-generated getter, it&#39;s free&#33;</p>
+<h2 id="putting_it_all_together_what_happens_when_you_create_a_zombie"><a href="#putting_it_all_together_what_happens_when_you_create_a_zombie" class="header-anchor">Putting It All Together: What Happens When You Create a Zombie?</a></h2>
+<ol>
+<li><p>User calls <code>createRandomZombie&#40;&quot;Fluffy&quot;&#41;</code> from their wallet &#40;pays gas&#41;</p>
+</li>
+<li><p>Function generates random DNA by hashing &quot;Fluffy&quot;</p>
+</li>
+<li><p>Calls the private <code>_createZombie&#40;&#41;</code> function with name and DNA</p>
+</li>
+<li><p>New zombie gets pushed to the <code>zombies</code> array &#40;stored on blockchain forever&#41;</p>
+</li>
+<li><p><code>NewZombie</code> event fires, broadcasting to the world that zombie #42 was born</p>
+</li>
+<li><p>Your front-end app catches the event and shows &quot;Fluffy has arrived&#33;&quot; 🧟</p>
+</li>
+</ol>
+<h2 id="quick_notes"><a href="#quick_notes" class="header-anchor">Quick Notes</a></h2>
+<ul>
+<li><p><strong>The mapping comment</strong>: You&#39;ll notice <code>// declare mappings here</code> in the code - that&#39;s a placeholder for future lessons. Mappings are like dictionaries &#40;key-value pairs&#41; and are super common in Solidity.</p>
+</li>
+<li><p><strong>The underscore convention</strong>: Private functions start with <code>_</code> to make them visually distinct from public ones and avoid naming collisions.</p>
+</li>
+<li><p><strong>Solidity version note</strong>: This code uses Solidity 0.5.x where <code>array.push&#40;&#41;</code> returns the new length. In 0.6.0&#43;, it returns nothing, so you&#39;d write it differently.</p>
+</li>
+</ul>
+<p>Pretty neat, right? You&#39;re literally creating immortal zombies on a distributed computer network&#33; 🧟</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: November 30, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
