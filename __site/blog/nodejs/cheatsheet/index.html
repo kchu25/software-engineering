@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Node.js Cheatsheet for Solidity Development</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="nodejs_cheatsheet_for_solidity_development"><a href="#nodejs_cheatsheet_for_solidity_development" class="header-anchor">Node.js Cheatsheet for Solidity Development</a></h1>
+<h2 id="installation_ubuntu"><a href="#installation_ubuntu" class="header-anchor">Installation &#40;Ubuntu&#41;</a></h2>
+<p><strong>Install Node.js &#40;recommended: use nvm for version management&#41;:</strong></p>
+<pre><code class="language-bash"># Install nvm &#40;check https://github.com/nvm-sh/nvm for latest version&#41;
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+# Restart terminal or run:
+source ~/.bashrc
+
+# Install Node.js LTS &#40;Long Term Support&#41;
+nvm install --lts
+nvm use --lts
+
+# Verify installation
+node --version    # Should show something like v18.x, v20.x, etc.
+npm --version     # Comes bundled with Node</code></pre>
+<p><strong>Why nvm?</strong> Lets you switch Node versions easily if projects need different versions. Think of it like switching between Solidity compiler versions.</p>
+<p><strong>Alternative &#40;direct install, not recommended&#41;:</strong></p>
+<pre><code class="language-bash">sudo apt update
+sudo apt install nodejs npm</code></pre>
+<p><strong>Upgrade npm globally &#40;optional but helpful&#41;:</strong></p>
+<pre><code class="language-bash">npm install -g npm@latest</code></pre>
+<h2 id="package_management_npmyarn"><a href="#package_management_npmyarn" class="header-anchor">Package Management &#40;npm/yarn&#41;</a></h2>
+<p><strong>Initialize a project:</strong></p>
+<pre><code class="language-bash">npm init -y                    # Quick setup with defaults</code></pre>
+<p><strong>Installing packages:</strong></p>
+<pre><code class="language-bash">npm install hardhat            # Add to dependencies
+npm install -D @nomicfoundation/hardhat-toolbox  # Dev dependency
+npm install ethers@5.7.2       # Specific version</code></pre>
+<p><strong>Common commands:</strong></p>
+<pre><code class="language-bash">npm install                    # Install all dependencies
+npm run &lt;script&gt;              # Run scripts from package.json
+npx hardhat compile           # Run local package binary</code></pre>
+<h2 id="essential_concepts"><a href="#essential_concepts" class="header-anchor">Essential Concepts</a></h2>
+<h3 id="packagejson_-_your_projects_brain"><a href="#packagejson_-_your_projects_brain" class="header-anchor"><ol>
+<li><p><strong>package.json</strong> - Your Project&#39;s Brain</p>
+</li>
+</ol>
+</a></h3>
+<p>This file tracks your dependencies and scripts. Think of it like your smart contract&#39;s metadata but for the whole project.</p>
+<pre><code class="language-json">&#123;
+  &quot;scripts&quot;: &#123;
+    &quot;test&quot;: &quot;hardhat test&quot;,
+    &quot;deploy&quot;: &quot;hardhat run scripts/deploy.js&quot;
+  &#125;,
+  &quot;dependencies&quot;: &#123;
+    &quot;ethers&quot;: &quot;^5.7.2&quot;
+  &#125;
+&#125;</code></pre>
+<p>Run scripts with: <code>npm run test</code></p>
+<h3 id="ol_start2_node_modules_-_the_library"><a href="#ol_start2_node_modules_-_the_library" class="header-anchor"><ol start="2">
+<li><p><strong>node_modules/</strong> - The Library</p>
+</li>
+</ol>
+</a></h3>
+<p>Where all installed packages live. Never commit this to git &#40;use <code>.gitignore</code>&#41;. It&#39;s like importing OpenZeppelin contracts, but for JavaScript.</p>
+<h3 id="ol_start3_asyncawait_-_handling_blockchain_calls"><a href="#ol_start3_asyncawait_-_handling_blockchain_calls" class="header-anchor"><ol start="3">
+<li><p><strong>Async/Await</strong> - Handling Blockchain Calls</p>
+</li>
+</ol>
+</a></h3>
+<p>Blockchain interactions take time, so we use async/await:</p>
+<pre><code class="language-javascript">// Deploying a contract
+async function deploy&#40;&#41; &#123;
+  const Contract &#61; await ethers.getContractFactory&#40;&quot;MyToken&quot;&#41;;
+  const contract &#61; await Contract.deploy&#40;&#41;;
+  await contract.deployed&#40;&#41;;
+  console.log&#40;&quot;Deployed to:&quot;, contract.address&#41;;
+&#125;</code></pre>
+<p><strong>Rule of thumb:</strong> If it touches the blockchain, it&#39;s probably async.</p>
+<h3 id="ol_start4_require_vs_import"><a href="#ol_start4_require_vs_import" class="header-anchor"><ol start="4">
+<li><p><strong>require&#40;&#41; vs import</strong></p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-javascript">// CommonJS &#40;older, still common&#41;
+const &#123; ethers &#125; &#61; require&#40;&quot;hardhat&quot;&#41;;
+
+// ES6 &#40;newer, needs &quot;type&quot;: &quot;module&quot; in package.json&#41;
+import &#123; ethers &#125; from &quot;hardhat&quot;;</code></pre>
+<p>Most Hardhat projects use <code>require&#40;&#41;</code> by default.</p>
+<h3 id="ol_start5_environment_variables_-_keep_secrets_safe"><a href="#ol_start5_environment_variables_-_keep_secrets_safe" class="header-anchor"><ol start="5">
+<li><p><strong>Environment Variables</strong> - Keep Secrets Safe</p>
+</li>
+</ol>
+</a></h3>
+<p>Store private keys and API keys in <code>.env</code> files:</p>
+<pre><code class="language-bash"># .env file
+PRIVATE_KEY&#61;0xabc123...
+ALCHEMY_API_KEY&#61;your_key_here</code></pre>
+<pre><code class="language-javascript">// Load them with dotenv
+require&#40;&#39;dotenv&#39;&#41;.config&#40;&#41;;
+const privateKey &#61; process.env.PRIVATE_KEY;</code></pre>
+<p><strong>Never commit <code>.env</code> to git&#33;</strong></p>
+<h2 id="hardhat-specific_commands"><a href="#hardhat-specific_commands" class="header-anchor">Hardhat-Specific Commands</a></h2>
+<pre><code class="language-bash">npx hardhat compile            # Compile contracts
+npx hardhat test              # Run tests
+npx hardhat node              # Start local blockchain
+npx hardhat run scripts/deploy.js  # Run deployment
+npx hardhat run scripts/deploy.js --network sepolia  # Deploy to testnet
+npx hardhat clean             # Clear cache</code></pre>
+<h2 id="essential_javascript_for_solidity_devs"><a href="#essential_javascript_for_solidity_devs" class="header-anchor">Essential JavaScript for Solidity Devs</a></h2>
+<p><strong>Working with BigNumbers:</strong></p>
+<pre><code class="language-javascript">const ethers &#61; require&#40;&#39;ethers&#39;&#41;;
+
+// Solidity: uint256 amount &#61; 1 ether;
+const amount &#61; ethers.utils.parseEther&#40;&quot;1.0&quot;&#41;;  // 1000000000000000000
+
+// Solidity: uint256 tokens &#61; 100 * 10**18;
+const tokens &#61; ethers.utils.parseUnits&#40;&quot;100&quot;, 18&#41;;
+
+// Converting back
+const readable &#61; ethers.utils.formatEther&#40;amount&#41;;  // &quot;1.0&quot;</code></pre>
+<p><strong>Connecting to contract:</strong></p>
+<pre><code class="language-javascript">const contract &#61; await ethers.getContractAt&#40;
+  &quot;MyToken&quot;,      // Contract name
+  contractAddress // Deployed address
+&#41;;
+
+// Call view function &#40;free, like Solidity&#39;s view&#41;
+const balance &#61; await contract.balanceOf&#40;address&#41;;
+
+// Send transaction &#40;costs gas, like Solidity&#39;s state-changing functions&#41;
+const tx &#61; await contract.transfer&#40;recipient, amount&#41;;
+await tx.wait&#40;&#41;;  // Wait for confirmation</code></pre>
+<p><strong>Getting signers &#40;wallets&#41;:</strong></p>
+<pre><code class="language-javascript">const &#91;deployer, user1, user2&#93; &#61; await ethers.getSigners&#40;&#41;;
+console.log&#40;&quot;Deployer:&quot;, deployer.address&#41;;
+
+// Use specific signer for transaction
+const tx &#61; await contract.connect&#40;user1&#41;.transfer&#40;user2.address, amount&#41;;</code></pre>
+<h2 id="testing_pattern"><a href="#testing_pattern" class="header-anchor">Testing Pattern</a></h2>
+<pre><code class="language-javascript">const &#123; expect &#125; &#61; require&#40;&quot;chai&quot;&#41;;
+
+describe&#40;&quot;MyToken&quot;, function&#40;&#41; &#123;
+  let token, owner, addr1;
+  
+  // Runs before each test &#40;like setUp in Foundry&#41;
+  beforeEach&#40;async function&#40;&#41; &#123;
+    &#91;owner, addr1&#93; &#61; await ethers.getSigners&#40;&#41;;
+    const Token &#61; await ethers.getContractFactory&#40;&quot;MyToken&quot;&#41;;
+    token &#61; await Token.deploy&#40;&#41;;
+  &#125;&#41;;
+  
+  it&#40;&quot;Should transfer tokens&quot;, async function&#40;&#41; &#123;
+    await token.transfer&#40;addr1.address, 50&#41;;
+    expect&#40;await token.balanceOf&#40;addr1.address&#41;&#41;.to.equal&#40;50&#41;;
+  &#125;&#41;;
+&#125;&#41;;</code></pre>
+<p>Run with: <code>npx hardhat test</code></p>
+<h2 id="key_differences_from_solidity"><a href="#key_differences_from_solidity" class="header-anchor">Key Differences from Solidity</a></h2>
+<table><tr><th align="right">Concept</th><th align="right">Solidity</th><th align="right">JavaScript/Node.js</th></tr><tr><td align="right"><strong>Typing</strong></td><td align="right"><code>uint256 x &#61; 5;</code></td><td align="right"><code>let x &#61; 5;</code> &#40;dynamic&#41;</td></tr><tr><td align="right"><strong>Equality</strong></td><td align="right"><code>&#61;&#61;</code></td><td align="right"><code>&#61;&#61;&#61;</code> &#40;strict equal&#41;</td></tr><tr><td align="right"><strong>Strings</strong></td><td align="right"><code>string memory</code></td><td align="right">Just <code>&quot;string&quot;</code></td></tr><tr><td align="right"><strong>Arrays</strong></td><td align="right"><code>uint&#91;&#93; memory</code></td><td align="right"><code>&#91;1, 2, 3&#93;</code></td></tr><tr><td align="right"><strong>Decimals</strong></td><td align="right">No native decimals</td><td align="right">Use <code>parseEther&#40;&#41;</code></td></tr></table>
+<h2 id="quick_tips"><a href="#quick_tips" class="header-anchor">Quick Tips</a></h2>
+<ol>
+<li><p><strong>Always await blockchain calls</strong> or you&#39;ll get promises instead of values</p>
+</li>
+<li><p><strong>Use <code>console.log&#40;&#41;</code> liberally</strong> when debugging &#40;it&#39;s free unlike Solidity&#39;s gas costs&#33;&#41;</p>
+</li>
+<li><p><strong>Check transaction receipts:</strong> <code>await tx.wait&#40;&#41;</code> to ensure transactions succeed</p>
+</li>
+<li><p><strong>Version lock important packages</strong> &#40;like ethers&#41; to avoid breaking changes</p>
+</li>
+<li><p><strong>Use <code>npx</code> for local packages</strong> instead of global installs</p>
+</li>
+</ol>
+<h2 id="common_gotchas"><a href="#common_gotchas" class="header-anchor">Common Gotchas</a></h2>
+<pre><code class="language-javascript">// ❌ Wrong - not awaiting
+const balance &#61; contract.balanceOf&#40;address&#41;;  // Returns Promise
+
+// ✅ Right
+const balance &#61; await contract.balanceOf&#40;address&#41;;
+
+// ❌ Wrong - JavaScript numbers lose precision
+const amount &#61; 1000000000000000000;  // Number
+
+// ✅ Right - Use BigNumber or string
+const amount &#61; ethers.utils.parseEther&#40;&quot;1.0&quot;&#41;;</code></pre>
+<hr />
+<p><strong>Pro tip:</strong> Think of Node.js as your off-chain development environment. Solidity runs on-chain &#40;blockchain&#41;, JavaScript runs off-chain &#40;your computer/server&#41; to interact with those contracts.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: December 27, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
