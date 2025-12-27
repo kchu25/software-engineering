@@ -12,7 +12,8 @@
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
 
 # Restart terminal or run:
-source ~/.bashrc
+source ~/.bashrc    # For bash
+source ~/.zshrc     # For zsh
 
 # Install Node.js LTS (Long Term Support)
 nvm install --lts
