@@ -1,0 +1,1280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>PostgreSQL Basics for Your DeSci Platform</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="postgresql_basics_for_your_desci_platform"><a href="#postgresql_basics_for_your_desci_platform" class="header-anchor">PostgreSQL Basics for Your DeSci Platform</a></h1>
+<h2 id="what_is_postgresql"><a href="#what_is_postgresql" class="header-anchor">What Is PostgreSQL?</a></h2>
+<p>Think of PostgreSQL as <strong>a fancy Excel spreadsheet that your app can talk to</strong>. But instead of clicking cells, you write questions in a language called SQL.</p>
+<p><strong>Why PostgreSQL for DeSci?</strong></p>
+<ul>
+<li><p>Free and reliable &#40;powers Instagram, Spotify, Reddit&#41;</p>
+</li>
+<li><p>Great for relationships &#40;experiments → users → payments&#41;</p>
+</li>
+<li><p>Easy to learn the basics</p>
+</li>
+<li><p>Works perfectly with Next.js/React</p>
+</li>
+</ul>
+<hr />
+<h2 id="the_core_concepts"><a href="#the_core_concepts" class="header-anchor">The Core Concepts</a></h2>
+<h3 id="tables_spreadsheets"><a href="#tables_spreadsheets" class="header-anchor">Tables &#61; Spreadsheets</a></h3>
+<p>Each &quot;thing&quot; in your app gets its own table:</p>
+<pre><code class="language-sql">users table:
+| id  | email                  | role    | created_at |
+|-----|------------------------|---------|------------|
+| 1   | jane@uni.edu          | user    | 2025-01-15 |
+| 2   | admin@platform.com    | admin   | 2025-01-10 |
+
+experiments table:
+| id  | title              | user_id | status    | arweave_id |
+|-----|--------------------|---------|-----------|------------|
+| 1   | Brown fat study    | 1       | published | xY9kL...   |
+| 2   | Sleep research     | 1       | draft     | null       |</code></pre>
+<h3 id="columns_properties"><a href="#columns_properties" class="header-anchor">Columns &#61; Properties</a></h3>
+<p>Each column has a <strong>type</strong> &#40;like TypeScript&#41;:</p>
+<pre><code class="language-sql">CREATE TABLE experiments &#40;
+  id SERIAL PRIMARY KEY,           -- Auto-incrementing number
+  title VARCHAR&#40;255&#41; NOT NULL,     -- Text &#40;max 255 chars&#41;
+  user_id INTEGER NOT NULL,        -- Whole number
+  status VARCHAR&#40;50&#41;,              -- Text
+  arweave_id TEXT,                 -- Longer text &#40;optional&#41;
+  created_at TIMESTAMP DEFAULT NOW&#40;&#41; -- Date/time
+&#41;;</code></pre>
+<p><strong>Common types you&#39;ll use:</strong></p>
+<ul>
+<li><p><code>INTEGER</code> or <code>SERIAL</code> - Numbers &#40;user IDs, counts&#41;</p>
+</li>
+<li><p><code>VARCHAR&#40;n&#41;</code> or <code>TEXT</code> - Strings &#40;titles, descriptions&#41;</p>
+</li>
+<li><p><code>BOOLEAN</code> - True/false &#40;is_published&#41;</p>
+</li>
+<li><p><code>TIMESTAMP</code> - Dates/times &#40;created_at&#41;</p>
+</li>
+<li><p><code>DECIMAL&#40;10,2&#41;</code> - Money &#40;&#36;123.45&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="the_4_operations_youll_use_daily"><a href="#the_4_operations_youll_use_daily" class="header-anchor">The 4 Operations You&#39;ll Use Daily</a></h2>
+<h3 id="create_insert_data"><a href="#create_insert_data" class="header-anchor"><ol>
+<li><p>CREATE &#40;Insert Data&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Adding a new experiment:</strong></p>
+<pre><code class="language-sql">INSERT INTO experiments &#40;title, user_id, status&#41;
+VALUES &#40;&#39;New experiment&#39;, 1, &#39;draft&#39;&#41;;</code></pre>
+<p><strong>In JavaScript &#40;with a library like <code>pg</code> or an ORM&#41;:</strong></p>
+<pre><code class="language-javascript">const experiment &#61; await db.experiments.create&#40;&#123;
+  title: &#39;New experiment&#39;,
+  userId: 1,
+  status: &#39;draft&#39;
+&#125;&#41;;</code></pre>
+<h3 id="ol_start2_read_query_data"><a href="#ol_start2_read_query_data" class="header-anchor"><ol start="2">
+<li><p>READ &#40;Query Data&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Get all experiments:</strong></p>
+<pre><code class="language-sql">SELECT * FROM experiments;</code></pre>
+<p><strong>Get specific experiment:</strong></p>
+<pre><code class="language-sql">SELECT * FROM experiments WHERE id &#61; 1;</code></pre>
+<p><strong>Get user&#39;s experiments:</strong></p>
+<pre><code class="language-sql">SELECT * FROM experiments 
+WHERE user_id &#61; 1 AND status &#61; &#39;published&#39;;</code></pre>
+<p><strong>In JavaScript:</strong></p>
+<pre><code class="language-javascript">// Get all
+const experiments &#61; await db.experiments.findAll&#40;&#41;;
+
+// Get by ID
+const exp &#61; await db.experiments.findOne&#40;&#123; where: &#123; id: 1 &#125; &#125;&#41;;
+
+// Filter
+const published &#61; await db.experiments.findAll&#40;&#123;
+  where: &#123; userId: 1, status: &#39;published&#39; &#125;
+&#125;&#41;;</code></pre>
+<h3 id="ol_start3_update_modify_data"><a href="#ol_start3_update_modify_data" class="header-anchor"><ol start="3">
+<li><p>UPDATE &#40;Modify Data&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Change experiment status:</strong></p>
+<pre><code class="language-sql">UPDATE experiments 
+SET status &#61; &#39;published&#39;, arweave_id &#61; &#39;xY9kL...&#39;
+WHERE id &#61; 1;</code></pre>
+<p><strong>In JavaScript:</strong></p>
+<pre><code class="language-javascript">await db.experiments.update&#40;
+  &#123; status: &#39;published&#39;, arweaveId: &#39;xY9kL...&#39; &#125;,
+  &#123; where: &#123; id: 1 &#125; &#125;
+&#41;;</code></pre>
+<h3 id="ol_start4_delete_remove_data"><a href="#ol_start4_delete_remove_data" class="header-anchor"><ol start="4">
+<li><p>DELETE &#40;Remove Data&#41;</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-sql">DELETE FROM experiments WHERE id &#61; 1;</code></pre>
+<p><strong>In JavaScript:</strong></p>
+<pre><code class="language-javascript">await db.experiments.destroy&#40;&#123; where: &#123; id: 1 &#125; &#125;&#41;;</code></pre>
+<hr />
+<h2 id="relationships_the_magic_part"><a href="#relationships_the_magic_part" class="header-anchor">Relationships &#40;The Magic Part&#41;</a></h2>
+<p>This is where SQL shines over Excel - connecting tables together.</p>
+<h3 id="one-to-many_user_has_many_experiments"><a href="#one-to-many_user_has_many_experiments" class="header-anchor">One-to-Many: User Has Many Experiments</a></h3>
+<pre><code class="language-sql">-- Get user with their experiments
+SELECT users.email, experiments.title
+FROM users
+JOIN experiments ON users.id &#61; experiments.user_id
+WHERE users.id &#61; 1;</code></pre>
+<p><strong>Visual:</strong></p>
+<pre><code class="language-julia">User &#40;jane@uni.edu&#41;
+  ├── Experiment 1: &quot;Brown fat study&quot;
+  ├── Experiment 2: &quot;Sleep research&quot;
+  └── Experiment 3: &quot;Metabolism test&quot;</code></pre>
+<p><strong>In JavaScript &#40;with proper ORM setup&#41;:</strong></p>
+<pre><code class="language-javascript">const user &#61; await db.users.findOne&#40;&#123;
+  where: &#123; id: 1 &#125;,
+  include: &#91;db.experiments&#93; // Automatically joins&#33;
+&#125;&#41;;
+
+console.log&#40;user.experiments&#41;; // Array of all their experiments</code></pre>
+<h3 id="foreign_keys_the_connection"><a href="#foreign_keys_the_connection" class="header-anchor">Foreign Keys &#40;The Connection&#41;</a></h3>
+<pre><code class="language-sql">CREATE TABLE experiments &#40;
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users&#40;id&#41;, -- Links to users table
+  title VARCHAR&#40;255&#41;
+&#41;;</code></pre>
+<p><strong>What this does:</strong></p>
+<ul>
+<li><p>Can&#39;t delete a user if they have experiments &#40;data integrity&#33;&#41;</p>
+</li>
+<li><p>Can easily find all experiments by a user</p>
+</li>
+<li><p>Database enforces the relationship</p>
+</li>
+</ul>
+<hr />
+<h2 id="your_desci_database_schema"><a href="#your_desci_database_schema" class="header-anchor">Your DeSci Database Schema</a></h2>
+<p>Here&#39;s what you&#39;d actually build:</p>
+<pre><code class="language-sql">-- Users table
+CREATE TABLE users &#40;
+  id SERIAL PRIMARY KEY,
+  email VARCHAR&#40;255&#41; UNIQUE NOT NULL,
+  role VARCHAR&#40;50&#41; DEFAULT &#39;user&#39;,
+  created_at TIMESTAMP DEFAULT NOW&#40;&#41;
+&#41;;
+
+-- Experiments table
+CREATE TABLE experiments &#40;
+  id SERIAL PRIMARY KEY,
+  title VARCHAR&#40;255&#41; NOT NULL,
+  description TEXT,
+  user_id INTEGER REFERENCES users&#40;id&#41;,
+  status VARCHAR&#40;50&#41; DEFAULT &#39;draft&#39;,
+  arweave_id TEXT,
+  reward_amount DECIMAL&#40;10,2&#41;,
+  created_at TIMESTAMP DEFAULT NOW&#40;&#41;,
+  published_at TIMESTAMP
+&#41;;
+
+-- Payments table
+CREATE TABLE payments &#40;
+  id SERIAL PRIMARY KEY,
+  experiment_id INTEGER REFERENCES experiments&#40;id&#41;,
+  user_id INTEGER REFERENCES users&#40;id&#41;,
+  amount DECIMAL&#40;10,2&#41; NOT NULL,
+  status VARCHAR&#40;50&#41;,
+  created_at TIMESTAMP DEFAULT NOW&#40;&#41;
+&#41;;
+
+-- Audit log table
+CREATE TABLE audit_logs &#40;
+  id SERIAL PRIMARY KEY,
+  admin_id INTEGER REFERENCES users&#40;id&#41;,
+  action VARCHAR&#40;100&#41;,
+  experiment_id INTEGER,
+  created_at TIMESTAMP DEFAULT NOW&#40;&#41;
+&#41;;</code></pre>
+<hr />
+<h2 id="common_queries_youll_write"><a href="#common_queries_youll_write" class="header-anchor">Common Queries You&#39;ll Write</a></h2>
+<h3 id="get_pending_experiments_for_admin_dashboard"><a href="#get_pending_experiments_for_admin_dashboard" class="header-anchor"><ol>
+<li><p>Get pending experiments for admin dashboard</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-sql">SELECT e.*, u.email as author_email
+FROM experiments e
+JOIN users u ON e.user_id &#61; u.id
+WHERE e.status &#61; &#39;pending&#39;
+ORDER BY e.created_at DESC;</code></pre>
+<h3 id="ol_start2_find_experiments_ready_for_arweave"><a href="#ol_start2_find_experiments_ready_for_arweave" class="header-anchor"><ol start="2">
+<li><p>Find experiments ready for Arweave</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-sql">SELECT * FROM experiments
+WHERE status &#61; &#39;published&#39; 
+  AND arweave_id IS NULL;</code></pre>
+<h3 id="ol_start3_calculate_user_earnings"><a href="#ol_start3_calculate_user_earnings" class="header-anchor"><ol start="3">
+<li><p>Calculate user earnings</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-sql">SELECT u.email, SUM&#40;p.amount&#41; as total_earned
+FROM users u
+JOIN payments p ON u.id &#61; p.user_id
+WHERE p.status &#61; &#39;completed&#39;
+GROUP BY u.id, u.email;</code></pre>
+<p>Result:</p>
+<pre><code class="language-julia">email               | total_earned
+--------------------|-------------
+jane@uni.edu        | 450.00
+bob@lab.com         | 320.50</code></pre>
+<h3 id="ol_start4_admin_activity_report"><a href="#ol_start4_admin_activity_report" class="header-anchor"><ol start="4">
+<li><p>Admin activity report</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-sql">SELECT admin_id, COUNT&#40;*&#41; as actions_taken
+FROM audit_logs
+WHERE created_at &gt; NOW&#40;&#41; - INTERVAL &#39;7 days&#39;
+GROUP BY admin_id;</code></pre>
+<hr />
+<h2 id="indexes_making_it_fast"><a href="#indexes_making_it_fast" class="header-anchor">Indexes &#40;Making It Fast&#41;</a></h2>
+<p>Without indexes, finding data is like searching through every page of a book. With indexes, you jump straight to the page.</p>
+<p><strong>Add indexes for fields you search often:</strong></p>
+<pre><code class="language-sql">CREATE INDEX idx_experiments_user ON experiments&#40;user_id&#41;;
+CREATE INDEX idx_experiments_status ON experiments&#40;status&#41;;
+CREATE INDEX idx_payments_user ON payments&#40;user_id&#41;;</code></pre>
+<p><strong>Rule of thumb:</strong> Index any column you use in <code>WHERE</code>, <code>JOIN</code>, or <code>ORDER BY</code>.</p>
+<hr />
+<h2 id="working_with_timestamps"><a href="#working_with_timestamps" class="header-anchor">Working With Timestamps</a></h2>
+<p><strong>Useful patterns:</strong></p>
+<pre><code class="language-sql">-- Experiments published in the last 30 days
+SELECT * FROM experiments
+WHERE published_at &gt; NOW&#40;&#41; - INTERVAL &#39;30 days&#39;;
+
+-- Format dates nicely
+SELECT title, 
+       TO_CHAR&#40;created_at, &#39;YYYY-MM-DD&#39;&#41; as date
+FROM experiments;
+
+-- Group by month
+SELECT DATE_TRUNC&#40;&#39;month&#39;, created_at&#41; as month,
+       COUNT&#40;*&#41; as experiment_count
+FROM experiments
+GROUP BY month;</code></pre>
+<hr />
+<h2 id="transactions_keep_data_consistent"><a href="#transactions_keep_data_consistent" class="header-anchor">Transactions &#40;Keep Data Consistent&#41;</a></h2>
+<p>When multiple things need to happen together &#40;like money &#43; ownership&#41;, use transactions:</p>
+<pre><code class="language-sql">BEGIN;
+  -- Deduct from escrow
+  UPDATE experiments SET reward_amount &#61; reward_amount - 100
+  WHERE id &#61; 1;
+  
+  -- Create payment record
+  INSERT INTO payments &#40;experiment_id, user_id, amount&#41;
+  VALUES &#40;1, 5, 100&#41;;
+COMMIT; -- Only save if BOTH succeed</code></pre>
+<p><strong>In JavaScript:</strong></p>
+<pre><code class="language-javascript">await db.transaction&#40;async &#40;t&#41; &#61;&gt; &#123;
+  await db.experiments.update&#40;
+    &#123; rewardAmount: rewardAmount - 100 &#125;,
+    &#123; where: &#123; id: 1 &#125;, transaction: t &#125;
+  &#41;;
+  
+  await db.payments.create&#40;
+    &#123; experimentId: 1, userId: 5, amount: 100 &#125;,
+    &#123; transaction: t &#125;
+  &#41;;
+&#125;&#41;; // Auto-commits or rolls back if anything fails</code></pre>
+<hr />
+<h2 id="using_an_orm_skip_raw_sql"><a href="#using_an_orm_skip_raw_sql" class="header-anchor">Using an ORM &#40;Skip Raw SQL&#41;</a></h2>
+<p><strong>Most people use an ORM like Prisma or Sequelize</strong> instead of writing SQL:</p>
+<p><strong>With Prisma:</strong></p>
+<pre><code class="language-javascript">// Define schema in schema.prisma
+model User &#123;
+  id         Int      @id @default&#40;autoincrement&#40;&#41;&#41;
+  email      String   @unique
+  experiments Experiment&#91;&#93;
+&#125;
+
+model Experiment &#123;
+  id        Int      @id @default&#40;autoincrement&#40;&#41;&#41;
+  title     String
+  userId    Int
+  user      User     @relation&#40;fields: &#91;userId&#93;, references: &#91;id&#93;&#41;
+&#125;
+
+// Use in code
+const user &#61; await prisma.user.create&#40;&#123;
+  data: &#123;
+    email: &#39;jane@uni.edu&#39;,
+    experiments: &#123;
+      create: &#91;
+        &#123; title: &#39;Brown fat study&#39; &#125;
+      &#93;
+    &#125;
+  &#125;
+&#125;&#41;;</code></pre>
+<p><strong>Pros of ORMs:</strong></p>
+<ul>
+<li><p>Type-safe &#40;catches errors before runtime&#41;</p>
+</li>
+<li><p>Less SQL to write</p>
+</li>
+<li><p>Handles relationships automatically</p>
+</li>
+<li><p>Migrations built-in</p>
+</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><p>Slightly slower for complex queries</p>
+</li>
+<li><p>Another thing to learn</p>
+</li>
+<li><p>Sometimes need raw SQL anyway</p>
+</li>
+</ul>
+<hr />
+<h2 id="your_weekend_learning_plan"><a href="#your_weekend_learning_plan" class="header-anchor">Your Weekend Learning Plan</a></h2>
+<p><strong>Saturday Morning &#40;2 hours&#41;:</strong></p>
+<ol>
+<li><p>Install PostgreSQL locally</p>
+</li>
+<li><p>Create your first database</p>
+</li>
+<li><p>Make a <code>users</code> table and insert 3 rows</p>
+</li>
+<li><p>Query them back</p>
+</li>
+</ol>
+<p><strong>Saturday Afternoon &#40;2 hours&#41;:</strong></p>
+<ol>
+<li><p>Add <code>experiments</code> table with foreign key</p>
+</li>
+<li><p>Try JOINs to get user &#43; their experiments</p>
+</li>
+<li><p>Practice UPDATE and DELETE</p>
+</li>
+</ol>
+<p><strong>Sunday &#40;3 hours&#41;:</strong></p>
+<ol>
+<li><p>Install Prisma or Sequelize</p>
+</li>
+<li><p>Define your schema</p>
+</li>
+<li><p>Build a simple API route that saves/fetches data</p>
+</li>
+<li><p>Deploy to a free Postgres host &#40;Railway, Supabase&#41;</p>
+</li>
+</ol>
+<p><strong>You&#39;ll know the basics by Monday morning.</strong> 🎉</p>
+<hr />
+<h2 id="quick_reference_card"><a href="#quick_reference_card" class="header-anchor">Quick Reference Card</a></h2>
+<table><tr><th align="right">Task</th><th align="right">SQL</th><th align="right">JavaScript &#40;ORM&#41;</th></tr><tr><td align="right">Insert</td><td align="right"><code>INSERT INTO table &#40;col&#41; VALUES &#40;val&#41;</code></td><td align="right"><code>db.table.create&#40;&#123;col: val&#125;&#41;</code></td></tr><tr><td align="right">Select All</td><td align="right"><code>SELECT * FROM table</code></td><td align="right"><code>db.table.findAll&#40;&#41;</code></td></tr><tr><td align="right">Select One</td><td align="right"><code>SELECT * WHERE id&#61;1</code></td><td align="right"><code>db.table.findOne&#40;&#123;where: &#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Update</td><td align="right"><code>UPDATE table SET col&#61;val WHERE id&#61;1</code></td><td align="right"><code>db.table.update&#40;&#123;col:val&#125;, &#123;where:&#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Delete</td><td align="right"><code>DELETE FROM table WHERE id&#61;1</code></td><td align="right"><code>db.table.destroy&#40;&#123;where:&#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Join</td><td align="right"><code>SELECT * FROM a JOIN b ON a.id&#61;b.a_id</code></td><td align="right"><code>db.a.findAll&#40;&#123;include: &#91;db.b&#93;&#125;&#41;</code></td></tr></table>
+<hr />
+<h2 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h2>
+\[\text{PostgreSQL} = \text{Excel} + \text{Relationships} + \text{Speed} + \text{Multi-user}\]
+<ul>
+<li><p><strong>Tables</strong> are spreadsheets</p>
+</li>
+<li><p><strong>Rows</strong> are records</p>
+</li>
+<li><p><strong>Columns</strong> are fields</p>
+</li>
+<li><p><strong>Foreign keys</strong> are connections between spreadsheets</p>
+</li>
+<li><p><strong>Indexes</strong> are page numbers in a book</p>
+</li>
+<li><p><strong>Transactions</strong> are &quot;all or nothing&quot; operations</p>
+</li>
+</ul>
+<p><strong>Start simple. You&#39;ll get the hang of it in a weekend.</strong> 🚀</p>
+<hr />
+<h2 id="deployment_where_does_postgresql_actually_live"><a href="#deployment_where_does_postgresql_actually_live" class="header-anchor">Deployment: Where Does PostgreSQL Actually Live?</a></h2>
+<h3 id="the_short_answer"><a href="#the_short_answer" class="header-anchor">The Short Answer</a></h3>
+<p><strong>No, you don&#39;t install PostgreSQL on the same server as your web app.</strong> They live separately and talk to each other over the internet.</p>
+<p><strong>Think of it like this:</strong></p>
+<ul>
+<li><p>Your web app &#61; The restaurant</p>
+</li>
+<li><p>PostgreSQL &#61; The kitchen/warehouse &#40;separate building&#41;</p>
+</li>
+<li><p>They&#39;re connected, but not in the same place</p>
+</li>
+</ul>
+<h3 id="how_it_actually_works"><a href="#how_it_actually_works" class="header-anchor">How It Actually Works</a></h3>
+<pre><code class="language-julia">User&#39;s Browser
+    ↓
+Your Web App &#40;Vercel/Netlify&#41;
+    ↓ &#40;makes database queries&#41;
+PostgreSQL Database &#40;Separate service&#41;</code></pre>
+<p><strong>When you deploy:</strong></p>
+<ol>
+<li><p><strong>Your web app goes to Vercel/Netlify/Railway</strong></p>
+<ul>
+<li><p>They handle your Next.js code</p>
+</li>
+<li><p>Just HTML/CSS/JavaScript serving</p>
+</li>
+<li><p>No database installed here</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Your PostgreSQL goes to a database host</strong></p>
+<ul>
+<li><p>Supabase &#40;easiest for beginners&#41;</p>
+</li>
+<li><p>Railway &#40;simple, generous free tier&#41;</p>
+</li>
+<li><p>Neon &#40;modern, serverless Postgres&#41;</p>
+</li>
+<li><p>AWS RDS &#40;enterprise, overkill for MVP&#41;</p>
+</li>
+</ul>
+</li>
+<li><p><strong>You connect them with a connection string:</strong></p>
+</li>
+</ol>
+<pre><code class="language-javascript">// In your web app code
+const DATABASE_URL &#61; &quot;postgresql://user:password@db.host.com:5432/mydb&quot;
+
+// Your app makes requests to that URL
+const experiments &#61; await db.experiments.findAll&#40;&#41;;</code></pre>
+<h3 id="why_theyre_separate"><a href="#why_theyre_separate" class="header-anchor">Why They&#39;re Separate</a></h3>
+<p><strong>Imagine if they were together:</strong></p>
+<ul>
+<li><p>❌ Every time you update your code, database gets reset</p>
+</li>
+<li><p>❌ Can&#39;t scale them independently</p>
+</li>
+<li><p>❌ If web app crashes, database goes down too</p>
+</li>
+<li><p>❌ Multiple web servers can&#39;t share one database</p>
+</li>
+</ul>
+<p><strong>With them separate:</strong></p>
+<ul>
+<li><p>✅ Update your code anytime, data stays safe</p>
+</li>
+<li><p>✅ Web app crashes? Database is fine</p>
+</li>
+<li><p>✅ Can scale web servers without touching database</p>
+</li>
+<li><p>✅ Database stays running 24/7, web app can restart</p>
+</li>
+</ul>
+<hr />
+<h2 id="is_postgresql_free"><a href="#is_postgresql_free" class="header-anchor">Is PostgreSQL Free?</a></h2>
+<h3 id="yes_with_caveats"><a href="#yes_with_caveats" class="header-anchor">Yes&#33; &#40;With Caveats&#41;</a></h3>
+<p><strong>PostgreSQL the software is 100&#37; free and open source.</strong> But hosting it costs money &#40;like how WordPress is free, but web hosting isn&#39;t&#41;.</p>
+<h3 id="free_tier_options_perfect_for_mvp"><a href="#free_tier_options_perfect_for_mvp" class="header-anchor">Free Tier Options &#40;Perfect for MVP&#41;</a></h3>
+<p><strong>1. Supabase &#40;Most Beginner-Friendly&#41;</strong></p>
+<ul>
+<li><p>✅ 500 MB storage free</p>
+</li>
+<li><p>✅ Unlimited API requests</p>
+</li>
+<li><p>✅ 2 GB bandwidth/month</p>
+</li>
+<li><p>✅ Built-in auth, realtime features</p>
+</li>
+<li><p>💰 Upgrade: &#36;25/month for 8 GB storage</p>
+</li>
+</ul>
+<p><strong>Good for:</strong> ~10,000 experiments &#43; 1,000 users</p>
+<p><strong>2. Railway &#40;Developer Favorite&#41;</strong></p>
+<ul>
+<li><p>✅ &#36;5 free credit/month</p>
+</li>
+<li><p>✅ Simple setup, great DX</p>
+</li>
+<li><p>✅ Auto-scaling</p>
+</li>
+<li><p>💰 Pay-as-you-go after free credit</p>
+</li>
+</ul>
+<p><strong>Good for:</strong> Testing &#43; early users</p>
+<p><strong>3. Neon &#40;Modern Serverless&#41;</strong></p>
+<ul>
+<li><p>✅ 0.5 GB storage free</p>
+</li>
+<li><p>✅ 3 GB &quot;compute&quot; per month</p>
+</li>
+<li><p>✅ Scales to zero &#40;no cost when idle&#41;</p>
+</li>
+<li><p>💰 &#36;19/month for more</p>
+</li>
+</ul>
+<p><strong>Good for:</strong> Side projects, scales efficiently</p>
+<p><strong>4. Vercel Postgres</strong></p>
+<ul>
+<li><p>✅ 256 MB free &#40;tiny but enough to start&#41;</p>
+</li>
+<li><p>✅ Integrated with Vercel hosting</p>
+</li>
+<li><p>💰 &#36;20/month for 2 GB</p>
+</li>
+</ul>
+<p><strong>Good for:</strong> All-in-one if you&#39;re on Vercel</p>
+<h3 id="what_free_tier_actually_means"><a href="#what_free_tier_actually_means" class="header-anchor">What &quot;Free Tier&quot; Actually Means</a></h3>
+<p><strong>500 MB storage &#61; approximately:</strong></p>
+<ul>
+<li><p>50,000 experiments &#40;with descriptions&#41;</p>
+</li>
+<li><p>10,000 users</p>
+</li>
+<li><p>100,000 payment records</p>
+</li>
+<li><p>Your entire MVP &#43; first 6 months</p>
+</li>
+</ul>
+<p><strong>Database math:</strong></p>
+<pre><code class="language-julia">1 experiment row ≈ 1 KB &#40;1,000 bytes&#41;
+500 MB &#61; 500,000 KB
+500,000 KB ÷ 1 KB &#61; 500,000 experiments</code></pre>
+<p><strong>You won&#39;t hit limits for months.</strong></p>
+<h3 id="when_youll_need_to_pay"><a href="#when_youll_need_to_pay" class="header-anchor">When You&#39;ll Need to Pay</a></h3>
+<p><strong>Free tier is enough until:</strong></p>
+<ul>
+<li><p>10,000&#43; active users</p>
+</li>
+<li><p>Millions of records</p>
+</li>
+<li><p>High traffic &#40;1000s of queries/second&#41;</p>
+</li>
+<li><p>Need backups/replicas</p>
+</li>
+<li><p>Need 99.99&#37; uptime guarantees</p>
+</li>
+</ul>
+<p><strong>Cost at scale &#40;rough estimates&#41;:</strong></p>
+<ul>
+<li><p>100,000 users: &#36;25-50/month</p>
+</li>
+<li><p>1,000,000 users: &#36;100-200/month</p>
+</li>
+<li><p>Instagram scale: &#36;1000s/month &#40;but you&#39;d have funding by then&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="local_development_vs_production"><a href="#local_development_vs_production" class="header-anchor">Local Development vs. Production</a></h2>
+<p><strong>During development &#40;on your laptop&#41;:</strong></p>
+<pre><code class="language-bash"># Option 1: Install PostgreSQL locally
+brew install postgresql  # Mac
+# Your database runs on localhost:5432
+
+# Option 2: Use Docker &#40;easier&#41;
+docker run -p 5432:5432 -e POSTGRES_PASSWORD&#61;mysecret postgres
+
+# Option 3: Just use the cloud immediately
+# Point your local dev to Supabase/Railway</code></pre>
+<p><strong>I recommend Option 3 for beginners:</strong> Just use Supabase from day 1. No local installation needed. Your dev environment and production use the same database host &#40;but different databases&#41;.</p>
+<p><strong>Production &#40;when deployed&#41;:</strong></p>
+<pre><code class="language-javascript">// .env.local &#40;development&#41;
+DATABASE_URL&#61;&quot;postgresql://localhost:5432/myapp_dev&quot;
+
+// .env.production &#40;deployed&#41;
+DATABASE_URL&#61;&quot;postgresql://user:pass@db.supabase.co:5432/myapp_prod&quot;</code></pre>
+<h3 id="the_typical_setup"><a href="#the_typical_setup" class="header-anchor">The Typical Setup</a></h3>
+<p><strong>What most developers do:</strong></p>
+<ol>
+<li><p><strong>Week 1:</strong> Use Supabase free tier for everything</p>
+</li>
+<li><p><strong>Month 3:</strong> Create separate dev/prod databases on Supabase</p>
+</li>
+<li><p><strong>Month 6:</strong> Still on free tier or paying &#36;25/month</p>
+</li>
+<li><p><strong>Year 2:</strong> Maybe upgrade to dedicated hosting</p>
+</li>
+</ol>
+<p><strong>You probably won&#39;t pay for PostgreSQL hosting for 6-12 months.</strong></p>
+<hr />
+<h2 id="quick_start_get_your_database_running_in_5_minutes"><a href="#quick_start_get_your_database_running_in_5_minutes" class="header-anchor">Quick Start: Get Your Database Running in 5 Minutes</a></h2>
+<p><strong>Using Supabase &#40;recommended for beginners&#41;:</strong></p>
+<ol>
+<li><p>Go to supabase.com → Sign up &#40;free&#41;</p>
+</li>
+<li><p>Click &quot;New Project&quot;</p>
+</li>
+<li><p>Copy the connection string they give you</p>
+</li>
+<li><p>Paste into your <code>.env</code> file:</p>
+</li>
+</ol>
+<pre><code class="language-bash">DATABASE_URL&#61;&quot;postgresql://postgres:YOUR_PASSWORD@db.xxx.supabase.co:5432/postgres&quot;</code></pre>
+<ol start="5">
+<li><p>Done&#33; Your app can now talk to the database.</p>
+</li>
+</ol>
+<p><strong>No installation. No configuration. Just works.</strong></p>
+<hr />
+<h2 id="the_mental_model__2"><a href="#the_mental_model__2" class="header-anchor">The Mental Model</a></h2>
+<p><strong>Think of databases like email:</strong></p>
+<ul>
+<li><p>Gmail &#40;the service&#41; is free</p>
+</li>
+<li><p>But Google pays for servers to run it</p>
+</li>
+<li><p>You just access it over the internet</p>
+</li>
+<li><p>Your phone doesn&#39;t &quot;install Gmail&#39;s servers&quot;</p>
+</li>
+</ul>
+<p><strong>Same with PostgreSQL:</strong></p>
+<ul>
+<li><p>PostgreSQL &#40;the software&#41; is free</p>
+</li>
+<li><p>But hosting it needs servers</p>
+</li>
+<li><p>Your web app just accesses it over the internet</p>
+</li>
+<li><p>Your web app doesn&#39;t &quot;install the database&quot;</p>
+</li>
+</ul>
+<p><strong>Separate services, connected by a URL.</strong> That&#39;s it&#33;</p>
+<hr />
+<h2 id="tldr"><a href="#tldr" class="header-anchor">TL;DR</a></h2>
+<h2 id="tldr__2"><a href="#tldr__2" class="header-anchor">TL;DR</a></h2>
+<p><strong>Q: Do I install PostgreSQL where I deploy my web app?</strong>   <strong>A:</strong> No. They&#39;re separate services that talk over the internet.</p>
+<p><strong>Q: Is PostgreSQL free?</strong>   <strong>A:</strong> The software is free. Hosting it has free tiers &#40;Supabase, Railway, Neon&#41; that are enough for your MVP &#43; first 10,000 users. You probably won&#39;t pay for 6-12 months.</p>
+<p><strong>Q: What should I use?</strong>   <strong>A:</strong> Supabase. Create an account, get a connection string, paste it in your code. Done in 5 minutes. Free until you have serious traction.</p>
+<p><strong>Q: Do ALL modern web apps separate database from web hosting?</strong>   <strong>A:</strong> Yes, 95&#37; of them. It&#39;s the standard architecture. Even small startups do this.</p>
+<p><strong>Start with Supabase&#39;s free tier. Don&#39;t overthink it.</strong> 🚀</p>
+<hr />
+<h2 id="wait_do_all_modern_web_apps_separate_database_and_web_server"><a href="#wait_do_all_modern_web_apps_separate_database_and_web_server" class="header-anchor">Wait, Do ALL Modern Web Apps Separate Database and Web Server?</a></h2>
+<h3 id="the_short_answer__2"><a href="#the_short_answer__2" class="header-anchor">The Short Answer</a></h3>
+<p><strong>Yes, almost universally.</strong> This is the standard architecture in 2025, from tiny startups to Google.</p>
+<h3 id="why_this_became_standard"><a href="#why_this_became_standard" class="header-anchor">Why This Became Standard</a></h3>
+<p><strong>The old way &#40;1990s-2000s&#41;:</strong></p>
+<pre><code class="language-julia">One Server Does Everything
+├── Web server &#40;Apache/Nginx&#41;
+├── App code &#40;PHP/Python&#41;
+└── Database &#40;MySQL/PostgreSQL&#41;</code></pre>
+<p><strong>Problems:</strong></p>
+<ul>
+<li><p>Server crashes → Everything goes down</p>
+</li>
+<li><p>Need more database power? Must upgrade entire server</p>
+</li>
+<li><p>Want to restart app? Database restarts too</p>
+</li>
+<li><p>Hard to backup without downtime</p>
+</li>
+<li><p>Can&#39;t have multiple web servers sharing one database</p>
+</li>
+</ul>
+<p><strong>The modern way &#40;2010s-now&#41;:</strong></p>
+<pre><code class="language-julia">Web Server &#40;Vercel&#41;          Database Server &#40;Supabase&#41;
+├── Handles HTTP requests    ├── Stores data
+├── Runs your app code       ├── Always running
+└── Stateless &#40;no data&#41;      └── Separate scaling
+        ↕ &#40;connected via internet&#41;</code></pre>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li><p>✅ Web server crashes? Database is fine</p>
+</li>
+<li><p>✅ Scale them independently</p>
+</li>
+<li><p>✅ Multiple web servers → One database</p>
+</li>
+<li><p>✅ Easy backups &#40;database unaffected by deploys&#41;</p>
+</li>
+<li><p>✅ Restart/update app without touching data</p>
+</li>
+</ul>
+<h3 id="who_does_this"><a href="#who_does_this" class="header-anchor">Who Does This?</a></h3>
+<p><strong>Everyone:</strong></p>
+<ul>
+<li><p><strong>Twitter</strong>: Web servers on AWS EC2, Database on AWS RDS</p>
+</li>
+<li><p><strong>Instagram</strong>: Django on servers, PostgreSQL on separate cluster</p>
+</li>
+<li><p><strong>Airbnb</strong>: Rails on Kubernetes, PostgreSQL on managed service</p>
+</li>
+<li><p><strong>Your startup</strong>: Next.js on Vercel, PostgreSQL on Supabase</p>
+</li>
+</ul>
+<p><strong>Even tiny side projects do this now</strong> because hosting companies made it trivial.</p>
+<h3 id="the_pattern_that_95_of_apps_use"><a href="#the_pattern_that_95_of_apps_use" class="header-anchor">The Pattern That 95&#37; of Apps Use</a></h3>
+<pre><code class="language-julia">Frontend &#40;React/Next.js&#41;
+    ↓
+Backend API &#40;Node.js/Python/Go&#41;
+    ↓
+Database &#40;PostgreSQL/MySQL/MongoDB&#41;</code></pre>
+<p><strong>All three can be on different services:</strong></p>
+<ul>
+<li><p>Frontend: Vercel, Netlify, Cloudflare Pages</p>
+</li>
+<li><p>Backend: Railway, Render, Fly.io, AWS Lambda</p>
+</li>
+<li><p>Database: Supabase, PlanetScale, MongoDB Atlas</p>
+</li>
+</ul>
+<p><strong>They talk to each other over HTTPS/TCP connections.</strong></p>
+<h3 id="the_only_exceptions"><a href="#the_only_exceptions" class="header-anchor">The Only Exceptions</a></h3>
+<p><strong>When database IS on the same server:</strong></p>
+<ol>
+<li><p><strong>SQLite apps</strong> &#40;database is just a file&#41;</p>
+<ul>
+<li><p>Small tools, embedded apps</p>
+</li>
+<li><p>Example: Apps with &lt;1000 users that use SQLite</p>
+</li>
+<li><p>Still rare for web apps</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Legacy/monolithic deployments</strong></p>
+<ul>
+<li><p>Old companies that haven&#39;t modernized</p>
+</li>
+<li><p>Government systems from the 2000s</p>
+</li>
+<li><p>Increasingly rare</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Specific performance needs</strong></p>
+<ul>
+<li><p>Ultra-low latency requirements &#40;finance, gaming&#41;</p>
+</li>
+<li><p>Even then, usually just means &quot;same datacenter&quot;</p>
+</li>
+</ul>
+</li>
+</ol>
+<p><strong>But these are &lt;5&#37; of modern web apps.</strong></p>
+<h3 id="why_connection_string_is_standard"><a href="#why_connection_string_is_standard" class="header-anchor">Why Connection String Is Standard</a></h3>
+<p><strong>This is how 99&#37; of apps connect to databases:</strong></p>
+<pre><code class="language-javascript">// App reads this from environment variables
+const DATABASE_URL &#61; process.env.DATABASE_URL;
+// &quot;postgresql://user:pass@db.host.com:5432/mydb&quot;
+
+// Library uses it to connect
+const db &#61; new Database&#40;DATABASE_URL&#41;;</code></pre>
+<p><strong>Every major framework/language does this:</strong></p>
+<ul>
+<li><p>Next.js: ✅</p>
+</li>
+<li><p>Django: ✅</p>
+</li>
+<li><p>Rails: ✅</p>
+</li>
+<li><p>Laravel: ✅</p>
+</li>
+<li><p>Express: ✅</p>
+</li>
+<li><p>Flask: ✅</p>
+</li>
+</ul>
+<p><strong>It&#39;s the universal standard.</strong></p>
+<h3 id="the_architecture_diagram"><a href="#the_architecture_diagram" class="header-anchor">The Architecture Diagram</a></h3>
+<p><strong>What your DeSci platform actually looks like in production:</strong></p>
+<pre><code class="language-julia">┌─────────────────────────────────────────────────┐
+│  User&#39;s Browser &#40;anywhere in the world&#41;        │
+└──────────────────┬──────────────────────────────┘
+                   │ HTTPS
+                   ↓
+┌─────────────────────────────────────────────────┐
+│  Vercel Edge Network &#40;CDN&#41;                     │
+│  - Serves HTML/CSS/JS                          │
+│  - Routes API requests                         │
+└──────────────────┬──────────────────────────────┘
+                   │ HTTPS
+                   ↓
+┌─────────────────────────────────────────────────┐
+│  Your Next.js API Routes &#40;Vercel Functions&#41;    │
+│  - Handles /api/experiments                    │
+│  - Processes user requests                     │
+│  - Business logic                              │
+└──────────────────┬──────────────────────────────┘
+                   │ PostgreSQL Protocol &#40;TCP&#41;
+                   ↓
+┌─────────────────────────────────────────────────┐
+│  Supabase &#40;Database Host&#41;                      │
+│  - PostgreSQL database                         │
+│  - Always running                              │
+│  - Stores all your data                        │
+└─────────────────────────────────────────────────┘</code></pre>
+<p><strong>They&#39;re all in different datacenters</strong>, connected over the internet, but it&#39;s so fast users never notice.</p>
+<h3 id="real-world_connection_latency"><a href="#real-world_connection_latency" class="header-anchor">Real-World Connection Latency</a></h3>
+<p><strong>How fast is the database connection?</strong></p>
+<p>If your app is on Vercel &#40;US East&#41; and database on Supabase &#40;US East&#41;:</p>
+<ul>
+<li><p>Connection latency: 1-5ms</p>
+</li>
+<li><p>Query time: 1-10ms</p>
+</li>
+<li><p>Total: 2-15ms</p>
+</li>
+</ul>
+<p><strong>Users don&#39;t notice.</strong> Rendering the HTML takes longer &#40;50-200ms&#41;.</p>
+<p><strong>If they&#39;re far apart &#40;app in US, DB in Europe&#41;:</strong></p>
+<ul>
+<li><p>Connection: 100-150ms</p>
+</li>
+<li><p>Still often fine for most apps</p>
+</li>
+<li><p>Fix: Put both in the same region</p>
+</li>
+</ul>
+<h3 id="the_modern_devops_wisdom"><a href="#the_modern_devops_wisdom" class="header-anchor">The Modern DevOps Wisdom</a></h3>
+<p><strong>&quot;Separate things that change at different rates.&quot;</strong></p>
+<ul>
+<li><p>Web app code changes daily &#40;bug fixes, features&#41;</p>
+</li>
+<li><p>Database schema changes monthly &#40;new tables&#41;</p>
+</li>
+<li><p>Actual data changes constantly &#40;user activity&#41;</p>
+</li>
+</ul>
+<p><strong>By separating them:</strong></p>
+<ul>
+<li><p>Deploy new code 10x/day without touching database</p>
+</li>
+<li><p>Database stays stable and always-on</p>
+</li>
+<li><p>Scale each independently based on needs</p>
+</li>
+</ul>
+<h3 id="your_mental_model_should_be"><a href="#your_mental_model_should_be" class="header-anchor">Your Mental Model Should Be</a></h3>
+<p><strong>Don&#39;t think:</strong> &quot;I&#39;m building an app with a database inside it&quot;</p>
+<p><strong>Instead think:</strong> &quot;I&#39;m building an app that talks to a database service&quot;</p>
+<p><strong>Like:</strong></p>
+<ul>
+<li><p>Your app talks to Stripe for payments</p>
+</li>
+<li><p>Your app talks to SendGrid for emails</p>
+</li>
+<li><p>Your app talks to Supabase for data</p>
+</li>
+</ul>
+<p><strong>Database is just another service.</strong> It happens to be one you control, but it&#39;s still separate.</p>
+<hr />
+<h2 id="so_when_you_build_your_desci_platform"><a href="#so_when_you_build_your_desci_platform" class="header-anchor">So When You Build Your DeSci Platform...</a></h2>
+<p><strong>What you&#39;ll actually do:</strong></p>
+<ol>
+<li><p><strong>Week 1: Set up Supabase</strong></p>
+<ul>
+<li><p>Create account &#40;2 minutes&#41;</p>
+</li>
+<li><p>Copy connection string &#40;30 seconds&#41;</p>
+</li>
+<li><p>Paste in <code>.env</code> file &#40;10 seconds&#41;</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Week 2-6: Build your app</strong></p>
+<ul>
+<li><p>Write code on your laptop</p>
+</li>
+<li><p>Code talks to Supabase database &#40;in cloud&#41;</p>
+</li>
+<li><p>Test everything locally</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Week 6: Deploy to Vercel</strong></p>
+<ul>
+<li><p>Push code to GitHub &#40;1 minute&#41;</p>
+</li>
+<li><p>Connect GitHub to Vercel &#40;2 minutes&#41;</p>
+</li>
+<li><p>Add database connection string to Vercel &#40;1 minute&#41;</p>
+</li>
+<li><p>Done&#33;</p>
+</li>
+</ul>
+</li>
+</ol>
+<p><strong>Your app &#40;on Vercel&#41; and database &#40;on Supabase&#41; talk to each other automatically.</strong></p>
+<p><strong>You never &quot;install&quot; or &quot;move&quot; the database. It just lives on Supabase forever.</strong></p>
+<hr />
+<h2 id="the_bottom_line"><a href="#the_bottom_line" class="header-anchor">The Bottom Line</a></h2>
+<p><strong>Yes, separating web hosting from database hosting is:</strong></p>
+<ul>
+<li><p>✅ The standard way &#40;95&#37; of modern apps&#41;</p>
+</li>
+<li><p>✅ What you should do</p>
+</li>
+<li><p>✅ Easier than the old way &#40;companies handle it for you&#41;</p>
+</li>
+<li><p>✅ More reliable</p>
+</li>
+<li><p>✅ Industry best practice since ~2010</p>
+</li>
+</ul>
+<p><strong>You&#39;re not doing anything exotic.</strong> This is how Instagram, Twitter, Airbnb, and literally every startup built in the last 10 years works.</p>
+<p><strong>The connection string pattern &#40;step 3&#41; is universal.</strong> Every web framework, every language, every hosting platform uses it.</p>
+<p><strong>Don&#39;t overthink it. Just use Supabase &#43; Vercel like everyone else.</strong> 🚀</p>
+<hr />
+<h2 id="wait_i_thought_big_companies_put_everything_on_aws"><a href="#wait_i_thought_big_companies_put_everything_on_aws" class="header-anchor">&quot;Wait, I Thought Big Companies Put Everything on AWS?&quot;</a></h2>
+<blockquote>
+<p><strong>You&#39;re not wrong&#33; Many companies DO use AWS for everything.</strong></p>
+<p>But here&#39;s the thing: <strong>AWS is huge - it&#39;s like saying &quot;I shop at the mall.&quot;</strong> Which store? There are hundreds.</p>
+<p><strong>When Twitter uses AWS, they&#39;re actually using:</strong></p>
+<ul>
+<li><p>EC2 &#40;servers for web app code&#41;</p>
+</li>
+<li><p>RDS &#40;managed PostgreSQL service&#41;</p>
+</li>
+<li><p>S3 &#40;file storage&#41;</p>
+</li>
+<li><p>CloudFront &#40;CDN&#41;</p>
+</li>
+<li><p>...and 50 other services</p>
+</li>
+</ul>
+<p><strong>So even on AWS, the database is still separate from the web servers.</strong> They&#39;re different AWS services that talk to each other.</p>
+<p><strong>The pattern is the same everywhere:</strong></p>
+</blockquote>
+<pre><code class="language-julia">&gt; Web hosting thing → Database hosting thing
+&gt;</code></pre>
+<blockquote>
+<p><strong>Could be:</strong></p>
+<ul>
+<li><p>AWS EC2 → AWS RDS &#40;both AWS, still separate&#41;</p>
+</li>
+<li><p>Vercel → Supabase &#40;different companies&#41;</p>
+</li>
+<li><p>Railway → Railway &#40;same company, still separate services&#41;</p>
+</li>
+</ul>
+<p><strong>Think of AWS like a shopping mall:</strong></p>
+<ul>
+<li><p>You can buy your shirt and pants from the same mall &#40;both AWS&#41;</p>
+</li>
+<li><p>But they&#39;re still from different stores &#40;EC2 vs RDS&#41;</p>
+</li>
+<li><p>They&#39;re not sewn together into one garment</p>
+</li>
+</ul>
+<p><strong>For your DeSci platform:</strong></p>
+<ul>
+<li><p>Using Vercel &#43; Supabase is totally fine &#40;and easier&#41;</p>
+</li>
+<li><p>Using AWS EC2 &#43; AWS RDS is also fine &#40;but more complex&#41;</p>
+</li>
+<li><p>Either way, web and database are separate</p>
+</li>
+</ul>
+<p><strong>The &quot;everything on AWS&quot; approach is common for big companies</strong> because:</p>
+<ul>
+<li><p>They already have AWS accounts</p>
+</li>
+<li><p>Easier billing &#40;one invoice&#41;</p>
+</li>
+<li><p>Services talk faster &#40;same datacenter&#41;</p>
+</li>
+<li><p>But it&#39;s more complex to set up</p>
+</li>
+</ul>
+<p><strong>For beginners:</strong> Vercel &#43; Supabase is simpler and works the same way. You can always move to &quot;all AWS&quot; later if you need to.</p>
+<blockquote>
+</blockquote>
+<p><strong>Bottom line:</strong> Whether you use one company &#40;AWS&#41; or multiple companies &#40;Vercel &#43; Supabase&#41;, the architecture is the same - web hosting and database hosting are always separate services. 🚀</p>
+</blockquote>
+<hr />
+<h2 id="postgresql_vs_arweave_the_mental_model"><a href="#postgresql_vs_arweave_the_mental_model" class="header-anchor">PostgreSQL vs Arweave: The Mental Model</a></h2>
+<h3 id="what_they_have_in_common"><a href="#what_they_have_in_common" class="header-anchor">What They Have in Common</a></h3>
+<p>Both store data. <strong>That&#39;s where the similarity ends.</strong></p>
+<p>Think of them like:</p>
+<ul>
+<li><p><strong>PostgreSQL</strong> &#61; Your kitchen &#40;cook, modify, organize food&#41;</p>
+</li>
+<li><p><strong>Arweave</strong> &#61; A museum archive &#40;preserve forever, never change&#41;</p>
+</li>
+</ul>
+<h3 id="the_comparison_table"><a href="#the_comparison_table" class="header-anchor">The Comparison Table</a></h3>
+<table><tr><th align="right">Feature</th><th align="right">PostgreSQL</th><th align="right">Arweave</th><th align="right">Mental Model</th></tr><tr><td align="right"><strong>Purpose</strong></td><td align="right">Working database</td><td align="right">Permanent archive</td><td align="right">Library vs. Stone tablets</td></tr><tr><td align="right"><strong>Speed</strong></td><td align="right">Milliseconds</td><td align="right">Seconds to minutes</td><td align="right">RAM vs. engraving in stone</td></tr><tr><td align="right"><strong>Can update?</strong></td><td align="right">Yes &#40;UPDATE, DELETE&#41;</td><td align="right">No &#40;immutable forever&#41;</td><td align="right">Whiteboard vs. tattoo</td></tr><tr><td align="right"><strong>Can query?</strong></td><td align="right">Yes &#40;complex SQL&#41;</td><td align="right">No &#40;just retrieve by ID&#41;</td><td align="right">Excel vs. filing cabinet</td></tr><tr><td align="right"><strong>Cost</strong></td><td align="right">Per storage &#43; compute</td><td align="right">One-time fee per upload</td><td align="right">Rent vs. buy</td></tr><tr><td align="right"><strong>Data structure</strong></td><td align="right">Tables, rows, columns</td><td align="right">JSON blobs with transaction IDs</td><td align="right">Spreadsheet vs. numbered envelopes</td></tr><tr><td align="right"><strong>Relationships</strong></td><td align="right">Foreign keys, JOINs</td><td align="right">None &#40;just references&#41;</td><td align="right">Connected nodes vs. scattered boxes</td></tr></table>
+<h3 id="the_core_difference_this_is_key"><a href="#the_core_difference_this_is_key" class="header-anchor">The Core Difference &#40;This Is Key&#41;</a></h3>
+<p><strong>PostgreSQL &#61; Active workspace</strong></p>
+<pre><code class="language-javascript">// You can do this:
+await db.experiments.update&#40;&#123; status: &#39;approved&#39; &#125;, &#123; where: &#123; id: 5 &#125; &#125;&#41;;
+await db.experiments.findAll&#40;&#123; where: &#123; status: &#39;approved&#39; &#125; &#125;&#41;;
+await db.experiments.destroy&#40;&#123; where: &#123; id: 5 &#125; &#125;&#41;;</code></pre>
+<p><strong>Arweave &#61; Write-once archive</strong></p>
+<pre><code class="language-javascript">// You can only do this:
+const txId &#61; await arweave.upload&#40;data&#41;; // Write once
+const data &#61; await arweave.fetch&#40;txId&#41;;  // Read by ID
+
+// You CANNOT do this:
+await arweave.update&#40;txId, newData&#41;;     // ❌ Doesn&#39;t exist
+await arweave.delete&#40;txId&#41;;              // ❌ Impossible
+await arweave.query&#40;&#123; status: &#39;approved&#39; &#125;&#41;; // ❌ No SQL</code></pre>
+<h3 id="how_to_transfer_implementation_logic"><a href="#how_to_transfer_implementation_logic" class="header-anchor">How to Transfer Implementation Logic</a></h3>
+<p><strong>The trick: Don&#39;t think of &quot;transferring&quot; - think of &quot;mirroring.&quot;</strong></p>
+<h4 id="pattern_1_write_to_both"><a href="#pattern_1_write_to_both" class="header-anchor">Pattern 1: Write to Both</a></h4>
+<pre><code class="language-javascript">// PostgreSQL version &#40;what you start with&#41;
+async function saveExperiment&#40;data&#41; &#123;
+  const experiment &#61; await db.experiments.create&#40;&#123;
+    title: data.title,
+    protocol: data.protocol,
+    status: &#39;published&#39;
+  &#125;&#41;;
+  return experiment;
+&#125;
+
+// Hybrid version &#40;add Arweave WITHOUT removing PostgreSQL&#41;
+async function saveExperiment&#40;data&#41; &#123;
+  // Still save to PostgreSQL &#40;for searching, updating&#41;
+  const experiment &#61; await db.experiments.create&#40;&#123;
+    title: data.title,
+    protocol: data.protocol,
+    status: &#39;published&#39;
+  &#125;&#41;;
+  
+  // ALSO save to Arweave &#40;for permanent record&#41;
+  const arweaveTxId &#61; await arweave.upload&#40;&#123;
+    experimentId: experiment.id,
+    protocol: data.protocol,
+    timestamp: new Date&#40;&#41;
+  &#125;&#41;;
+  
+  // Link them together
+  await db.experiments.update&#40;
+    &#123; arweaveId: arweaveTxId &#125;,
+    &#123; where: &#123; id: experiment.id &#125; &#125;
+  &#41;;
+  
+  return experiment;
+&#125;</code></pre>
+<p><strong>Key insight:</strong> You&#39;re not replacing PostgreSQL with Arweave. You&#39;re adding Arweave as a permanent backup.</p>
+<h4 id="pattern_2_postgresql_for_queries_arweave_for_proof"><a href="#pattern_2_postgresql_for_queries_arweave_for_proof" class="header-anchor">Pattern 2: PostgreSQL for Queries, Arweave for Proof</a></h4>
+<pre><code class="language-javascript">// Finding experiments - USE POSTGRESQL
+async function findUserExperiments&#40;userId&#41; &#123;
+  // This works:
+  return await db.experiments.findAll&#40;&#123;
+    where: &#123; userId: userId, status: &#39;published&#39; &#125;
+  &#125;&#41;;
+  
+  // This is impossible on Arweave:
+  // No SQL queries, no filtering, no searching
+&#125;
+
+// Proving ownership - USE ARWEAVE
+async function proveExperimentOwnership&#40;experimentId&#41; &#123;
+  const experiment &#61; await db.experiments.findOne&#40;&#123;
+    where: &#123; id: experimentId &#125;
+  &#125;&#41;;
+  
+  // Fetch from Arweave &#40;blockchain-verified proof&#41;
+  const proof &#61; await arweave.fetch&#40;experiment.arweaveId&#41;;
+  
+  return &#123;
+    databaseRecord: experiment,        // Fast, can change
+    blockchainProof: proof,           // Slow, permanent, trustless
+    verified: proof.experimentId &#61;&#61;&#61; experimentId
+  &#125;;
+&#125;</code></pre>
+<h3 id="what_maps_across_sort_of"><a href="#what_maps_across_sort_of" class="header-anchor">What Maps Across &#40;Sort Of&#41;</a></h3>
+<table><tr><th align="right">PostgreSQL Concept</th><th align="right">Arweave Equivalent</th><th align="right">Notes</th></tr><tr><td align="right"><code>INSERT</code></td><td align="right"><code>arweave.upload&#40;&#41;</code></td><td align="right">Similar: both write data</td></tr><tr><td align="right"><code>SELECT * WHERE id&#61;X</code></td><td align="right"><code>arweave.fetch&#40;txId&#41;</code></td><td align="right">Need exact ID, no WHERE clauses</td></tr><tr><td align="right">Primary key &#40;id&#41;</td><td align="right">Transaction ID &#40;txId&#41;</td><td align="right">Both are unique identifiers</td></tr><tr><td align="right">Row of data</td><td align="right">JSON blob</td><td align="right">Structure is similar</td></tr><tr><td align="right"><code>UPDATE</code></td><td align="right">Upload new version &#43; link</td><td align="right">No true update, just append</td></tr><tr><td align="right"><code>DELETE</code></td><td align="right">Impossible</td><td align="right">Data stays forever</td></tr><tr><td align="right">Foreign keys</td><td align="right">Manual references</td><td align="right">You track relationships yourself</td></tr><tr><td align="right">Indexes</td><td align="right">GraphQL &#40;via gateway&#41;</td><td align="right">Limited, different approach</td></tr></table>
+<h3 id="what_doesnt_map_at_all"><a href="#what_doesnt_map_at_all" class="header-anchor">What Doesn&#39;t Map At All</a></h3>
+<p><strong>PostgreSQL has, Arweave doesn&#39;t:</strong></p>
+<ul>
+<li><p>❌ JOINs &#40;no relationships&#41;</p>
+</li>
+<li><p>❌ WHERE clauses &#40;no filtering&#41;</p>
+</li>
+<li><p>❌ GROUP BY &#40;no aggregation&#41;</p>
+</li>
+<li><p>❌ Transactions &#40;each upload is separate&#41;</p>
+</li>
+<li><p>❌ UPDATE/DELETE &#40;immutable&#41;</p>
+</li>
+</ul>
+<p><strong>Arweave has, PostgreSQL doesn&#39;t:</strong></p>
+<ul>
+<li><p>✅ Blockchain verification &#40;tamper-proof&#41;</p>
+</li>
+<li><p>✅ Permanent storage &#40;can&#39;t be deleted&#41;</p>
+</li>
+<li><p>✅ Decentralized &#40;no single point of failure&#41;</p>
+</li>
+<li><p>✅ One-time payment &#40;not monthly fees&#41;</p>
+</li>
+</ul>
+<h3 id="the_hybrid_implementation_strategy"><a href="#the_hybrid_implementation_strategy" class="header-anchor">The Hybrid Implementation Strategy</a></h3>
+<p><strong>For your DeSci platform, you&#39;d do this:</strong></p>
+<pre><code class="language-javascript">// experiments.js - Your unified interface
+
+async function createExperiment&#40;data&#41; &#123;
+  // 1. Save to PostgreSQL &#40;always&#41;
+  const pgRecord &#61; await db.experiments.create&#40;data&#41;;
+  
+  // 2. If published, also save to Arweave
+  if &#40;data.status &#61;&#61;&#61; &#39;published&#39;&#41; &#123;
+    const arweaveId &#61; await saveToArweave&#40;data&#41;;
+    pgRecord.arweaveId &#61; arweaveId;
+    await pgRecord.save&#40;&#41;;
+  &#125;
+  
+  return pgRecord;
+&#125;
+
+async function getExperiment&#40;id&#41; &#123;
+  // Get from PostgreSQL &#40;fast&#41;
+  const experiment &#61; await db.experiments.findOne&#40;&#123; where: &#123; id &#125; &#125;&#41;;
+  
+  // Optionally verify against Arweave
+  if &#40;experiment.arweaveId&#41; &#123;
+    const arweaveData &#61; await arweave.fetch&#40;experiment.arweaveId&#41;;
+    experiment.blockchainVerified &#61; true;
+  &#125;
+  
+  return experiment;
+&#125;
+
+async function searchExperiments&#40;query&#41; &#123;
+  // Use PostgreSQL &#40;Arweave can&#39;t do this&#41;
+  return await db.experiments.findAll&#40;&#123;
+    where: &#123;
+      title: &#123; &#91;Op.like&#93;: &#96;&#37;&#36;&#123;query&#125;&#37;&#96; &#125;
+    &#125;
+  &#125;&#41;;
+&#125;</code></pre>
+<h3 id="the_decision_tree_which_one_should_i_use"><a href="#the_decision_tree_which_one_should_i_use" class="header-anchor">The Decision Tree: Which One Should I Use?</a></h3>
+<pre><code class="language-julia">Need to search/filter? → PostgreSQL
+Need to update later? → PostgreSQL
+Need to delete? → PostgreSQL &#40;only option&#41;
+Need complex queries? → PostgreSQL
+Want fast access? → PostgreSQL
+
+Need permanent proof? → Arweave
+Need blockchain verification? → Arweave
+Want data to survive forever? → Arweave
+Need decentralization? → Arweave
+Want one-time payment? → Arweave
+
+Need both? → Use both&#33; &#40;most common&#41;</code></pre>
+<h3 id="real-world_example_experiment_lifecycle"><a href="#real-world_example_experiment_lifecycle" class="header-anchor">Real-World Example: Experiment Lifecycle</a></h3>
+<pre><code class="language-javascript">// Week 1: Scientist creates draft
+await db.experiments.create&#40;&#123;
+  title: &quot;Brown fat study&quot;,
+  status: &quot;draft&quot;
+&#125;&#41;; // Only PostgreSQL &#40;it&#39;s changing&#41;
+
+// Week 5: Scientist updates protocol
+await db.experiments.update&#40;
+  &#123; protocol: updatedProtocol &#125;,
+  &#123; where: &#123; id: experimentId &#125; &#125;
+&#41;; // Only PostgreSQL &#40;still changing&#41;
+
+// Week 8: Experiment published
+const experiment &#61; await db.experiments.findOne&#40;&#123; where: &#123; id &#125; &#125;&#41;;
+const arweaveId &#61; await arweave.upload&#40;&#123;
+  experimentId: experiment.id,
+  protocol: experiment.protocol,
+  publishedAt: new Date&#40;&#41;
+&#125;&#41;; // Now on BOTH &#40;frozen in time on Arweave&#41;
+
+await db.experiments.update&#40;
+  &#123; status: &#39;published&#39;, arweaveId: arweaveId &#125;,
+  &#123; where: &#123; id: experimentId &#125; &#125;
+&#41;;
+
+// Year 2: Need to find this experiment
+const results &#61; await db.experiments.findAll&#40;&#123;
+  where: &#123; userId: 123 &#125;
+&#125;&#41;; // Use PostgreSQL for searching
+
+// Year 2: Need to prove ownership
+const proof &#61; await arweave.fetch&#40;experiment.arweaveId&#41;;
+// Use Arweave for verification</code></pre>
+<h3 id="the_mental_model_shift"><a href="#the_mental_model_shift" class="header-anchor">The Mental Model Shift</a></h3>
+<p><strong>Don&#39;t think:</strong> &quot;I&#39;m migrating from PostgreSQL to Arweave&quot;</p>
+<p><strong>Instead think:</strong> &quot;PostgreSQL is my working database, Arweave is my notary public&quot;</p>
+<p><strong>Like:</strong></p>
+<ul>
+<li><p>You write contracts in Google Docs &#40;PostgreSQL&#41; - edit anytime</p>
+</li>
+<li><p>When finalized, you get them notarized &#40;Arweave&#41; - permanent proof</p>
+</li>
+<li><p>You keep using Google Docs for drafts</p>
+</li>
+<li><p>You reference the notarized version when needed</p>
+</li>
+</ul>
+<h3 id="the_code_architecture_pattern"><a href="#the_code_architecture_pattern" class="header-anchor">The Code Architecture Pattern</a></h3>
+<pre><code class="language-javascript">// storage-layer.js
+
+class StorageLayer &#123;
+  // Mutable operations - PostgreSQL only
+  async create&#40;data&#41; &#123; return await db.create&#40;data&#41;; &#125;
+  async update&#40;id, data&#41; &#123; return await db.update&#40;data, &#123;where: &#123;id&#125;&#125;&#41;; &#125;
+  async delete&#40;id&#41; &#123; return await db.destroy&#40;&#123;where: &#123;id&#125;&#125;&#41;; &#125;
+  async search&#40;query&#41; &#123; return await db.findAll&#40;&#123;where: query&#125;&#41;; &#125;
+  
+  // Immutable operations - PostgreSQL &#43; Arweave
+  async publish&#40;id&#41; &#123;
+    const record &#61; await db.findOne&#40;&#123;where: &#123;id&#125;&#125;&#41;;
+    const arweaveId &#61; await arweave.upload&#40;record&#41;;
+    await db.update&#40;&#123;arweaveId&#125;, &#123;where: &#123;id&#125;&#125;&#41;;
+    return &#123;record, arweaveId&#125;;
+  &#125;
+  
+  async verify&#40;id&#41; &#123;
+    const record &#61; await db.findOne&#40;&#123;where: &#123;id&#125;&#125;&#41;;
+    const arweaveData &#61; await arweave.fetch&#40;record.arweaveId&#41;;
+    return &#123;
+      matches: JSON.stringify&#40;record&#41; &#61;&#61;&#61; JSON.stringify&#40;arweaveData&#41;,
+      databaseVersion: record,
+      blockchainVersion: arweaveData
+    &#125;;
+  &#125;
+&#125;</code></pre>
+<h3 id="the_bottom_line__2"><a href="#the_bottom_line__2" class="header-anchor">The Bottom Line</a></h3>
+<p><strong>PostgreSQL and Arweave are complementary, not alternatives.</strong></p>
+<ul>
+<li><p>PostgreSQL &#61; your daily workspace &#40;fast, flexible, changeable&#41;</p>
+</li>
+<li><p>Arweave &#61; your permanent archive &#40;slow, rigid, forever&#41;</p>
+</li>
+</ul>
+<p><strong>You don&#39;t transfer implementations between them.</strong> You use PostgreSQL for 90&#37; of operations, and mirror important final records to Arweave for proof and permanence.</p>
+<p><strong>Think &quot;database &#43; blockchain backup&quot; not &quot;database vs blockchain.&quot;</strong> 🚀</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: December 30, 2025.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

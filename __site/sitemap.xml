@@ -141,7 +141,7 @@
 </url>
 <url>
     <loc>https://kchu25.github.io/index.html</loc>
-    <lastmod>2025-12-27</lastmod>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
@@ -154,6 +154,12 @@
 <url>
     <loc>https://kchu25.github.io/blog/plotting/makie/index.html</loc>
     <lastmod>2025-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+</url>
+<url>
+    <loc>https://kchu25.github.io/blog/sql/postgre/index.html</loc>
+    <lastmod>2025-12-30</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
 </url>
