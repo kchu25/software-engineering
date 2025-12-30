@@ -18,4 +18,5 @@
 - [smart-contract](tag/smart-contract)
 - [eth](tag/eth)
 - [node-js](tag/node-js)
+- [sql](tag/sql)
 
