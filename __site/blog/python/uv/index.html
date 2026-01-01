@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Mastering Python Environments: A Practical Guide</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="uv_cheatsheet_complete_reference"><a href="#uv_cheatsheet_complete_reference" class="header-anchor">uv Cheatsheet: Complete Reference</a></h1>
+<h2 id="installation"><a href="#installation" class="header-anchor">Installation</a></h2>
+<pre><code class="language-bash"># macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c &quot;irm https://astral.sh/uv/install.ps1 | iex&quot;
+
+# Via pip &#40;if you must&#41;
+pip install uv
+
+# Upgrade uv
+uv self update</code></pre>
+<h2 id="virtual_environments"><a href="#virtual_environments" class="header-anchor">Virtual Environments</a></h2>
+<pre><code class="language-bash"># Create a new venv &#40;default name: .venv&#41;
+uv venv
+
+# Create with custom name
+uv venv myenv
+
+# Create with specific Python version
+uv venv --python 3.11
+uv venv --python 3.12
+
+# Create with system site packages &#40;access global packages&#41;
+uv venv --system-site-packages
+
+# Delete a venv &#40;just remove the directory&#41;
+rm -rf .venv</code></pre>
+<h2 id="activation_deactivation"><a href="#activation_deactivation" class="header-anchor">Activation &amp; Deactivation</a></h2>
+<pre><code class="language-bash"># Activate &#40;macOS/Linux&#41;
+source .venv/bin/activate
+
+# Activate &#40;Windows&#41;
+.venv\Scripts\activate
+
+# Deactivate &#40;any platform&#41;
+deactivate
+
+# Check which Python you&#39;re using
+which python     # macOS/Linux
+where python     # Windows</code></pre>
+<h2 id="package_installation"><a href="#package_installation" class="header-anchor">Package Installation</a></h2>
+<pre><code class="language-bash"># Install a single package
+uv pip install requests
+
+# Install multiple packages
+uv pip install requests pandas numpy
+
+# Install specific version
+uv pip install pandas&#61;&#61;2.0.0
+
+# Install version range
+uv pip install &quot;pandas&gt;&#61;2.0.0,&lt;3.0.0&quot;
+
+# Install from requirements.txt
+uv pip install -r requirements.txt
+
+# Install from pyproject.toml
+uv pip install -e .
+
+# Install with optional dependencies
+uv pip install -e &quot;.&#91;dev&#93;&quot;
+uv pip install &quot;package&#91;extra1,extra2&#93;&quot;
+
+# Install from git
+uv pip install git&#43;https://github.com/user/repo.git
+
+# Install from local path
+uv pip install /path/to/package
+uv pip install ./my-local-package</code></pre>
+<h2 id="package_management"><a href="#package_management" class="header-anchor">Package Management</a></h2>
+<pre><code class="language-bash"># List installed packages
+uv pip list
+
+# Show package details
+uv pip show pandas
+
+# Upgrade a package
+uv pip install --upgrade pandas
+uv pip install -U pandas  # short form
+
+# Upgrade all packages
+uv pip install --upgrade-all
+
+# Uninstall a package
+uv pip uninstall pandas
+
+# Uninstall multiple packages
+uv pip uninstall pandas numpy requests</code></pre>
+<h2 id="requirements_files"><a href="#requirements_files" class="header-anchor">Requirements Files</a></h2>
+<pre><code class="language-bash"># Generate requirements.txt &#40;exact versions&#41;
+uv pip freeze &gt; requirements.txt
+
+# Generate with hashes &#40;for security&#41;
+uv pip freeze --require-hashes &gt; requirements.txt
+
+# Install from requirements
+uv pip install -r requirements.txt
+
+# Install and upgrade from requirements
+uv pip install -U -r requirements.txt</code></pre>
+<h2 id="sync_lock"><a href="#sync_lock" class="header-anchor">Sync &amp; Lock</a></h2>
+<pre><code class="language-bash"># Sync environment to match requirements exactly
+uv pip sync requirements.txt
+
+# This will:
+# - Install missing packages
+# - Upgrade outdated packages  
+# - Uninstall extra packages
+
+# Compile dependencies &#40;resolve and lock&#41;
+uv pip compile pyproject.toml -o requirements.txt
+uv pip compile requirements.in -o requirements.txt</code></pre>
+<h2 id="search_inspect"><a href="#search_inspect" class="header-anchor">Search &amp; Inspect</a></h2>
+<pre><code class="language-bash"># Search for packages on PyPI
+uv pip search pandas
+
+# Check outdated packages
+uv pip list --outdated
+
+# Tree view of dependencies
+uv pip tree
+
+# Show dependency tree for specific package
+uv pip tree --package pandas</code></pre>
+<h2 id="development_workflow"><a href="#development_workflow" class="header-anchor">Development Workflow</a></h2>
+<pre><code class="language-bash"># Install package in editable mode &#40;development&#41;
+uv pip install -e .
+
+# Install with dev dependencies
+uv pip install -e &quot;.&#91;dev&#93;&quot;
+uv pip install -e &quot;.&#91;test,docs&#93;&quot;
+
+# Common pattern for new project
+uv venv
+source .venv/bin/activate
+uv pip install -e &quot;.&#91;dev&#93;&quot;</code></pre>
+<h2 id="python_version_management"><a href="#python_version_management" class="header-anchor">Python Version Management</a></h2>
+<pre><code class="language-bash"># Use specific Python version
+uv venv --python 3.11
+
+# Use Python from specific path
+uv venv --python /usr/bin/python3.11
+
+# List available Python versions &#40;if using uv&#39;s Python management&#41;
+uv python list</code></pre>
+<h2 id="cache_management"><a href="#cache_management" class="header-anchor">Cache Management</a></h2>
+<pre><code class="language-bash"># Show cache directory
+uv cache dir
+
+# Clear cache
+uv cache clean
+
+# Prune old cache entries
+uv cache prune</code></pre>
+<h2 id="common_workflows"><a href="#common_workflows" class="header-anchor">Common Workflows</a></h2>
+<h3 id="starting_a_new_project"><a href="#starting_a_new_project" class="header-anchor">Starting a New Project</a></h3>
+<pre><code class="language-bash">mkdir my-project &amp;&amp; cd my-project
+uv venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+uv pip install requests pandas
+uv pip freeze &gt; requirements.txt</code></pre>
+<h3 id="cloning_setting_up_existing_project"><a href="#cloning_setting_up_existing_project" class="header-anchor">Cloning &amp; Setting Up Existing Project</a></h3>
+<pre><code class="language-bash">git clone https://github.com/user/project.git
+cd project
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt</code></pre>
+<h3 id="creating_a_python_package"><a href="#creating_a_python_package" class="header-anchor">Creating a Python Package</a></h3>
+<pre><code class="language-bash">mkdir my-package &amp;&amp; cd my-package
+uv venv
+source .venv/bin/activate
+
+# Create pyproject.toml &#40;manually or with tools&#41;
+# Then install in editable mode
+uv pip install -e &quot;.&#91;dev&#93;&quot;</code></pre>
+<h3 id="quick_script_environment"><a href="#quick_script_environment" class="header-anchor">Quick Script Environment</a></h3>
+<pre><code class="language-bash"># Create throwaway environment for a script
+uv venv temp-env
+source temp-env/bin/activate
+uv pip install whatever-you-need
+python script.py
+deactivate
+rm -rf temp-env</code></pre>
+<h2 id="configuration"><a href="#configuration" class="header-anchor">Configuration</a></h2>
+<pre><code class="language-bash"># Set environment variables for uv
+export UV_INDEX_URL&#61;https://pypi.org/simple/  # Custom PyPI index
+export UV_CACHE_DIR&#61;~/.cache/uv               # Custom cache location
+
+# Create uv.toml in project root for project-specific config
+# &#40;check uv docs for current config options&#41;</code></pre>
+<h2 id="troubleshooting"><a href="#troubleshooting" class="header-anchor">Troubleshooting</a></h2>
+<pre><code class="language-bash"># Verify uv is working
+uv --version
+
+# Check which Python uv sees
+uv venv --python python3 --verbose
+
+# Force reinstall a package
+uv pip install --force-reinstall pandas
+
+# Install without using cache
+uv pip install --no-cache pandas
+
+# Verbose output for debugging
+uv pip install -v pandas
+uv pip install -vv pandas  # extra verbose</code></pre>
+<h2 id="tips_tricks"><a href="#tips_tricks" class="header-anchor">Tips &amp; Tricks</a></h2>
+<pre><code class="language-bash"># Always check you&#39;re in the right environment
+which python
+python --version
+
+# Quick package install without activation
+.venv/bin/python -m pip install package  # Not recommended, but works
+
+# Export only top-level dependencies &#40;manual, in requirements.in&#41;
+# Then compile to get full locked requirements.txt
+uv pip compile requirements.in -o requirements.txt
+
+# Use .gitignore
+echo &quot;.venv/&quot; &gt;&gt; .gitignore
+echo &quot;__pycache__/&quot; &gt;&gt; .gitignore
+echo &quot;*.pyc&quot; &gt;&gt; .gitignore</code></pre>
+<h2 id="comparison_to_pip"><a href="#comparison_to_pip" class="header-anchor">Comparison to pip</a></h2>
+<pre><code class="language-bash"># pip command              →  uv equivalent
+pip install package        →  uv pip install package
+pip uninstall package      →  uv pip uninstall package
+pip list                   →  uv pip list
+pip show package           →  uv pip show package
+pip freeze                 →  uv pip freeze
+python -m venv .venv       →  uv venv
+pip install -r req.txt     →  uv pip install -r req.txt
+pip install -e .           →  uv pip install -e .</code></pre>
+<h2 id="when_to_use_what"><a href="#when_to_use_what" class="header-anchor">When to Use What</a></h2>
+<ul>
+<li><p><strong>Quick install</strong>: <code>uv pip install package</code></p>
+</li>
+<li><p><strong>Lock dependencies</strong>: <code>uv pip freeze &gt; requirements.txt</code></p>
+</li>
+<li><p><strong>Reproducible install</strong>: <code>uv pip sync requirements.txt</code></p>
+</li>
+<li><p><strong>Development</strong>: <code>uv pip install -e &quot;.&#91;dev&#93;&quot;</code></p>
+</li>
+<li><p><strong>Fresh environment</strong>: <code>rm -rf .venv &amp;&amp; uv venv</code></p>
+</li>
+</ul>
+<hr />
+<h2 id="vscode_setup"><a href="#vscode_setup" class="header-anchor">VSCode Setup</a></h2>
+<blockquote>
+<p><strong>VSCode makes this dead simple—it auto-detects and activates your venv.</strong></p>
+<p><strong>First time setup</strong>:</p>
+<ol>
+<li><p>Open your project folder in VSCode</p>
+</li>
+<li><p>Create your venv: <code>uv venv</code> in the terminal</p>
+</li>
+<li><p>VSCode will show a popup: &quot;We noticed a new virtual environment. Do you want to select it?&quot; → Click <strong>Yes</strong></p>
+</li>
+<li><p>Done&#33; VSCode will now use this venv automatically</p>
+</li>
+</ol>
+<p><strong>If you missed the popup</strong>:</p>
+<ol>
+<li><p>Press <code>Cmd&#43;Shift&#43;P</code> &#40;Mac&#41; or <code>Ctrl&#43;Shift&#43;P</code> &#40;Windows/Linux&#41;</p>
+</li>
+<li><p>Type: <code>Python: Select Interpreter</code></p>
+</li>
+<li><p>Choose the one that says <code>.venv</code> or <code>./venv/bin/python</code></p>
+</li>
+</ol>
+<p><strong>Check it worked</strong>:</p>
+<ul>
+<li><p>Open a new terminal in VSCode &#40;<code>Ctrl&#43;&#96;</code>&#41;</p>
+</li>
+<li><p>You&#39;ll see <code>&#40;.venv&#41;</code> at the start of the prompt</p>
+</li>
+<li><p>Or run <code>which python</code> &#40;Mac/Linux&#41; or <code>where python</code> &#40;Windows&#41;—it should point to your <code>.venv</code> folder</p>
+</li>
+</ul>
+<p><strong>Pro tip</strong>: Once set, VSCode remembers your choice. Every new terminal automatically activates the venv. You don&#39;t manually activate unless you&#39;re in a regular terminal outside VSCode.</p>
+</blockquote>
+<hr />
+<p><strong>Remember</strong>: Always activate your venv before working &#40;<code>source .venv/bin/activate</code>&#41;. Check with <code>which python</code> if unsure&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 01, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

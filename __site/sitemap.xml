@@ -98,6 +98,12 @@
     <priority>0.5</priority>
 </url>
 <url>
+    <loc>https://kchu25.github.io/blog/python/uv/index.html</loc>
+    <lastmod>2026-01-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+</url>
+<url>
     <loc>https://kchu25.github.io/blog/nodejs/cheatsheet/index.html</loc>
     <lastmod>2025-12-27</lastmod>
     <changefreq>monthly</changefreq>
