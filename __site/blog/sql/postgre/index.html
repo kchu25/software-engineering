@@ -396,7 +396,7 @@ const user &#61; await prisma.user.create&#40;&#123;
 <h2 id="quick_reference_card"><a href="#quick_reference_card" class="header-anchor">Quick Reference Card</a></h2>
 <table><tr><th align="right">Task</th><th align="right">SQL</th><th align="right">JavaScript &#40;ORM&#41;</th></tr><tr><td align="right">Insert</td><td align="right"><code>INSERT INTO table &#40;col&#41; VALUES &#40;val&#41;</code></td><td align="right"><code>db.table.create&#40;&#123;col: val&#125;&#41;</code></td></tr><tr><td align="right">Select All</td><td align="right"><code>SELECT * FROM table</code></td><td align="right"><code>db.table.findAll&#40;&#41;</code></td></tr><tr><td align="right">Select One</td><td align="right"><code>SELECT * WHERE id&#61;1</code></td><td align="right"><code>db.table.findOne&#40;&#123;where: &#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Update</td><td align="right"><code>UPDATE table SET col&#61;val WHERE id&#61;1</code></td><td align="right"><code>db.table.update&#40;&#123;col:val&#125;, &#123;where:&#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Delete</td><td align="right"><code>DELETE FROM table WHERE id&#61;1</code></td><td align="right"><code>db.table.destroy&#40;&#123;where:&#123;id:1&#125;&#125;&#41;</code></td></tr><tr><td align="right">Join</td><td align="right"><code>SELECT * FROM a JOIN b ON a.id&#61;b.a_id</code></td><td align="right"><code>db.a.findAll&#40;&#123;include: &#91;db.b&#93;&#125;&#41;</code></td></tr></table>
 <hr />
-<h2 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h2>
+<h2 id="the_postgresql_mental_model"><a href="#the_postgresql_mental_model" class="header-anchor">The PostgreSQL Mental Model</a></h2>
 \[\text{PostgreSQL} = \text{Excel} + \text{Relationships} + \text{Speed} + \text{Multi-user}\]
 <ul>
 <li><p><strong>Tables</strong> are spreadsheets</p>
@@ -413,6 +413,8 @@ const user &#61; await prisma.user.create&#40;&#123;
 </li>
 </ul>
 <p><strong>Start simple. You&#39;ll get the hang of it in a weekend.</strong> 🚀</p>
+<hr />
+<p>Now that you understand how PostgreSQL works, you might be wondering: where does this database actually live when I deploy my app? Let&#39;s clear that up.</p>
 <hr />
 <h2 id="deployment_where_does_postgresql_actually_live"><a href="#deployment_where_does_postgresql_actually_live" class="header-anchor">Deployment: Where Does PostgreSQL Actually Live?</a></h2>
 <h3 id="the_short_answer"><a href="#the_short_answer" class="header-anchor">The Short Answer</a></h3>
@@ -632,7 +634,7 @@ DATABASE_URL&#61;&quot;postgresql://user:pass@db.supabase.co:5432/myapp_prod&quo
 </ol>
 <p><strong>No installation. No configuration. Just works.</strong></p>
 <hr />
-<h2 id="the_mental_model__2"><a href="#the_mental_model__2" class="header-anchor">The Mental Model</a></h2>
+<h2 id="the_database_hosting_mental_model"><a href="#the_database_hosting_mental_model" class="header-anchor">The Database Hosting Mental Model</a></h2>
 <p><strong>Think of databases like email:</strong></p>
 <ul>
 <li><p>Gmail &#40;the service&#41; is free</p>
@@ -657,8 +659,7 @@ DATABASE_URL&#61;&quot;postgresql://user:pass@db.supabase.co:5432/myapp_prod&quo
 </ul>
 <p><strong>Separate services, connected by a URL.</strong> That&#39;s it&#33;</p>
 <hr />
-<h2 id="tldr"><a href="#tldr" class="header-anchor">TL;DR</a></h2>
-<h2 id="tldr__2"><a href="#tldr__2" class="header-anchor">TL;DR</a></h2>
+<h2 id="deployment_faq"><a href="#deployment_faq" class="header-anchor">Deployment FAQ</a></h2>
 <p><strong>Q: Do I install PostgreSQL where I deploy my web app?</strong>   <strong>A:</strong> No. They&#39;re separate services that talk over the internet.</p>
 <p><strong>Q: Is PostgreSQL free?</strong>   <strong>A:</strong> The software is free. Hosting it has free tiers &#40;Supabase, Railway, Neon&#41; that are enough for your MVP &#43; first 10,000 users. You probably won&#39;t pay for 6-12 months.</p>
 <p><strong>Q: What should I use?</strong>   <strong>A:</strong> Supabase. Create an account, get a connection string, paste it in your code. Done in 5 minutes. Free until you have serious traction.</p>
@@ -994,10 +995,10 @@ const db &#61; new Database&#40;DATABASE_URL&#41;;</code></pre>
 </li>
 </ul>
 <p><strong>For beginners:</strong> Vercel &#43; Supabase is simpler and works the same way. You can always move to &quot;all AWS&quot; later if you need to.</p>
-<blockquote>
-</blockquote>
 <p><strong>Bottom line:</strong> Whether you use one company &#40;AWS&#41; or multiple companies &#40;Vercel &#43; Supabase&#41;, the architecture is the same - web hosting and database hosting are always separate services. 🚀</p>
 </blockquote>
+<hr />
+<p>Now here&#39;s a question that comes up a lot when building DeSci platforms: if you&#39;re going to use Arweave for permanent storage, why bother with PostgreSQL at all? Let&#39;s break down how these two very different technologies work together.</p>
 <hr />
 <h2 id="postgresql_vs_arweave_the_mental_model"><a href="#postgresql_vs_arweave_the_mental_model" class="header-anchor">PostgreSQL vs Arweave: The Mental Model</a></h2>
 <h3 id="what_they_have_in_common"><a href="#what_they_have_in_common" class="header-anchor">What They Have in Common</a></h3>
@@ -1257,6 +1258,67 @@ class StorageLayer &#123;
 </ul>
 <p><strong>You don&#39;t transfer implementations between them.</strong> You use PostgreSQL for 90&#37; of operations, and mirror important final records to Arweave for proof and permanence.</p>
 <p><strong>Think &quot;database &#43; blockchain backup&quot; not &quot;database vs blockchain.&quot;</strong> 🚀</p>
+<hr />
+<h2 id="wrapping_up_your_learning_path"><a href="#wrapping_up_your_learning_path" class="header-anchor">Wrapping Up: Your Learning Path</a></h2>
+<p>You&#39;ve just covered a lot of ground&#33; Here&#39;s a quick recap of what you now understand:</p>
+<h3 id="postgresql_fundamentals"><a href="#postgresql_fundamentals" class="header-anchor">PostgreSQL Fundamentals</a></h3>
+<ul>
+<li><p>Tables, columns, and the 4 CRUD operations &#40;Create, Read, Update, Delete&#41;</p>
+</li>
+<li><p>Relationships with foreign keys and JOINs</p>
+</li>
+<li><p>Indexes for performance</p>
+</li>
+<li><p>Transactions for data consistency</p>
+</li>
+</ul>
+<h3 id="deployment_architecture"><a href="#deployment_architecture" class="header-anchor">Deployment Architecture</a></h3>
+<ul>
+<li><p>Web apps and databases live on separate services</p>
+</li>
+<li><p>Connection strings connect them over the internet</p>
+</li>
+<li><p>Free tiers &#40;Supabase, Railway&#41; are enough for months</p>
+</li>
+</ul>
+<h3 id="the_hybrid_approach"><a href="#the_hybrid_approach" class="header-anchor">The Hybrid Approach</a></h3>
+<ul>
+<li><p>PostgreSQL for fast, queryable, mutable data</p>
+</li>
+<li><p>Arweave for permanent, verifiable, immutable records</p>
+</li>
+<li><p>They complement each other - use both&#33;</p>
+</li>
+</ul>
+<h3 id="your_next_steps"><a href="#your_next_steps" class="header-anchor">Your Next Steps</a></h3>
+<p><strong>This Weekend:</strong></p>
+<ol>
+<li><p>Create a Supabase account &#40;5 minutes&#41;</p>
+</li>
+<li><p>Build a simple <code>experiments</code> table</p>
+</li>
+<li><p>Practice INSERT, SELECT, UPDATE, DELETE</p>
+</li>
+</ol>
+<p><strong>Next Week:</strong></p>
+<ol>
+<li><p>Add relationships &#40;users → experiments&#41;</p>
+</li>
+<li><p>Try an ORM like Prisma</p>
+</li>
+<li><p>Connect to a Next.js project</p>
+</li>
+</ol>
+<p><strong>This Month:</strong></p>
+<ol>
+<li><p>Build your DeSci MVP with PostgreSQL only</p>
+</li>
+<li><p>Get a few users testing it</p>
+</li>
+<li><p>Add Arweave integration for published experiments</p>
+</li>
+</ol>
+<p>The tech stack is ready. The tools are free. Now go build something scientists will actually use. 🧬🚀</p>
 <div class="page-foot">
     Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
     <br>

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Mastering Python Environments: A Practical Guide</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="mastering_python_environments_a_practical_guide"><a href="#mastering_python_environments_a_practical_guide" class="header-anchor">Mastering Python Environments: A Practical Guide</a></h1>
+<h2 id="the_core_problem"><a href="#the_core_problem" class="header-anchor">The Core Problem</a></h2>
+<p>Python&#39;s environment chaos happens because:</p>
+<ul>
+<li><p>Projects need different versions of the same package</p>
+</li>
+<li><p>System Python shouldn&#39;t be polluted with project dependencies</p>
+</li>
+<li><p>Reproducibility across machines is critical</p>
+</li>
+</ul>
+<h2 id="do_you_always_need_separate_environments"><a href="#do_you_always_need_separate_environments" class="header-anchor">Do You Always Need Separate Environments?</a></h2>
+<blockquote>
+<p><strong>Short answer: Yes, for different projects. No, not for every script.</strong></p>
+<p>Think of environments like containers for your dependencies. If Project A needs <code>pandas 1.5</code> and Project B needs <code>pandas 2.0</code>, they&#39;ll fight over which version to use if they share an environment. That&#39;s why <strong>each project gets its own environment</strong>.</p>
+<p>But here&#39;s the thing: you don&#39;t need a new environment for every single Python script you write. If you&#39;re just writing a quick calculator script or a one-off data analysis, you can reuse an existing environment or even use your base Python &#40;though that gets messy fast&#41;.</p>
+<p><strong>The rule of thumb</strong>: If it&#39;s a &quot;project&quot; with dependencies that might conflict with other projects, give it its own environment. If it&#39;s a throwaway script, don&#39;t overthink it.</p>
+</blockquote>
+<h2 id="uv_vs_conda_whats_the_difference"><a href="#uv_vs_conda_whats_the_difference" class="header-anchor">uv vs conda: What&#39;s the Difference?</a></h2>
+<blockquote>
+<p><strong>conda</strong> is great but heavy—it manages Python itself plus packages, and it&#39;s designed for data science &#40;lots of binary dependencies like NumPy, TensorFlow&#41;. It&#39;s its own ecosystem.</p>
+<p><strong>uv</strong> &#40;and classic venv/pip&#41; is lightweight—it uses your system&#39;s Python and just isolates packages. It&#39;s the standard Python way, and honestly faster and simpler for most use cases.</p>
+<p>You can use conda if you&#39;re already in that world, but uv is the modern, streamlined approach that&#39;s taking over. They solve the same core problem: keeping project dependencies separate.</p>
+</blockquote>
+<h2 id="condas_bloat_problem"><a href="#condas_bloat_problem" class="header-anchor">conda&#39;s Bloat Problem</a></h2>
+<blockquote>
+<p><strong>Yeah, conda has serious bloat.</strong> Here&#39;s why:</p>
+<p><strong>conda environment</strong>: Downloads a full Python installation &#43; all packages &#40;~500MB-2GB per environment&#41;. If you have 5 projects, that&#39;s potentially 10GB of duplicate Pythons sitting on your disk.</p>
+<p><strong>uv/venv environment</strong>: Shares your system&#39;s Python, only stores the extra packages you install &#40;~50-200MB per environment&#41;. Much leaner.</p>
+<p><strong>Real example</strong>: Installing pandas with conda downloads ~200MB. With uv? ~50MB because it reuses existing stuff.</p>
+</blockquote>
+<h2 id="why_people_think_conda_is_better_for_data_science"><a href="#why_people_think_conda_is_better_for_data_science" class="header-anchor">Why People Think conda is &quot;Better&quot; for Data Science</a></h2>
+<blockquote>
+<p><strong>Here&#39;s the honest truth</strong>: conda was solving a <em>Python problem</em>, not a universal truth.</p>
+<p>Python&#39;s package ecosystem historically sucked at distributing compiled libraries &#40;NumPy with fast math, TensorFlow with CUDA&#41;. Pip would fail or give you slow versions. Conda said &quot;screw it, we&#39;ll pre-compile everything and bundle it all together&quot;—which works, but creates massive bloat.</p>
+<p><strong>Modern reality</strong>: pip/uv got WAY better. Now they handle binary packages &#40;wheels&#41; smoothly. You can <code>uv pip install torch</code> and get CUDA support just fine. The conda advantage mostly evaporated.</p>
+<p><strong>Julia comparison</strong>: You&#39;re absolutely right. Julia doesn&#39;t need this because its package system was designed properly from day one—it handles compiled code elegantly without the bloat. Python&#39;s ecosystem evolved messily, and conda was a bandaid.</p>
+<p><strong>Bottom line</strong>: conda&#39;s &quot;better for data science&quot; claim is legacy thinking from 5-10 years ago. Today, uv/pip handles ML libraries just fine. conda still works, but it&#39;s like insisting on using a fax machine because email &quot;might not be reliable yet.&quot;</p>
+</blockquote>
+<h2 id="the_modern_solution_uv"><a href="#the_modern_solution_uv" class="header-anchor">The Modern Solution: <code>uv</code></a></h2>
+<p><strong>uv</strong> is the new hotness—a Rust-based Python package installer that&#39;s 10-100x faster than pip. Think of it as &quot;pip on steroids&quot; plus virtual environment management.</p>
+<h3 id="why_uv"><a href="#why_uv" class="header-anchor">Why uv?</a></h3>
+<ul>
+<li><p><strong>Blazing fast</strong>: Installs packages in seconds, not minutes</p>
+</li>
+<li><p><strong>All-in-one</strong>: Handles virtual envs, package installation, and dependency resolution</p>
+</li>
+<li><p><strong>pip-compatible</strong>: Drop-in replacement for most workflows</p>
+</li>
+<li><p><strong>Lock files</strong>: Built-in dependency locking &#40;like package-lock.json&#41;</p>
+</li>
+</ul>
+<h2 id="quick_start_with_uv"><a href="#quick_start_with_uv" class="header-anchor">Quick Start with uv</a></h2>
+<h3 id="installation"><a href="#installation" class="header-anchor">Installation</a></h3>
+<pre><code class="language-bash"># macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c &quot;irm https://astral.sh/uv/install.ps1 | iex&quot;
+
+# Or via pip &#40;ironic, but works&#41;
+pip install uv</code></pre>
+<h3 id="workflow_1_quick_scriptproject"><a href="#workflow_1_quick_scriptproject" class="header-anchor">Workflow 1: Quick Script/Project</a></h3>
+<pre><code class="language-bash"># Create a new project with venv
+uv venv myproject
+source myproject/bin/activate  # Windows: myproject\Scripts\activate
+
+# Install packages &#40;lightning fast&#41;
+uv pip install pandas numpy openai pypdf
+
+# Generate requirements
+uv pip freeze &gt; requirements.txt</code></pre>
+<h3 id="workflow_2_developing_a_package"><a href="#workflow_2_developing_a_package" class="header-anchor">Workflow 2: Developing a Package</a></h3>
+<pre><code class="language-bash"># Start a proper project
+mkdir my-package &amp;&amp; cd my-package
+
+# Create venv
+uv venv
+
+# Activate it
+source .venv/bin/activate
+
+# Install in editable mode
+uv pip install -e .
+
+# Install dev dependencies
+uv pip install pytest black ruff mypy</code></pre>
+<h3 id="workflow_3_using_someone_elses_project"><a href="#workflow_3_using_someone_elses_project" class="header-anchor">Workflow 3: Using Someone Else&#39;s Project</a></h3>
+<pre><code class="language-bash"># Clone repo
+git clone https://github.com/someone/llm-pdf-reader
+cd llm-pdf-reader
+
+# Create venv and install everything
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+
+# Or if they have pyproject.toml
+uv pip install -e &quot;.&#91;dev&#93;&quot;</code></pre>
+<h2 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h2>
+<p>Think of Python environments in layers:</p>
+\[\text{System Python} \rightarrow \text{Virtual Env} \rightarrow \text{Your Code}\]
+<ul>
+<li><p><strong>System Python</strong>: Lives in <code>/usr/bin/python</code> or similar—leave it alone&#33;</p>
+</li>
+<li><p><strong>Virtual Env</strong>: Isolated copy where you install project deps</p>
+</li>
+<li><p><strong>Your Code</strong>: Runs using the venv&#39;s packages</p>
+</li>
+</ul>
+<h2 id="key_commands_cheat_sheet"><a href="#key_commands_cheat_sheet" class="header-anchor">Key Commands Cheat Sheet</a></h2>
+<pre><code class="language-bash"># Create venv
+uv venv &#91;name&#93;              # Default: .venv
+
+# Activate &#40;do this every time you work on project&#41;
+source .venv/bin/activate   # macOS/Linux
+.venv\Scripts\activate      # Windows
+
+# Install packages
+uv pip install package      # Single package
+uv pip install -r req.txt   # From requirements
+uv pip install -e .         # Editable install &#40;dev&#41;
+
+# Deactivate
+deactivate
+
+# Delete venv
+rm -rf .venv</code></pre>
+<h2 id="best_practices"><a href="#best_practices" class="header-anchor">Best Practices</a></h2>
+<h3 id="one_venv_per_project"><a href="#one_venv_per_project" class="header-anchor"><ol>
+<li><p>One Venv Per Project</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia">projects/
+├── llm-pdf-reader/
+│   ├── .venv/           # Its own environment
+│   └── requirements.txt
+└── web-scraper/
+    ├── .venv/           # Separate environment
+    └── requirements.txt</code></pre>
+<h3 id="ol_start2_never_commit_venv"><a href="#ol_start2_never_commit_venv" class="header-anchor"><ol start="2">
+<li><p>Never Commit <code>.venv/</code></p>
+</li>
+</ol>
+</a></h3>
+<p>Add to <code>.gitignore</code>:</p>
+<pre><code class="language-julia">.venv/
+__pycache__/
+*.pyc</code></pre>
+<h3 id="ol_start3_always_pin_dependencies"><a href="#ol_start3_always_pin_dependencies" class="header-anchor"><ol start="3">
+<li><p>Always Pin Dependencies</p>
+</li>
+</ol>
+</a></h3>
+<p>Use <code>uv pip freeze &gt; requirements.txt</code> to lock exact versions for reproducibility.</p>
+<h3 id="ol_start4_use_pyprojecttoml_for_packages"><a href="#ol_start4_use_pyprojecttoml_for_packages" class="header-anchor"><ol start="4">
+<li><p>Use pyproject.toml for Packages</p>
+</li>
+</ol>
+</a></h3>
+<p>Modern way to define your package:</p>
+<pre><code class="language-toml">&#91;project&#93;
+name &#61; &quot;my-package&quot;
+version &#61; &quot;0.1.0&quot;
+dependencies &#61; &#91;
+    &quot;requests&gt;&#61;2.31.0&quot;,
+    &quot;pandas&gt;&#61;2.0.0&quot;,
+&#93;
+
+&#91;project.optional-dependencies&#93;
+dev &#61; &#91;&quot;pytest&quot;, &quot;black&quot;, &quot;ruff&quot;&#93;</code></pre>
+<h2 id="common_gotchas"><a href="#common_gotchas" class="header-anchor">Common Gotchas</a></h2>
+<p><strong>&quot;Package not found after install&quot;</strong> → Did you activate the venv? Run <code>which python</code> to check.</p>
+<p><strong>&quot;Multiple Python versions&quot;</strong> → Use <code>uv venv --python 3.11</code> to specify version</p>
+<p><strong>&quot;Dependencies conflict&quot;</strong> → uv&#39;s resolver is smart, but if stuck, start fresh: <code>rm -rf .venv &amp;&amp; uv venv</code></p>
+<h2 id="the_classic_workflow_still_valid"><a href="#the_classic_workflow_still_valid" class="header-anchor">The Classic Workflow &#40;Still Valid&#41;</a></h2>
+<p>If you prefer traditional tools:</p>
+<pre><code class="language-bash"># Using venv &#43; pip
+python -m venv .venv
+source .venv/bin/activate
+pip install package
+pip freeze &gt; requirements.txt</code></pre>
+<p>But honestly? <strong>uv is just faster and better</strong>. The commands are nearly identical, so switching is painless.</p>
+<h2 id="real_example_llm_pdf_reader_project"><a href="#real_example_llm_pdf_reader_project" class="header-anchor">Real Example: LLM PDF Reader Project</a></h2>
+<pre><code class="language-bash"># Set up
+mkdir llm-pdf-reader &amp;&amp; cd llm-pdf-reader
+uv venv
+source .venv/bin/activate
+
+# Install what you need
+uv pip install pypdf langchain openai python-dotenv
+
+# Work on your code
+# When done: save dependencies
+uv pip freeze &gt; requirements.txt
+
+# Later, on another machine
+git clone your-repo
+cd your-repo
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+# Ready to go&#33;</code></pre>
+<h2 id="tldr"><a href="#tldr" class="header-anchor">TL;DR</a></h2>
+<ol>
+<li><p><strong>Install uv</strong> &#40;it&#39;s worth it&#41;</p>
+</li>
+<li><p><strong>One venv per project</strong>: <code>uv venv</code></p>
+</li>
+<li><p><strong>Always activate</strong>: <code>source .venv/bin/activate</code></p>
+</li>
+<li><p><strong>Install fast</strong>: <code>uv pip install whatever</code></p>
+</li>
+<li><p><strong>Lock deps</strong>: <code>uv pip freeze &gt; requirements.txt</code></p>
+</li>
+<li><p><strong>Never commit <code>.venv/</code></strong></p>
+</li>
+</ol>
+<p>That&#39;s it. You&#39;ve mastered Python environments. 🎉</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 01, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
