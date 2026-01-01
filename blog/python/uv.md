@@ -1,4 +1,4 @@
-@def title = "Mastering Python Environments: A Practical Guide"
+@def title = "uv Cheatsheet: Complete Reference"
 @def published = "1 January 2026"
 @def tags = ["python"]
 
