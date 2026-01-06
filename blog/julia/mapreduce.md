@@ -10,6 +10,27 @@
 > 
 > Nope! The splat just unpacks the generator into separate arguments for `mapreduce`. Think of it like this: instead of passing one iterable, you're passing multiple iterables as individual arguments. The generator still does its lazy thing - each `df.values` only gets computed when `mapreduce` asks for it. The splat is just syntactic sugar for turning `(a, b, c)` into three separate arguments instead of one tuple.
 
+> **What does splat actually do? Some concrete examples:**
+>
+> Splat (`...`) unpacks a collection into individual arguments. Think of it as "unwrapping" things:
+>
+> ```julia
+> # Without splat - passing a tuple/array as ONE argument
+> max([1, 2, 3])  # Error! max wants separate numbers, not an array
+>
+> # With splat - unpacking into separate arguments  
+> max([1, 2, 3]...)  # Same as: max(1, 2, 3) → 3
+> ```
+>
+> **Common use cases:**
+>
+> 1. **Functions expecting multiple args:** `push!(arr, items...)` adds all items at once
+> 2. **Variable number of collections:** `vcat(arrays...)` concatenates however many you have
+> 3. **Unpacking tuples:** `f(point...)` turns `(x, y)` into `f(x, y)`
+> 4. **With generators (your case!):** `mapreduce(f, op, (thing for thing in stuff)...)` processes each thing separately
+>
+> The key insight: splat turns *one thing containing many items* into *many separate arguments*.
+
 ## Your code's secret sauce
 
 ```julia
