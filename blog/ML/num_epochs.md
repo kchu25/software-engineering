@@ -1,4 +1,4 @@
-@def title = "Understanding Log Transform Trade-offs in Regression"
+@def title = "A Practical Guide to Choosing Epochs"
 @def published = "6 January 2026"
 @def tags = ["neural-nets", "julia"]
 
