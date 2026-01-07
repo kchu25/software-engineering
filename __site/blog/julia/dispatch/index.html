@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Julia Multiple Dispatch Tricks & Patterns</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="julia_multiple_dispatch_tricks_patterns"><a href="#julia_multiple_dispatch_tricks_patterns" class="header-anchor">Julia Multiple Dispatch Tricks &amp; Patterns</a></h1>
+<p>Hey&#33; You&#39;re thinking of some clever dispatch patterns in Julia. Let me walk you through the interesting ones, including that <code>Ref</code> trick.</p>
+<h2 id="the_ref_trick_-_dispatching_on_values"><a href="#the_ref_trick_-_dispatching_on_values" class="header-anchor">The <code>Ref</code> Trick - Dispatching on Values</a></h2>
+<p>This is probably what you&#39;re remembering&#33; You can dispatch on <em>values</em> instead of just types by wrapping them in <code>Ref</code>:</p>
+<pre><code class="language-julia"># Dispatch on the value itself&#33;
+foo&#40;x, ::Ref&#123;:option1&#125;&#41; &#61; &quot;You chose option 1&quot;
+foo&#40;x, ::Ref&#123;:option2&#125;&#41; &#61; &quot;You chose option 2&quot;
+
+# Call it like this:
+foo&#40;42, Ref&#40;:option1&#41;&#41;  # &quot;You chose option 1&quot;
+foo&#40;42, Ref&#40;:option2&#41;&#41;  # &quot;You chose option 2&quot;</code></pre>
+<p>The <code>Ref</code> creates a singleton type for each value, so Julia can dispatch on it at compile time. Pretty neat&#33;</p>
+<h2 id="val_types_-_the_official_way"><a href="#val_types_-_the_official_way" class="header-anchor">Val Types - The &quot;Official&quot; Way</a></h2>
+<p>Julia actually has <code>Val</code> types built-in for this exact pattern:</p>
+<pre><code class="language-julia">process&#40;x, ::Val&#123;:fast&#125;&#41; &#61; &quot;Fast algorithm&quot;
+process&#40;x, ::Val&#123;:slow&#125;&#41; &#61; &quot;Slow but accurate&quot;
+
+# Call with Val constructor:
+process&#40;data, Val&#40;:fast&#41;&#41;</code></pre>
+<p>This is the idiomatic way to do value-based dispatch. The compiler can often optimize away the <code>Val</code> wrapper entirely.</p>
+<h2 id="trait-based_dispatch_holy_traits_pattern"><a href="#trait-based_dispatch_holy_traits_pattern" class="header-anchor">Trait-Based Dispatch &#40;Holy Traits Pattern&#41;</a></h2>
+<p>This is a game-changer for generic programming. You dispatch based on properties of types:</p>
+<pre><code class="language-julia"># Define trait functions
+IsIterable&#40;::Type&#41; &#61; NotIterable&#40;&#41;
+IsIterable&#40;::Type&#123;&lt;:AbstractArray&#125;&#41; &#61; Iterable&#40;&#41;
+
+struct Iterable end
+struct NotIterable end
+
+# Dispatch on the trait
+process&#40;x&#41; &#61; process&#40;IsIterable&#40;typeof&#40;x&#41;&#41;, x&#41;
+process&#40;::Iterable, x&#41; &#61; sum&#40;x&#41;  # For iterable things
+process&#40;::NotIterable, x&#41; &#61; x    # For non-iterable things
+
+process&#40;&#91;1,2,3&#93;&#41;  # 6
+process&#40;42&#41;       # 42</code></pre>
+<p>This lets you categorize types by behavior without inheritance&#33;</p>
+<h2 id="dispatching_on_type_parameters"><a href="#dispatching_on_type_parameters" class="header-anchor">Dispatching on Type Parameters</a></h2>
+<p>You can dispatch on the parameters of parametric types:</p>
+<pre><code class="language-julia"># Different behavior for vectors of different types
+foo&#40;::Vector&#123;Int&#125;&#41; &#61; &quot;Integer vector&quot;
+foo&#40;::Vector&#123;Float64&#125;&#41; &#61; &quot;Float vector&quot;
+foo&#40;::Vector&#123;T&#125;&#41; where T &#61; &quot;Vector of \&#36;T&quot;
+
+# Dispatch on dimensionality
+bar&#40;::Array&#123;T, 1&#125;&#41; where T &#61; &quot;1D array &#40;vector&#41;&quot;
+bar&#40;::Array&#123;T, 2&#125;&#41; where T &#61; &quot;2D array &#40;matrix&#41;&quot;
+bar&#40;::Array&#123;T, N&#125;&#41; where &#123;T, N&#125; &#61; &quot;\&#36;N-D array&quot;</code></pre>
+<h2 id="function-valued_arguments"><a href="#function-valued_arguments" class="header-anchor">Function-Valued Arguments</a></h2>
+<p>Sometimes you want to dispatch on which <em>function</em> is passed:</p>
+<pre><code class="language-julia">apply_op&#40;::typeof&#40;&#43;&#41;, x, y&#41; &#61; &quot;Adding&quot;
+apply_op&#40;::typeof&#40;*&#41;, x, y&#41; &#61; &quot;Multiplying&quot;
+apply_op&#40;f, x, y&#41; &#61; &quot;Using generic function&quot;
+
+apply_op&#40;&#43;, 1, 2&#41;      # &quot;Adding&quot;
+apply_op&#40;*, 1, 2&#41;      # &quot;Multiplying&quot;
+apply_op&#40;sin, 1, 2&#41;    # &quot;Using generic function&quot;</code></pre>
+<h2 id="empty_type_trick_for_zero-cost_flags"><a href="#empty_type_trick_for_zero-cost_flags" class="header-anchor">Empty Type Trick for Zero-Cost Flags</a></h2>
+<p>Use empty types as zero-cost flags:</p>
+<pre><code class="language-julia">struct Verbose end
+struct Quiet end
+
+function compute&#40;x, ::Type&#123;Verbose&#125;&#41;
+    println&#40;&quot;Computing...&quot;&#41;
+    x^2
+end
+
+function compute&#40;x, ::Type&#123;Quiet&#125;&#41;
+    x^2
+end
+
+compute&#40;5, Verbose&#41;  # Prints and computes
+compute&#40;5, Quiet&#41;    # Just computes</code></pre>
+<p>The type gets compiled away - zero runtime cost&#33;</p>
+<h2 id="varargs_with_type_constraints"><a href="#varargs_with_type_constraints" class="header-anchor">Varargs with Type Constraints</a></h2>
+<p>Dispatch on the number and types of variable arguments:</p>
+<pre><code class="language-julia"># Exactly two arguments
+foo&#40;a::Int, b::Int&#41; &#61; a &#43; b
+
+# Three or more integers
+foo&#40;a::Int, b::Int, rest::Int...&#41; &#61; sum&#40;&#40;a, b, rest...&#41;&#41;
+
+# Mix of types
+bar&#40;::Int, ::String, rest::Float64...&#41; &#61; &quot;Got int, string, and floats&quot;</code></pre>
+<h2 id="combining_patterns"><a href="#combining_patterns" class="header-anchor">Combining Patterns</a></h2>
+<p>The real magic happens when you combine these:</p>
+<pre><code class="language-julia"># Trait &#43; Val for algorithm selection
+abstract type Algorithm end
+struct FastAlgo &lt;: Algorithm end
+struct AccurateAlgo &lt;: Algorithm end
+
+compute&#40;x, ::Val&#123;:auto&#125;&#41; &#61; compute&#40;x, choose_algo&#40;x&#41;&#41;
+compute&#40;x, ::Type&#123;FastAlgo&#125;&#41; &#61; fast_compute&#40;x&#41;
+compute&#40;x, ::Type&#123;AccurateAlgo&#125;&#41; &#61; accurate_compute&#40;x&#41;
+
+choose_algo&#40;x::Vector&#123;&lt;:Integer&#125;&#41; &#61; FastAlgo
+choose_algo&#40;x&#41; &#61; AccurateAlgo</code></pre>
+<h2 id="pro_tips"><a href="#pro_tips" class="header-anchor">Pro Tips</a></h2>
+<ul>
+<li><p><strong>Val vs Ref</strong>: Use <code>Val</code> for value dispatch - it&#39;s the standard and optimizes better</p>
+</li>
+<li><p><strong>Trait dispatch</strong>: Great for when you can&#39;t modify the type hierarchy</p>
+</li>
+<li><p><strong>Type parameters</strong>: Specialize on <code>Vector&#123;Int&#125;</code> vs <code>Vector&#123;&lt;:Number&#125;</code> carefully - the former is <em>much</em> more specific</p>
+</li>
+<li><p><strong>Empty types</strong>: When you need runtime flags, empty types have zero memory overhead</p>
+</li>
+<li><p><strong>Don&#39;t over-engineer</strong>: Sometimes a simple <code>if</code> statement is clearer than a clever dispatch pattern</p>
+</li>
+</ul>
+<p>The beauty of Julia is that all these patterns have zero or near-zero runtime cost. The compiler figures it out and generates specialized code for each case. Pretty cool, right?</p>
+<h2 id="when_to_use_dispatch_vs_internal_logic"><a href="#when_to_use_dispatch_vs_internal_logic" class="header-anchor">When to Use Dispatch vs. Internal Logic</a></h2>
+<p>Short answer: <strong>Not always&#33;</strong> Here&#39;s the nuance:</p>
+<h3 id="use_dispatch_when"><a href="#use_dispatch_when" class="header-anchor">Use Dispatch When:</a></h3>
+<p><strong>Type-based differences</strong> - This is dispatch&#39;s sweet spot:</p>
+<pre><code class="language-julia"># GOOD - fundamentally different algorithms
+area&#40;::Circle&#41; &#61; π * r^2
+area&#40;::Rectangle&#41; &#61; width * height</code></pre>
+<p><strong>Performance matters</strong> - Dispatch helps the compiler specialize:</p>
+<pre><code class="language-julia"># GOOD - compiler can optimize each case
+multiply&#40;x::Float64, y::Float64&#41; &#61; x * y  # SIMD possible
+multiply&#40;x::BigFloat, y::BigFloat&#41; &#61; x * y  # Different code path</code></pre>
+<p><strong>Clear separation of concerns</strong> - When methods are conceptually distinct:</p>
+<pre><code class="language-julia"># GOOD - each is its own thing
+save&#40;file::CSV, data&#41; &#61; # CSV logic
+save&#40;file::JSON, data&#41; &#61; # JSON logic</code></pre>
+<h3 id="use_internal_logic_when"><a href="#use_internal_logic_when" class="header-anchor">Use Internal Logic When:</a></h3>
+<p><strong>Simple conditionals</strong> - Don&#39;t over-engineer:</p>
+<pre><code class="language-julia"># GOOD - just use an if
+function greet&#40;name, formal&#61;false&#41;
+    formal ? &quot;Good day, \&#36;name&quot; : &quot;Hey \&#36;name&#33;&quot;
+end
+
+# OVERKILL - don&#39;t do this
+greet&#40;name, ::Val&#123;true&#125;&#41; &#61; &quot;Good day, \&#36;name&quot;
+greet&#40;name, ::Val&#123;false&#125;&#41; &#61; &quot;Hey \&#36;name&#33;&quot;</code></pre>
+<p><strong>Complex business logic</strong> - When the logic is intertwined:</p>
+<pre><code class="language-julia"># GOOD - the logic is naturally sequential
+function calculate_price&#40;item, customer&#41;
+    price &#61; item.base_price
+    if customer.is_member
+        price *&#61; 0.9
+    end
+    if item.on_sale
+        price *&#61; 0.8
+    end
+    if price &gt; 100 &amp;&amp; customer.loyal
+        price -&#61; 10
+    end
+    return price
+end
+
+# BAD - this would be a nightmare with dispatch</code></pre>
+<p><strong>Dynamic/runtime decisions</strong> - When you don&#39;t know types at compile time:</p>
+<pre><code class="language-julia"># GOOD - the choice is runtime data
+function process&#40;data, algorithm_name::String&#41;
+    if algorithm_name &#61;&#61; &quot;fast&quot;
+        fast_algorithm&#40;data&#41;
+    elseif algorithm_name &#61;&#61; &quot;accurate&quot;
+        accurate_algorithm&#40;data&#41;
+    else
+        error&#40;&quot;Unknown algorithm&quot;&#41;
+    end
+end</code></pre>
+<p><strong>Shared setup/teardown</strong> - When methods would duplicate code:</p>
+<pre><code class="language-julia"># GOOD - shared logic
+function analyze&#40;data, method&#41;
+    validated &#61; validate&#40;data&#41;  # Common to all
+    normalized &#61; normalize&#40;validated&#41;  # Common to all
+    
+    if method &#61;&#61; :mean
+        return mean&#40;normalized&#41;
+    elseif method &#61;&#61; :median
+        return median&#40;normalized&#41;
+    end
+end
+
+# BAD - would duplicate validation in each method</code></pre>
+<h3 id="the_gray_area_configuration"><a href="#the_gray_area_configuration" class="header-anchor">The Gray Area: Configuration</a></h3>
+<p>This is where people debate. For configuration flags:</p>
+<pre><code class="language-julia"># Style 1: Internal logic &#40;simpler to read&#41;
+function compute&#40;x, verbose&#61;false&#41;
+    verbose &amp;&amp; println&#40;&quot;Starting...&quot;&#41;
+    result &#61; x^2
+    verbose &amp;&amp; println&#40;&quot;Done&#33;&quot;&#41;
+    return result
+end
+
+# Style 2: Dispatch &#40;better performance, but verbose&#41;
+compute&#40;x, ::Type&#123;Verbose&#125;&#41; &#61; compute_impl&#40;x, true&#41;
+compute&#40;x, ::Type&#123;Quiet&#125;&#41; &#61; compute_impl&#40;x, false&#41;</code></pre>
+<p>If the verbose flag is checked in a hot loop, dispatch wins. Otherwise, the <code>if</code> is fine and clearer.</p>
+<h3 id="performance_reality_check"><a href="#performance_reality_check" class="header-anchor">Performance Reality Check</a></h3>
+<p>Julia&#39;s compiler is smart, but:</p>
+<ul>
+<li><p><strong>Branch prediction is fast</strong> - Modern CPUs handle predictable <code>if</code> statements well</p>
+</li>
+<li><p><strong>Dispatch isn&#39;t free</strong> - Multiple dispatch has lookup costs &#40;though usually tiny&#41;</p>
+</li>
+<li><p><strong>Profile first</strong> - Don&#39;t optimize prematurely</p>
+</li>
+</ul>
+<h3 id="rules_of_thumb"><a href="#rules_of_thumb" class="header-anchor">Rules of Thumb</a></h3>
+<ol>
+<li><p><strong>Favor dispatch for type differences</strong> - That&#39;s what Julia is designed for</p>
+</li>
+<li><p><strong>Use logic for value-based decisions</strong> - Unless performance profiling says otherwise</p>
+</li>
+<li><p><strong>Keep it readable</strong> - If dispatch makes code harder to understand, don&#39;t use it</p>
+</li>
+<li><p><strong>Avoid dispatch explosion</strong> - If you&#39;d need 20 methods, use internal logic</p>
+</li>
+<li><p><strong>Consider maintainability</strong> - Will future you &#40;or others&#41; understand this?</p>
+</li>
+</ol>
+<h3 id="a_real_example"><a href="#a_real_example" class="header-anchor">A Real Example</a></h3>
+<p>Let&#39;s say you&#39;re processing user input:</p>
+<pre><code class="language-julia"># DON&#39;T DO THIS - dispatch overkill
+process&#40;::Val&#123;:add&#125;, a, b&#41; &#61; a &#43; b
+process&#40;::Val&#123;:subtract&#125;, a, b&#41; &#61; a - b
+process&#40;::Val&#123;:multiply&#125;, a, b&#41; &#61; a * b
+# ... 50 more operations
+
+# DO THIS - simple dictionary
+const OPERATIONS &#61; Dict&#40;
+    :add &#61;&gt; &#43;,
+    :subtract &#61;&gt; -,
+    :multiply &#61;&gt; *
+&#41;
+
+function process&#40;op::Symbol, a, b&#41;
+    fn &#61; get&#40;OPERATIONS, op, nothing&#41;
+    fn &#61;&#61;&#61; nothing &amp;&amp; error&#40;&quot;Unknown operation: \&#36;op&quot;&#41;
+    return fn&#40;a, b&#41;
+end</code></pre>
+<p>The dictionary version is clearer, easier to extend, and performance is fine for non-hot-path code.</p>
+<h3 id="bottom_line"><a href="#bottom_line" class="header-anchor">Bottom Line</a></h3>
+<p>Dispatch is a powerful tool, but it&#39;s not a hammer for every nail. Use it when it makes your code clearer, more composable, or genuinely faster. Use regular control flow when it&#39;s simpler and does the job. Julia gives you both - use them wisely&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 07, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

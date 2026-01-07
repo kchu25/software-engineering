@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Creating Python Packages: A Guide for Julia Users</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="creating_python_packages_a_guide_for_julia_users"><a href="#creating_python_packages_a_guide_for_julia_users" class="header-anchor">Creating Python Packages: A Guide for Julia Users</a></h1>
+<h2 id="tldr"><a href="#tldr" class="header-anchor">TL;DR</a></h2>
+<p>Python&#39;s package creation is <strong>similar in spirit</strong> to Julia&#39;s but more fragmented. Instead of one blessed tool &#40;PkgTemplates.jl&#41;, you have several good options. <code>uv</code> is emerging as the modern, fast choice that handles everything.</p>
+<h2 id="the_modern_way_using_uv"><a href="#the_modern_way_using_uv" class="header-anchor">The Modern Way: Using <code>uv</code></a></h2>
+<p>Yes&#33; <code>uv</code> can absolutely be your one-stop shop, similar to how you use PkgTemplates.jl:</p>
+<pre><code class="language-bash"># Create a new package &#40;similar to PkgTemplates.generate&#41;
+uv init my-package --lib
+
+# This creates:
+# my-package/
+# ├── pyproject.toml
+# ├── README.md
+# ├── src/
+# │   └── my_package/
+# │       └── __init__.py
+# └── tests/</code></pre>
+<p>What <code>uv</code> gives you:</p>
+<ul>
+<li><p><strong>Project scaffolding</strong> &#40;like PkgTemplates.jl&#41;</p>
+</li>
+<li><p><strong>Dependency management</strong> &#40;like Julia&#39;s built-in Pkg&#41;</p>
+</li>
+<li><p><strong>Virtual environments</strong> &#40;Python quirk - isolated package installations&#41;</p>
+</li>
+<li><p><strong>Fast package installation</strong> &#40;written in Rust, blazing fast&#41;</p>
+</li>
+</ul>
+<h3 id="development_workflow_with_uv"><a href="#development_workflow_with_uv" class="header-anchor">Development workflow with <code>uv</code>:</a></h3>
+<pre><code class="language-bash"># Add dependencies
+uv add numpy pandas
+
+# Add dev dependencies
+uv add --dev pytest mypy
+
+# Run your code
+uv run python -m my_package
+
+# Run tests
+uv run pytest</code></pre>
+<h2 id="package_structure"><a href="#package_structure" class="header-anchor">Package Structure</a></h2>
+<p>Your <code>pyproject.toml</code> is like Julia&#39;s <code>Project.toml</code>:</p>
+<pre><code class="language-toml">&#91;project&#93;
+name &#61; &quot;my-package&quot;
+version &#61; &quot;0.1.0&quot;
+description &#61; &quot;A cool package&quot;
+authors &#61; &#91;
+    &#123;name &#61; &quot;Your Name&quot;, email &#61; &quot;you@example.com&quot;&#125;
+&#93;
+dependencies &#61; &#91;
+    &quot;numpy&gt;&#61;1.20&quot;,
+&#93;
+
+&#91;build-system&#93;
+requires &#61; &#91;&quot;hatchling&quot;&#93;  # or &quot;setuptools&quot;, &quot;flit&quot;, etc.
+build-backend &#61; &quot;hatchling.build&quot;</code></pre>
+<h2 id="publishing_the_registry_difference"><a href="#publishing_the_registry_difference" class="header-anchor">Publishing: The Registry Difference</a></h2>
+<p>Here&#39;s where Python differs from Julia:</p>
+<h3 id="julia_what_youre_used_to"><a href="#julia_what_youre_used_to" class="header-anchor">Julia &#40;what you&#39;re used to&#41;:</a></h3>
+<pre><code class="language-julia">Code → GitHub → Registrator bot → General registry → Done ✓</code></pre>
+<h3 id="python"><a href="#python" class="header-anchor">Python:</a></h3>
+<pre><code class="language-julia">Code → Build distribution → Upload to PyPI → Done ✓</code></pre>
+<p><strong>Key difference:</strong> PyPI &#40;Python Package Index&#41; is more like a package <strong>hosting service</strong> than a curated registry. Anyone can upload directly &#40;after creating a free account&#41;.</p>
+<h3 id="publishing_with_uv"><a href="#publishing_with_uv" class="header-anchor">Publishing with <code>uv</code>:</a></h3>
+<pre><code class="language-bash"># 1. Build your package &#40;creates .whl and .tar.gz files&#41;
+uv build
+
+# 2. Upload to PyPI &#40;requires account at pypi.org&#41;
+uv publish
+
+# Or test first on TestPyPI
+uv publish --index-url https://test.pypi.org/legacy/</code></pre>
+<blockquote>
+<p><strong>What&#39;s a &quot;distribution&quot;?</strong> Think of it as the packaged-up version of your code ready to ship. When you run <code>uv build</code>, it creates two files in a <code>dist/</code> folder:</p>
+<ul>
+<li><p>A <code>.whl</code> file &#40;wheel&#41; - a zip file with your code, optimized for fast installation</p>
+</li>
+<li><p>A <code>.tar.gz</code> file - a compressed source archive as backup</p>
+</li>
+</ul>
+<p>These are what get uploaded to PyPI. When someone runs <code>pip install your-package</code>, pip downloads one of these files and unpacks it. It&#39;s like creating a <code>.tar.gz</code> of your Julia package, except Python has standardized formats for this.</p>
+</blockquote>
+<p>That&#39;s it&#33; No bot needed. Your package is immediately available:</p>
+<pre><code class="language-bash">pip install my-package  # Anyone can now install it</code></pre>
+<h2 id="alternative_tools_for_context"><a href="#alternative_tools_for_context" class="header-anchor">Alternative Tools &#40;for context&#41;</a></h2>
+<p>Since Python&#39;s ecosystem is more fragmented, you might encounter:</p>
+<ul>
+<li><p><strong>Poetry</strong>: Popular, opinionated tool &#40;like <code>uv</code> but slower&#41;</p>
+</li>
+<li><p><strong>Hatch</strong>: Modern project manager with build support</p>
+</li>
+<li><p><strong>Flit</strong>: Minimal, simple tool for pure Python packages</p>
+</li>
+<li><p><strong>setuptools</strong>: The old-school way &#40;verbose, dated&#41;</p>
+</li>
+</ul>
+<p>But honestly? <strong>Start with <code>uv</code></strong>. It&#39;s fast, modern, and handles everything you need.</p>
+<h2 id="quick_comparison_table"><a href="#quick_comparison_table" class="header-anchor">Quick Comparison Table</a></h2>
+<table><tr><th align="right">Task</th><th align="right">Julia</th><th align="right">Python &#40;with <code>uv</code>&#41;</th></tr><tr><td align="right">Create package</td><td align="right"><code>PkgTemplates.generate&#40;&#41;</code></td><td align="right"><code>uv init --lib</code></td></tr><tr><td align="right">Add dependency</td><td align="right">Edit Project.toml or <code>&#93;add</code></td><td align="right"><code>uv add package</code></td></tr><tr><td align="right">Run tests</td><td align="right"><code>&#93;test</code></td><td align="right"><code>uv run pytest</code></td></tr><tr><td align="right">Register package</td><td align="right">GitHub &#43; Registrator bot</td><td align="right"><code>uv publish</code></td></tr><tr><td align="right">Install published</td><td align="right"><code>&#93;add Package</code></td><td align="right"><code>pip install package</code></td></tr></table>
+<h2 id="pro_tips"><a href="#pro_tips" class="header-anchor">Pro Tips</a></h2>
+<ol>
+<li><p><strong>Version control</strong>: Always include <code>pyproject.toml</code> in git. The <code>uv.lock</code> file &#40;like <code>Manifest.toml</code>&#41; can be included for reproducibility.</p>
+</li>
+<li><p><strong>Testing</strong>: Unlike Julia&#39;s built-in test system, Python uses separate frameworks. <code>pytest</code> is the standard.</p>
+</li>
+<li><p><strong>Type hints</strong>: Python&#39;s equivalent to Julia&#39;s type system is optional type hints &#43; <code>mypy</code>:</p>
+</li>
+</ol>
+<pre><code class="language-python">def greet&#40;name: str&#41; -&gt; str:
+       return f&quot;Hello, &#123;name&#125;&#33;&quot;</code></pre>
+<ol start="4">
+<li><p><strong>Documentation</strong>: Use <code>mkdocs</code> or <code>sphinx</code> &#40;Julia&#39;s Documenter.jl equivalent&#41;</p>
+</li>
+</ol>
+<h2 id="the_bottom_line"><a href="#the_bottom_line" class="header-anchor">The Bottom Line</a></h2>
+<p>Python package creation is <strong>slightly less streamlined</strong> than Julia&#39;s because:</p>
+<ul>
+<li><p>Multiple competing tools &#40;though <code>uv</code> is becoming the favorite&#41;</p>
+</li>
+<li><p>No centralized registry review &#40;PyPI is open upload&#41;</p>
+</li>
+<li><p>Virtual environments add complexity &#40;not needed in Julia&#41;</p>
+</li>
+</ul>
+<p>But with <code>uv</code>, you get pretty close to the Julia experience: one tool, straightforward workflow, and quick publishing. The main win for Python is that once published, your package is <strong>immediately available</strong> worldwide - no waiting for registry merges&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 07, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

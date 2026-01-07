@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>The mapreduce + Generator Trick to save memory</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="the_mapreduce_generator_trick"><a href="#the_mapreduce_generator_trick" class="header-anchor">The mapreduce &#43; Generator Trick</a></h1>
+<p><strong>The trick:</strong> When you pass a generator to <code>mapreduce</code>, Julia processes elements one at a time without materializing the full collection. This saves the big allocation.</p>
+<blockquote>
+<p><strong>Wait, does the <code>...</code> splat kill the generator?</strong></p>
+<p>Nope&#33; The splat just unpacks the generator into separate arguments for <code>mapreduce</code>. Think of it like this: instead of passing one iterable, you&#39;re passing multiple iterables as individual arguments. The generator still does its lazy thing - each <code>df.values</code> only gets computed when <code>mapreduce</code> asks for it. The splat is just syntactic sugar for turning <code>&#40;a, b, c&#41;</code> into three separate arguments instead of one tuple.</p>
+</blockquote>
+<blockquote>
+<p><strong>What does splat actually do? Some concrete examples:</strong></p>
+<p>Splat &#40;<code>...</code>&#41; unpacks a collection into individual arguments. Think of it as &quot;unwrapping&quot; things:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; # Without splat - passing a tuple/array as ONE argument
+&gt; max&#40;&#91;1, 2, 3&#93;&#41;  # Error&#33; max wants separate numbers, not an array
+&gt;
+&gt; # With splat - unpacking into separate arguments  
+&gt; max&#40;&#91;1, 2, 3&#93;...&#41;  # Same as: max&#40;1, 2, 3&#41; → 3
+&gt;</code></pre>
+<blockquote>
+<p><strong>Common use cases:</strong></p>
+<ol>
+<li><p><strong>Functions expecting multiple args:</strong> <code>push&#33;&#40;arr, items...&#41;</code> adds all items at once</p>
+</li>
+<li><p><strong>Variable number of collections:</strong> <code>vcat&#40;arrays...&#41;</code> concatenates however many you have</p>
+</li>
+<li><p><strong>Unpacking tuples:</strong> <code>f&#40;point...&#41;</code> turns <code>&#40;x, y&#41;</code> into <code>f&#40;x, y&#41;</code></p>
+</li>
+<li><p><strong>With generators &#40;your case&#33;&#41;:</strong> <code>mapreduce&#40;f, op, &#40;thing for thing in stuff&#41;...&#41;</code> processes each thing separately</p>
+</li>
+</ol>
+<p>The key insight: splat turns <em>one thing containing many items</em> into <em>many separate arguments</em>.</p>
+</blockquote>
+<h2 id="your_codes_secret_sauce"><a href="#your_codes_secret_sauce" class="header-anchor">Your code&#39;s secret sauce</a></h2>
+<pre><code class="language-julia">mapreduce&#40;extrema, reducer, &#40;df.values for df in dfs&#41;...&#41;</code></pre>
+<p>That <code>&#40;df.values for df in dfs&#41;</code> generator is the key&#33; It means:</p>
+<ul>
+<li><p>✅ Each <code>df.values</code> gets processed one at a time</p>
+</li>
+<li><p>✅ No intermediate array holding all the datasets</p>
+</li>
+<li><p>✅ Memory usage stays roughly constant regardless of how many dataframes you have</p>
+</li>
+</ul>
+<h2 id="the_anti-pattern_what_not_to_do"><a href="#the_anti-pattern_what_not_to_do" class="header-anchor">The anti-pattern &#40;what NOT to do&#41;</a></h2>
+<pre><code class="language-julia"># DON&#39;T DO THIS - materializes everything first
+all_data &#61; &#91;df.values for df in dfs&#93;  # Big array allocation&#33;
+mapreduce&#40;extrema, reducer, all_data...&#41;</code></pre>
+<h2 id="what_still_allocates"><a href="#what_still_allocates" class="header-anchor">What still allocates?</a></h2>
+<p>You still get small allocations:</p>
+<ul>
+<li><p>Each <code>extrema</code> call returns a tuple <code>&#40;min, max&#41;</code></p>
+</li>
+<li><p>The reducer creates new tuples as it combines results</p>
+</li>
+</ul>
+<p>But these are tiny compared to avoiding the full data collection.</p>
+<h2 id="the_pattern"><a href="#the_pattern" class="header-anchor">The pattern</a></h2>
+<p>This is a solid Julia idiom whenever you need to aggregate over multiple collections:</p>
+<pre><code class="language-julia">mapreduce&#40;your_function, your_reducer, &#40;item for item in collection&#41;...&#41;</code></pre>
+<p>The generator keeps memory usage flat while mapreduce handles the combining logic cleanly.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 07, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>A Practical Guide to Choosing Epochs</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="a_practical_guide_to_choosing_epochs"><a href="#a_practical_guide_to_choosing_epochs" class="header-anchor">A Practical Guide to Choosing Epochs</a></h1>
+<p>You&#39;re right—this is weirdly under-discussed&#33; Here&#39;s the intuition and some practical rules.</p>
+<h2 id="the_core_insight"><a href="#the_core_insight" class="header-anchor">The Core Insight</a></h2>
+<p><strong>What matters isn&#39;t epochs, it&#39;s gradient steps.</strong></p>
+<ul>
+<li><p>Small dataset &#40;100 samples&#41;: 1 epoch &#61; 100 samples seen</p>
+</li>
+<li><p>Large dataset &#40;1M samples&#41;: 1 epoch &#61; 1M samples seen</p>
+</li>
+</ul>
+<p>Your model needs to see enough examples to learn, regardless of how you package them into &quot;epochs.&quot;</p>
+<h2 id="the_math"><a href="#the_math" class="header-anchor">The Math</a></h2>
+<p>Total gradient steps &#61; \(\frac{\text{dataset size} \times \text{epochs}}{\text{batch size}}\)</p>
+<p>What you actually care about: <strong>Is this enough steps for the model to converge?</strong></p>
+<h2 id="practical_guidelines"><a href="#practical_guidelines" class="header-anchor">Practical Guidelines</a></h2>
+<h3 id="rule_of_thumb_target_total_samples_seen"><a href="#rule_of_thumb_target_total_samples_seen" class="header-anchor">Rule of Thumb: Target Total Samples Seen</a></h3>
+<p>Aim for your model to see roughly the same total number of samples, regardless of dataset size:</p>
+<table><tr><th align="right">Dataset Size</th><th align="right">Suggested Epochs</th><th align="right">Why</th></tr><tr><td align="right">&lt; 1,000</td><td align="right">100-500</td><td align="right">Need heavy repetition to learn patterns</td></tr><tr><td align="right">1,000-10,000</td><td align="right">50-200</td><td align="right">Moderate repetition needed</td></tr><tr><td align="right">10,000-100,000</td><td align="right">10-50</td><td align="right">Some repetition still helpful</td></tr><tr><td align="right">100,000-1M</td><td align="right">3-10</td><td align="right">Approaching one-pass territory</td></tr><tr><td align="right">&gt; 1M</td><td align="right">1-3</td><td align="right">May not need to repeat data</td></tr></table>
+<h3 id="the_formula_approach"><a href="#the_formula_approach" class="header-anchor">The Formula Approach</a></h3>
+<p>Instead of guessing, calculate epochs to hit a target number of gradient steps:</p>
+<pre><code class="language-julia">function calculate_epochs&#40;dataset_size, batch_size, target_steps&#61;10000&#41;
+    &quot;&quot;&quot;
+    Calculate epochs needed to reach target gradient steps.
+    
+    target_steps: Common values are 10k-100k depending on task
+    &quot;&quot;&quot;
+    epochs &#61; &#40;target_steps * batch_size&#41; / dataset_size
+    return max&#40;1, floor&#40;Int, epochs&#41;&#41;
+end
+
+# Example: 500 samples, batch_size&#61;32, want 10k steps
+epochs &#61; calculate_epochs&#40;500, 32, 10000&#41;  # Returns 640 epochs</code></pre>
+<h3 id="adaptive_strategy_best_practice"><a href="#adaptive_strategy_best_practice" class="header-anchor">Adaptive Strategy &#40;Best Practice&#41;</a></h3>
+<p>Don&#39;t hardcode epochs. Instead:</p>
+<pre><code class="language-julia"># Set a minimum number of gradient steps you want
+min_steps &#61; 5000
+max_steps &#61; 50000
+
+# Calculate steps per epoch
+steps_per_epoch &#61; length&#40;dataset&#41; ÷ batch_size
+
+# Calculate epochs needed
+epochs &#61; min_steps ÷ steps_per_epoch
+epochs &#61; max&#40;epochs, 10&#41;  # at least 10 epochs
+epochs &#61; min&#40;epochs, 1000&#41;  # cap at 1000 to prevent overfitting
+
+println&#40;&quot;Training for &#36;epochs epochs &#40;&#36;&#40;epochs * steps_per_epoch&#41; steps&#41;&quot;&#41;</code></pre>
+<h2 id="early_stopping_fixed_epochs"><a href="#early_stopping_fixed_epochs" class="header-anchor">Early Stopping &gt; Fixed Epochs</a></h2>
+<p>The real answer? <strong>Don&#39;t decide epochs in advance.</strong></p>
+<p>Use early stopping with validation loss:</p>
+<pre><code class="language-julia"># Pseudo-code
+patience &#61; 10  # epochs without improvement
+best_val_loss &#61; Inf
+epochs_no_improve &#61; 0
+
+for epoch in 1:max_epochs
+    train_loss &#61; train_one_epoch&#40;&#41;
+    val_loss &#61; validate&#40;&#41;
+    
+    if val_loss &lt; best_val_loss
+        best_val_loss &#61; val_loss
+        epochs_no_improve &#61; 0
+        save_model&#40;&#41;
+    else
+        epochs_no_improve &#43;&#61; 1
+    end
+    
+    if epochs_no_improve &gt;&#61; patience
+        println&#40;&quot;Stopping early at epoch &#36;epoch&quot;&#41;
+        break
+    end
+end</code></pre>
+<h2 id="quick_decision_tree"><a href="#quick_decision_tree" class="header-anchor">Quick Decision Tree</a></h2>
+<p><strong>Starting a new project?</strong></p>
+<ol>
+<li><p>Use early stopping with <code>max_epochs &#61; 1000</code> and <code>patience &#61; 20</code></p>
+</li>
+<li><p>Let the model tell you when it&#39;s done</p>
+</li>
+</ol>
+<p><strong>Need a quick estimate?</strong></p>
+<ul>
+<li><p>Target ~10,000 gradient steps for small models</p>
+</li>
+<li><p>Target ~100,000&#43; steps for large models</p>
+</li>
+<li><p>Calculate backward from there</p>
+</li>
+</ul>
+<p><strong>Debugging/quick experiments?</strong></p>
+<ul>
+<li><p>Small data: 50-100 epochs minimum</p>
+</li>
+<li><p>Large data: 3-5 epochs is fine</p>
+</li>
+</ul>
+<h2 id="the_nuance"><a href="#the_nuance" class="header-anchor">The Nuance</a></h2>
+<p>Some factors that change the calculation:</p>
+<ul>
+<li><p><strong>Learning rate</strong>: Higher LR → fewer steps needed</p>
+</li>
+<li><p><strong>Model capacity</strong>: Bigger models → more steps to converge</p>
+</li>
+<li><p><strong>Task complexity</strong>: Harder tasks → more steps</p>
+</li>
+<li><p><strong>Regularization</strong>: Heavy dropout/augmentation → may need more epochs</p>
+</li>
+</ul>
+<h2 id="bottom_line"><a href="#bottom_line" class="header-anchor">Bottom Line</a></h2>
+<p>Stop thinking in epochs. Start thinking in gradient steps and validation performance. The number &quot;100 epochs&quot; means nothing without knowing your dataset size.</p>
+<p><strong>The best epoch count is the one where your validation loss stops improving.</strong></p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 07, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

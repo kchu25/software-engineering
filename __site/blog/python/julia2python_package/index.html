@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Julia Package with Python Interface (+ CUDA)</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="julia_package_with_python_interface_cuda"><a href="#julia_package_with_python_interface_cuda" class="header-anchor">Julia Package with Python Interface &#40;&#43; CUDA&#41;</a></h1>
+<div class="colbox-blue"><p><strong>Short Answer: Yes, Totally Doable&#33; 🎯</strong></p>
+<p>You can absolutely write a Julia package and expose it to Python. The CUDA part? Not a problem at all—it actually works beautifully.</p></div>
+<h2 id="how_it_works"><a href="#how_it_works" class="header-anchor">How It Works</a></h2>
+<p>The main tool is <strong>PyJulia</strong> &#40;or more specifically, <code>pyjulia</code>&#41;, which lets Python call Julia code directly. Think of it as a bridge:</p>
+<pre><code class="language-julia">Python → PyJulia → Your Julia Package &#40;with CUDA&#41; → GPU computations</code></pre>
+<h2 id="basic_setup"><a href="#basic_setup" class="header-anchor">Basic Setup</a></h2>
+<h3 id="your_julia_package_structure"><a href="#your_julia_package_structure" class="header-anchor"><ol>
+<li><p>Your Julia Package Structure</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-julia"># MyGPUPackage.jl/src/MyGPUPackage.jl
+module MyGPUPackage
+
+using CUDA
+
+function gpu_computation&#40;x::Vector&#123;Float32&#125;&#41;
+    # Move data to GPU
+    x_gpu &#61; CuArray&#40;x&#41;
+    
+    # Do your CUDA magic
+    result &#61; x_gpu .^ 2 .&#43; 3.0f0
+    
+    # Return to CPU
+    return Array&#40;result&#41;
+end
+
+export gpu_computation
+
+end</code></pre>
+<h3 id="ol_start2_python_interface_two_approaches"><a href="#ol_start2_python_interface_two_approaches" class="header-anchor"><ol start="2">
+<li><p>Python Interface &#40;Two Approaches&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p><strong>Approach A: Direct PyJulia</strong> &#40;Quick &amp; Easy&#41;</p>
+<pre><code class="language-python"># install: pip install julia
+from julia import Main
+Main.eval&#40;&#39;using Pkg; Pkg.add&#40;&quot;MyGPUPackage&quot;&#41;&#39;&#41;
+Main.eval&#40;&#39;using MyGPUPackage&#39;&#41;
+
+# Call your Julia function
+import numpy as np
+x &#61; np.array&#40;&#91;1.0, 2.0, 3.0&#93;, dtype&#61;np.float32&#41;
+result &#61; Main.MyGPUPackage.gpu_computation&#40;x&#41;</code></pre>
+<p><strong>Approach B: Create a Python Wrapper Package</strong> &#40;Professional&#41;</p>
+<pre><code class="language-python"># mygpupackage/__init__.py
+from julia.api import Julia
+jl &#61; Julia&#40;compiled_modules&#61;False&#41;
+
+from julia import MyGPUPackage as _jl_pkg
+
+def gpu_computation&#40;x&#41;:
+    &quot;&quot;&quot;Compute x^2 &#43; 3 on GPU using Julia/CUDA&quot;&quot;&quot;
+    return _jl_pkg.gpu_computation&#40;x&#41;
+
+__all__ &#61; &#91;&#39;gpu_computation&#39;&#93;</code></pre>
+<h2 id="the_cuda_consideration"><a href="#the_cuda_consideration" class="header-anchor">The CUDA Consideration</a></h2>
+<p>Here&#39;s the cool part: CUDA just works™ because:</p>
+<ul>
+<li><p>Julia handles the GPU allocation/deallocation</p>
+</li>
+<li><p>Data transfer happens via numpy arrays &#40;CPU ↔ GPU handled by Julia&#41;</p>
+</li>
+<li><p>Python never directly touches CUDA—Julia does all the heavy lifting</p>
+</li>
+</ul>
+<p>The only requirement: <strong>CUDA must be installed on the system</strong> &#40;same as any GPU work&#41;.</p>
+<h2 id="performance_notes"><a href="#performance_notes" class="header-anchor">Performance Notes</a></h2>
+<p>Data transfer between Python and Julia has some overhead, but:</p>
+<ul>
+<li><p>For large arrays: overhead is <br/>&#40;O&#40;1&#41;<br/>&#41;, computation is <br/>&#40;O&#40;n&#41;<br/>&#41; → negligible</p>
+</li>
+<li><p>For many small calls: consider batching operations in Julia</p>
+</li>
+<li><p>GPU computation time &gt;&gt; transfer time in most real scenarios</p>
+</li>
+</ul>
+<h2 id="quick_example_end-to-end"><a href="#quick_example_end-to-end" class="header-anchor">Quick Example: End-to-End</a></h2>
+<pre><code class="language-python"># Python side
+import numpy as np
+from julia import Main
+
+# One-time setup
+Main.eval&#40;&#39;using MyGPUPackage&#39;&#41;
+
+# Your actual computation
+data &#61; np.random.randn&#40;1_000_000&#41;.astype&#40;np.float32&#41;
+result &#61; Main.MyGPUPackage.gpu_computation&#40;data&#41;
+print&#40;f&quot;Computed on GPU: &#123;result.shape&#125;&quot;&#41;</code></pre>
+<h2 id="do_users_need_julia_installed"><a href="#do_users_need_julia_installed" class="header-anchor">Do Users Need Julia Installed?</a></h2>
+<p><strong>Short answer: Yes</strong>, but you can make it painless:</p>
+<h3 id="option_1_manual_installation_user_does_it"><a href="#option_1_manual_installation_user_does_it" class="header-anchor">Option 1: Manual Installation &#40;User does it&#41;</a></h3>
+<ul>
+<li><p>User installs Julia separately</p>
+</li>
+<li><p>User installs your Python package</p>
+</li>
+<li><p>Simple but adds friction</p>
+</li>
+</ul>
+<h3 id="option_2_automatic_installation_recommended"><a href="#option_2_automatic_installation_recommended" class="header-anchor">Option 2: Automatic Installation &#40;Recommended&#33;&#41;</a></h3>
+<p>Your Python package can auto-install Julia on first import:</p>
+<pre><code class="language-python"># In your package&#39;s __init__.py
+import julia
+julia.install&#40;&#41;  # Downloads and installs Julia if not present&#33;
+
+# Then proceed normally
+from julia import Main
+
+# This will auto-install your Julia package and ALL its dependencies&#33;
+Main.eval&#40;&#39;using Pkg; Pkg.add&#40;&quot;MyGPUPackage&quot;&#41;&#39;&#41;
+Main.eval&#40;&#39;using MyGPUPackage&#39;&#41;</code></pre>
+<p>This uses <code>jill.py</code> under the hood—it downloads Julia &#40;~100MB&#41; automatically. Users just do:</p>
+<pre><code class="language-bash">pip install your-package</code></pre>
+<p>And everything works. They never manually touch Julia.</p>
+<div class="colbox-green"><p><strong>What about Julia package dependencies &#40;like CUDA.jl&#41;?</strong></p>
+<p>Great question&#33; When Julia installs your package with <code>Pkg.add&#40;&quot;MyGPUPackage&quot;&#41;</code>, it automatically grabs all dependencies you&#39;ve declared in your <code>Project.toml</code>. So if your Julia package depends on CUDA.jl, LinearAlgebra.jl, or whatever—Julia&#39;s package manager handles it all. </p>
+<p>Think of it like <code>pip install</code> automatically installing everything in <code>requirements.txt</code>. You declare dependencies once in your Julia package, and they&#39;re installed automatically for every user. The first import just takes a bit longer while Julia downloads and precompiles everything &#40;maybe 1-2 minutes&#41;, then it&#39;s cached forever.</p>
+<p><strong>The GPU requirement:</strong> Yes, if your code uses CUDA.jl with actual kernel code, users absolutely need an NVIDIA GPU &#43; CUDA drivers installed. There&#39;s no way around this—the computation literally runs on the GPU hardware. It&#39;s the same requirement as if you wrote CUDA code in Python with CuPy or PyTorch.</p>
+<p>If you want your package to work for non-GPU users too, you&#39;d need to write CPU fallback versions of your functions &#40;which Julia makes pretty easy—same code often works on both CPU and GPU with minor changes&#41;.</p></div>
+<h3 id="option_3_bundle_julia_advanced"><a href="#option_3_bundle_julia_advanced" class="header-anchor">Option 3: Bundle Julia &#40;Advanced&#41;</a></h3>
+<p>For enterprise/deployment scenarios, you can:</p>
+<ul>
+<li><p>Bundle Julia runtime with your package</p>
+</li>
+<li><p>Use conda to manage Julia as a dependency</p>
+</li>
+<li><p>Create Docker containers with Julia pre-installed</p>
+</li>
+</ul>
+<p><strong>Reality check:</strong> Most scientific Python users won&#39;t mind installing Julia—it&#39;s less friction than setting up CUDA drivers&#33;</p>
+<h2 id="how_to_communicate_gpu_requirements_to_users"><a href="#how_to_communicate_gpu_requirements_to_users" class="header-anchor">How to Communicate GPU Requirements to Users</a></h2>
+<p>Your Python package&#39;s README should be crystal clear upfront. Here&#39;s an example:</p>
+<h3 id="example_readme_section"><a href="#example_readme_section" class="header-anchor">Example README Section</a></h3>
+<pre><code class="language-markdown">## Requirements
+
+### Hardware
+- **NVIDIA GPU required** - This package uses CUDA for GPU acceleration
+- CUDA Compute Capability 3.5 or higher recommended
+- Minimum 4GB GPU memory &#40;8GB&#43; recommended for larger datasets&#41;
+
+### Software
+- CUDA Toolkit 11.0 or higher &#40;Download: https://developer.nvidia.com/cuda-downloads&#41;
+- Python 3.8&#43;
+- Linux or Windows &#40;macOS not supported due to CUDA requirement&#41;
+
+**Note:** Apple Silicon &#40;M1/M2/M3&#41; GPUs are not currently supported. 
+This package requires NVIDIA CUDA hardware.
+
+## Installation
+
+pip install your-package-name
+
+On first import, Julia and required dependencies will be automatically installed.
+This may take 1-2 minutes for initial setup.
+
+## Quick Check
+
+Verify your GPU is detected:
+
+import your_package
+your_package.check_gpu&#40;&#41;  # Returns GPU info or error message</code></pre>
+<h3 id="in_your_python_code"><a href="#in_your_python_code" class="header-anchor">In Your Python Code</a></h3>
+<p>Provide a helpful error message if GPU is missing:</p>
+<pre><code class="language-python"># In your __init__.py
+from julia import Main
+
+def check_gpu&#40;&#41;:
+    &quot;&quot;&quot;Check if CUDA GPU is available&quot;&quot;&quot;
+    try:
+        Main.eval&#40;&#39;using CUDA&#39;&#41;
+        has_gpu &#61; Main.eval&#40;&#39;CUDA.functional&#40;&#41;&#39;&#41;
+        if has_gpu:
+            gpu_name &#61; Main.eval&#40;&#39;CUDA.name&#40;CUDA.device&#40;&#41;&#41;&#39;&#41;
+            return f&quot;✓ GPU detected: &#123;gpu_name&#125;&quot;
+        else:
+            return &quot;✗ No CUDA-capable GPU found. This package requires NVIDIA GPU.&quot;
+    except Exception as e:
+        return f&quot;✗ CUDA not available: &#123;str&#40;e&#41;&#125;&quot;
+
+# Run check on import and warn user
+_gpu_status &#61; check_gpu&#40;&#41;
+if &quot;✗&quot; in _gpu_status:
+    import warnings
+    warnings.warn&#40;
+        f&quot;\n&#123;_gpu_status&#125;\n&quot;
+        &quot;This package requires an NVIDIA GPU with CUDA drivers installed.\n&quot;
+        &quot;See: https://developer.nvidia.com/cuda-downloads&quot;,
+        UserWarning
+    &#41;</code></pre>
+<p>This way users know immediately if something&#39;s wrong, with a clear path to fix it&#33;</p>
+<h2 id="distribution_tips"><a href="#distribution_tips" class="header-anchor">Distribution Tips</a></h2>
+<p>If you want to share this with others:</p>
+<ol>
+<li><p><strong>Publish Julia package</strong> → Julia General Registry</p>
+</li>
+<li><p><strong>Create Python pip package</strong> that:</p>
+<ul>
+<li><p>Installs <code>pyjulia</code> as dependency</p>
+</li>
+<li><p>Auto-installs your Julia package on first import</p>
+</li>
+<li><p>Provides nice Python API wrapping Julia calls</p>
+</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="tldr"><a href="#tldr" class="header-anchor">TL;DR</a></h2>
+<div class="colbox-yellow">✅ Yes, you can have Julia code &#40;with CUDA&#41; callable from Python   ✅ Use PyJulia as the bridge   ✅ CUDA doesn&#39;t complicate things—Julia handles it transparently   ✅ For best UX: create a Python wrapper package around your Julia code   ✅ Users need Julia, but your package can auto-install it seamlessly   ✅ Users need NVIDIA GPU &#43; CUDA drivers &#40;document this clearly upfront&#41;</div>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 07, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
