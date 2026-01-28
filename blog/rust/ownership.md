@@ -38,6 +38,26 @@ s.push_str(", world!");  // Now we can grow it!
 
 The `String` type lives on the heap, so it can grow and change. But someone needs to clean it up when we're done.
 
+> **Wait, so there are TWO string types?**
+>
+> Yep! And the difference is crucial:
+>
+> **String literals (`&str`)** are baked into your compiled program. When you write `"hello"`, that text literally becomes part of your executable file. It sits in a special read-only memory section, which is why you can't change it. It's incredibly fast (no allocation needed), but completely inflexible—you have to know the exact text when you're writing your code.
+>
+> **`String` (the type)** is like a smart container that lives on the heap. It owns its data and can grow, shrink, and change. When you do `String::from("hello")`, Rust allocates memory on the heap, copies "hello" into it, and gives you a `String` that manages that memory.
+>
+> Think of it like this: A string literal is like a sign painted on a wall—permanent, fast to read, but you can't change it. A `String` is like a whiteboard—you can write, erase, and rewrite, but someone has to set it up and clean it up.
+>
+> **Why `&str` instead of just `str`?**
+>
+> Good catch! The type is actually `str`, but you'll almost never see it alone—it's always behind a reference (`&str`). Here's why: `str` is a "slice" that doesn't have a known size (it could be any length), and Rust needs to know sizes to put things on the stack. So you always access it through a reference (`&`), which IS a known size (just a pointer + length).
+>
+> When you write `let s = "hello";`, the type is actually `&str`—a reference to string data. The `&` means "I'm borrowing this, I don't own it."
+>
+> **Do you need the String library?**
+>
+> Nope! `String` is in Rust's standard library, which is automatically available. You don't need to import anything. Just use `String::from("text")` and you're good to go. The `::from` is just the syntax for calling a function that belongs to the `String` type.
+
 ### The Magic Moment: Automatic Cleanup
 
 ```rust
@@ -94,6 +114,32 @@ Some types are so simple they just get copied automatically:
 - Tuples of these types
 
 These have the `Copy` trait. If a type implements `Copy`, the old variable stays valid after assignment.
+
+> **What's a trait?**
+>
+> Think of a trait as a label that says "this type can do X." It's like an interface or a capability badge.
+>
+> The `Copy` trait means "this type is simple enough to just duplicate in memory." If your type has `Copy`, assignments make a real copy instead of a move. 
+>
+> Integers have `Copy` because copying 4 bytes is trivial. But `String` doesn't have `Copy` because it owns heap data—copying would mean duplicating all that heap memory, which could be expensive. Rust wants to make that explicit (with `.clone()`), not automatic.
+>
+> **How does `Copy` actually work?**
+>
+> It's automatic! You don't "apply" it—Rust does it for you based on the type:
+>
+> ```rust
+> let x = 5;        // i32 has Copy
+> let y = x;        // Rust sees "i32 has Copy" → makes a copy
+> // Both x and y are valid!
+>
+> let s1 = String::from("hello");  // String doesn't have Copy
+> let s2 = s1;                     // Rust sees "no Copy" → moves instead
+> // s1 is now invalid!
+> ```
+>
+> You don't write any special code. Rust checks: "Does this type have the `Copy` trait?" If yes → copy. If no → move. That's it.
+>
+> You'll learn more about traits later, but for now: `Copy` = "safe and cheap to duplicate automatically."
 
 ## Functions and Ownership
 
