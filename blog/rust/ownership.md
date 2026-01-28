@@ -139,6 +139,14 @@ These have the `Copy` trait. If a type implements `Copy`, the old variable stays
 >
 > You don't write any special code. Rust checks: "Does this type have the `Copy` trait?" If yes → copy. If no → move. That's it.
 >
+> **So things without `Copy` always get moved?**
+>
+> Yep! That's the rule:
+> - Has `Copy` → assignment/function call makes a copy, original stays valid
+> - No `Copy` → assignment/function call moves it, original becomes invalid
+>
+> Most heap-allocated types (`String`, `Vec`, custom structs with heap data) don't have `Copy`, so they move by default. This prevents accidental expensive copies and prevents the double-free bug.
+>
 > You'll learn more about traits later, but for now: `Copy` = "safe and cheap to duplicate automatically."
 
 ## Functions and Ownership
@@ -206,3 +214,40 @@ Think of ownership like holding a book:
 - Some things are like pamphlets—so cheap you can just make copies (Copy types)
 
 The compiler enforces these rules at compile time, so you can't accidentally create memory bugs. It feels restrictive at first, but it's what makes Rust safe and fast.
+
+## How This Prevents Bugs
+
+**The bugs Rust prevents:**
+
+**1. Use-after-free**
+```rust
+let s1 = String::from("hello");
+let s2 = s1;  // s1 is now invalid
+println!("{}", s1);  // Compile error! Can't use freed memory
+```
+In C/C++, this would compile but crash at runtime. Rust catches it immediately.
+
+**2. Double-free**
+```rust
+let s1 = String::from("hello");
+let s2 = s1;  // Only s2 can free the memory
+// When both go out of scope, only s2 calls drop
+// s1 can't because it's invalid
+```
+Without moves, both `s1` and `s2` would try to free the same memory—corruption or crash. Rust makes this impossible.
+
+**3. Memory leaks (mostly)**
+```rust
+{
+    let s = String::from("hello");
+    // Use s
+}  // Automatic cleanup via drop - no manual free() needed
+```
+You can't forget to clean up because the compiler does it for you. No need to remember to call `free()`.
+
+**4. Data races (with threads)**
+The ownership rules extend to multi-threading. Only one thread can own mutable data at a time, preventing race conditions where two threads modify the same data simultaneously.
+
+**The key insight:** Most memory bugs happen because multiple parts of code think they're responsible for the same memory. Ownership says "exactly ONE owner at a time." This simple rule, enforced at compile time, eliminates entire categories of bugs before your code ever runs.
+
+The tradeoff? You have to think about ownership while writing code. But you catch bugs in seconds (compile errors) instead of hours (debugging crashes). And once it compiles, you know these memory bugs literally cannot happen.
