@@ -153,6 +153,26 @@ let x = 5;
 makes_copy(x);  // x is copied, still usable
 ```
 
+> **Wait, so I can't use `s` after calling the function?**
+>
+> Exactly right! Once you pass `s` to `takes_ownership(s)`, ownership moves into the function. The `s` variable in `main` becomes invalid—you literally can't use it anymore. Try it and Rust will give you a compile error.
+>
+> ```rust
+> let s = String::from("hello");
+> takes_ownership(s);
+> println!("{}", s);  // ERROR! s was moved
+> ```
+>
+> But `x` works fine because integers have `Copy`. The function gets a copy, your original `x` stays valid.
+>
+> ```rust
+> let x = 5;
+> makes_copy(x);
+> println!("{}", x);  // Totally fine! x is still 5
+> ```
+>
+> This is the "tedious" part the article mentions—you have to be really careful about ownership when calling functions with heap data. That's why references (next chapter) are so important!
+
 Same with return values—they transfer ownership:
 
 ```rust
