@@ -20,4 +20,5 @@
 - [node-js](tag/node-js)
 - [sql](tag/sql)
 - [python](tag/python)
+- [rust](tag/rust)
 
