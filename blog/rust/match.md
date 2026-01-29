@@ -65,15 +65,43 @@ Rust checks each pattern from top to bottom. First match wins, runs its code, do
 
 ## But you can use match on other things too!
 
+Match isn't just for enums—it works on regular types like numbers, strings, whatever:
+
 ```rust
+let dice_roll = 9;  // Just a regular integer
+
 match dice_roll {
     1 => println!("one"),
     2 => println!("two"),
     _ => println!("something else"),  // _ means "anything else"
 }
+// This prints: "something else"
 ```
 
-Match works on numbers, strings, whatever. But the Rust book teaches it with enums because that's where it's most powerful—the compiler ensures you've covered all cases.
+Since `dice_roll` is 9, it doesn't match 1 or 2, so it falls through to the `_` catch-all pattern.
+
+### More examples with different types:
+
+```rust
+// Match on a string
+let text = "hello";
+match text {
+    "hello" => println!("hi there!"),
+    "bye" => println!("goodbye!"),
+    _ => println!("huh?"),
+}
+
+// Match on ranges
+let age = 25;
+match age {
+    0..=12 => println!("child"),
+    13..=19 => println!("teen"),
+    20..=64 => println!("adult"),
+    _ => println!("senior"),
+}
+```
+
+The Rust book teaches match with enums because that's where it's most powerful—the compiler ensures you've covered all cases. But match is a general-purpose tool!
 
 ## The real insight
 
