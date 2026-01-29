@@ -106,3 +106,47 @@ The Rust book teaches match with enums because that's where it's most powerful�
 ## The real insight
 
 Enums define a closed set of possibilities. Match ensures you handle all of them. Together they prevent a whole class of bugs where you forget to handle a case. That's why they're taught together—they're a power couple.
+
+## Match MUST handle all enum cases (exhaustiveness)
+
+**When you match on an enum, you MUST handle every variant.** The compiler enforces this:
+
+```rust
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter,
+}
+
+// ❌ This won't compile - missing Dime and Quarter!
+match coin {
+    Coin::Penny => 1,
+    Coin::Nickel => 5,
+}
+// Compiler error: "non-exhaustive patterns: `Coin::Dime` and `Coin::Quarter` not covered"
+```
+
+You have two ways to satisfy the compiler:
+
+### Option 1: List every variant explicitly
+```rust
+match coin {
+    Coin::Penny => 1,
+    Coin::Nickel => 5,
+    Coin::Dime => 10,
+    Coin::Quarter => 25,
+}
+```
+
+### Option 2: Use a catch-all for the rest
+```rust
+match coin {
+    Coin::Penny => 1,
+    _ => 0,  // Handles Nickel, Dime, Quarter - anything that's not Penny
+}
+```
+
+**Important**: For regular types (like numbers or strings), you don't need all cases—you can just use `_` to catch everything else. But for enums, the compiler forces exhaustiveness because it knows exactly what all the possibilities are.
+
+That's the safety feature: you can't accidentally forget to handle a case!
