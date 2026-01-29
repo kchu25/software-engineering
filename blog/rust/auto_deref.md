@@ -55,6 +55,78 @@ Behind the scenes, Rust is doing `(*r).len()`, but you don't have to write that.
 
 **This is purely syntactic sugar.** The reference is still just a pointer—Rust just makes it ergonomic to use.
 
+## Where's the `->` operator? (For C/C++ folks)
+
+If you're coming from C or C++, you might be wondering why there's no `->` operator in Rust.
+
+**In C/C++, you have two operators:**
+- `.` for calling methods on objects directly
+- `->` for calling methods on pointers (which does `(*ptr).method()` for you)
+
+```cpp
+// C++ example
+object.method();   // calling on object
+ptr->method();     // calling on pointer (equivalent to (*ptr).method())
+```
+
+**Rust just uses `.` for everything:**
+
+```rust
+let p1 = Point { x: 0, y: 0 };
+let p2 = Point { x: 3, y: 4 };
+
+// All of these work:
+p1.distance(&p2);        // calling on the value directly
+(&p1).distance(&p2);     // calling on a reference
+```
+
+## How does this magic work?
+
+First, let's understand what methods actually look like when they're defined:
+
+```rust
+impl String {
+    // This method takes a REFERENCE to self (just borrows, doesn't take ownership)
+    fn len(&self) -> usize { ... }
+    
+    // This method takes a MUTABLE REFERENCE to self (borrows mutably)
+    fn push_str(&mut self, string: &str) { ... }
+    
+    // This method takes OWNERSHIP of self (consumes the value)
+    fn into_bytes(self) -> Vec<u8> { ... }
+}
+```
+
+That first parameter—`self`, `&self`, or `&mut self`—tells Rust what the method needs to receive.
+
+**Now here's the magic:** When you call `object.method()`, Rust looks at the method's signature and automatically adjusts `object` to match:
+
+```rust
+let mut s = String::from("hello");
+
+// len() is defined as: fn len(&self)
+// So Rust automatically does: (&s).len()
+s.len();
+
+// push_str() is defined as: fn push_str(&mut self, ...)
+// So Rust automatically does: (&mut s).push_str(" world")
+s.push_str(" world");
+```
+
+**You can even call these methods on references directly:**
+
+```rust
+let r = &s;
+r.len();  // r is already &s, method needs &self, perfect match!
+
+let r = &mut s;
+r.push_str("!");  // r is already &mut s, method needs &mut self, perfect match!
+```
+
+Rust figures this out because methods **declare exactly what they need** in their signature. Since the requirement is crystal clear, Rust can automatically add `&`, `&mut`, or `*` to make it work.
+
+**Why this matters:** You don't have to think about whether you have a value or a reference when calling methods. Just use `.` and Rust handles it. This makes ownership much more ergonomic in practice.
+
 ## The practical takeaway
 
 When you write `&something`, you're creating a reference that *points to* `something`. You're not duplicating it or transferring ownership—you're just creating a lightweight way to access it.
