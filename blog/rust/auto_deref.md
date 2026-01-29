@@ -82,22 +82,29 @@ p1.distance(&p2);        // calling on the value directly
 
 ## How does this magic work?
 
-First, let's understand what methods actually look like when they're defined:
+First, let's understand what methods actually look like when they're defined.
+
+**A method signature is just the "header" of a method**—it shows the method's name, what parameters it takes, and what it returns:
 
 ```rust
 impl String {
-    // This method takes a REFERENCE to self (just borrows, doesn't take ownership)
+    // Signature: fn len(&self) -> usize
+    // Translation: "len takes a reference to self, returns a usize"
     fn len(&self) -> usize { ... }
     
-    // This method takes a MUTABLE REFERENCE to self (borrows mutably)
+    // Signature: fn push_str(&mut self, string: &str)
+    // Translation: "push_str takes a mutable reference to self and a string slice"
     fn push_str(&mut self, string: &str) { ... }
     
-    // This method takes OWNERSHIP of self (consumes the value)
+    // Signature: fn into_bytes(self) -> Vec<u8>
+    // Translation: "into_bytes takes ownership of self, returns a Vec"
     fn into_bytes(self) -> Vec<u8> { ... }
 }
 ```
 
-That first parameter—`self`, `&self`, or `&mut self`—tells Rust what the method needs to receive.
+The signature is like a contract: "Here's what I need, here's what I'll give you back."
+
+That first parameter—`self`, `&self`, or `&mut self`—is the key. It tells Rust what the method needs to receive.
 
 **Now here's the magic:** When you call `object.method()`, Rust looks at the method's signature and automatically adjusts `object` to match:
 
@@ -126,6 +133,38 @@ r.push_str("!");  // r is already &mut s, method needs &mut self, perfect match!
 Rust figures this out because methods **declare exactly what they need** in their signature. Since the requirement is crystal clear, Rust can automatically add `&`, `&mut`, or `*` to make it work.
 
 **Why this matters:** You don't have to think about whether you have a value or a reference when calling methods. Just use `.` and Rust handles it. This makes ownership much more ergonomic in practice.
+
+## Why did Rust's designers make this choice?
+
+This isn't just convenient syntax—it's a carefully designed solution to a fundamental tension in Rust's philosophy.
+
+**The problem Rust faced:**
+
+Rust wants you to be explicit about ownership and borrowing. That's the whole point—you should know whether you're moving, borrowing, or mutating. But if Rust forced you to write `(&object).method()` or `(&mut object).method()` everywhere, the code would be cluttered and frustrating:
+
+```rust
+// Imagine if you had to write this:
+(&s).len()
+(&mut s).push_str(" world")
+(&(&s)).chars()
+```
+
+Yuck! This would make Rust painful to use, even though ownership tracking is valuable.
+
+**Rust's solution: Make the common case ergonomic**
+
+The designers realized something clever: **When calling methods, the ownership requirement is unambiguous.** The method signature explicitly says what it needs (`self`, `&self`, or `&mut self`), so there's no guessing involved.
+
+Since there's no ambiguity, why make you write it out? Let the compiler figure it out!
+
+**This preserves Rust's philosophy:**
+- ✅ You're still being explicit about ownership (the method signature tells you)
+- ✅ The borrow checker still validates everything
+- ✅ But you get clean, readable code like `s.len()` instead of `(&s).len()`
+
+**The wisdom:** Rust makes you explicit where it matters (function arguments, return values, variable bindings) but saves you from repetitive ceremony where the compiler can safely infer your intent. This is why Rust can enforce strict ownership rules without feeling like you're fighting the language constantly.
+
+It's not magic—it's thoughtful language design that makes correctness ergonomic.
 
 ## The practical takeaway
 
