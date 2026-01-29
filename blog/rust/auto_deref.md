@@ -6,6 +6,34 @@
 
 **Short answer: No.** A reference expression returns a *reference* to the object, not the object itself.
 
+## What's a method anyway?
+
+Quick terminology: **A method is just a function defined in an `impl` block that has `self` as its first parameter.**
+
+```rust
+struct Point { x: i32, y: i32 }
+
+impl Point {
+    // This is a method (has self parameter)
+    fn distance(&self, other: &Point) -> f64 { ... }
+    
+    // This is an associated function, not a method (no self)
+    fn new(x: i32, y: i32) -> Point { ... }
+}
+
+// Called like this:
+let p = Point::new(0, 0);  // Associated function - use ::
+p.distance(&other);         // Method - use .
+```
+
+**Why have methods at all?** The automatic dereferencing is nice, but it's not the main reason. The real benefits are:
+1. **Organization** - Keep related functions with their data type
+2. **Clear ownership semantics** - The `self` parameter makes it obvious what happens to the value
+3. **Namespacing** - Multiple types can have a `len()` method without conflicts
+4. **Ergonomics** - `point.distance(&other)` is clearer than `distance(&point, &other)`
+
+The automatic dereferencing is just icing on the cake!
+
 ## What's the difference?
 
 Think of it like this:
@@ -156,6 +184,46 @@ Yuck! This would make Rust painful to use, even though ownership tracking is val
 The designers realized something clever: **When calling methods, the ownership requirement is unambiguous.** The method signature explicitly says what it needs (`self`, `&self`, or `&mut self`), so there's no guessing involved.
 
 Since there's no ambiguity, why make you write it out? Let the compiler figure it out!
+
+**In other words:** You already declared what the method needs when you wrote the `impl` block. Why force you to repeat that information every time you call it?
+
+```rust
+// You wrote this once in the impl block:
+impl String {
+    fn len(&self) -> usize { ... }  // ← You said it needs &self here
+}
+
+// So at the call site, Rust already knows what to do:
+let s = String::from("hello");
+s.len();  // Rust sees "len needs &self" and automatically does (&s).len()
+
+// You don't need to repeat yourself:
+(&s).len();  // This works but is redundant - you already said len needs &self!
+```
+
+The information is **already there** in the method definition. Making you write `(&s).len()` would be forcing you to repeat what you already declared.
+
+**Wait, is "making the common case ergonomic" just about methods?**
+
+Not quite! It's a broader philosophy. The "common case" here is: **most of the time, you want to borrow things, not move them.** When you call a method, you usually want to use the object temporarily, not consume it.
+
+```rust
+let s = String::from("hello");
+s.len();           // Common case: just checking the length (borrow)
+s.push_str("!");   // Common case: modifying temporarily (mutable borrow)
+// s is still usable here!
+
+s.into_bytes();    // Uncommon case: consuming the string (move)
+// s is gone now
+```
+
+If Rust made you write `(&s).len()` every single time, you'd be fighting the language constantly for the most common operations. Methods in `impl` blocks get this automatic referencing because:
+
+1. They're the organized, structured way to work with types (good design!)
+2. The signature makes the borrowing unambiguous (safe to infer!)
+3. Borrowing is what you want 90% of the time (ergonomic default!)
+
+So yes, it's about making organized code (impl blocks) more ergonomic, but the deeper insight is: **make borrowing easy since that's what people do most.**
 
 **This preserves Rust's philosophy:**
 - ✅ You're still being explicit about ownership (the method signature tells you)
