@@ -161,7 +161,9 @@ But Julia's version is **open** (you can add more subtypes later), while Rust's 
 
 ## The Option Example
 
-Rust's `Option<T>` is their way of saying "this might be nothing":
+Now here's where Rust's enum philosophy really shines in practice. Remember how enums let you represent "one of several possibilities"? Rust applies this idea to solve one of programming's most common problems: **representing the absence of a value**.
+
+Instead of having `null` (which can sneak into any type), Rust has an enum called `Option<T>` that explicitly says "this might be nothing":
 
 ```rust
 let maybe_number: Option<i32> = Some(5);
