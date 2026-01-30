@@ -342,6 +342,39 @@ match result {
 }
 ```
 
+### Destructuring beyond match (it's everywhere in Rust!)
+
+Destructuring isn't just for `match`—you can use it in `let` statements, function parameters, and more:
+
+```rust
+// Destructuring tuples in let
+let point = (10, 20, 30);
+let (x, y, z) = point;  // x=10, y=20, z=30
+
+// Destructuring structs in let
+struct User { name: String, age: u32 }
+let user = User { name: String::from("Alice"), age: 30 };
+let User { name, age } = user;  // name="Alice", age=30
+
+// Destructuring in function parameters
+fn print_point((x, y): (i32, i32)) {
+    println!("x={}, y={}", x, y);
+}
+print_point((5, 10));
+
+// Destructuring in for loops
+let points = vec![(1, 2), (3, 4), (5, 6)];
+for (x, y) in points {
+    println!("({}, {})", x, y);
+}
+
+// Nested destructuring
+let nested = ((1, 2), (3, 4));
+let ((a, b), (c, d)) = nested;  // a=1, b=2, c=3, d=4
+```
+
+**The pattern syntax is the same everywhere**—whether in `match`, `let`, `if let`, function parameters, or `for` loops. Once you learn it, you can use it anywhere!
+
 ---
 
 ## Match guards: Adding extra conditions with `if`
