@@ -266,6 +266,30 @@ let result = match x {
 
 Enums can hold data inside their variants. `match` lets you **destructure** (extract) that data:
 
+### What is destructuring?
+
+**Destructuring** means breaking apart a composite data structure to access its individual pieces. Think of it like unpacking a box—you take out each item and give it a name.
+
+It's the opposite of *constructing*:
+```rust
+// Constructing: putting pieces together
+let point = (3, 5);           // Build a tuple from two values
+let user = User { name, age }; // Build a struct from fields
+
+// Destructuring: taking pieces apart
+let (x, y) = point;           // Extract values from tuple
+let User { name, age } = user; // Extract fields from struct
+```
+
+**Destructuring works on:**
+- Tuples
+- Structs
+- Enums
+- Arrays and slices
+- Nested combinations of all the above
+
+### Destructuring in `match` (enums)
+
 ```rust
 enum Message {
     Quit,                       // No data
