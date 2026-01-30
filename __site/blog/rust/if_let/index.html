@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>if let and let else: When Match Is Overkill</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="if_let_and_let_else_when_match_is_overkill"><a href="#if_let_and_let_else_when_match_is_overkill" class="header-anchor"><code>if let</code> and <code>let else</code>: When Match Is Overkill</a></h1>
+<p>Sometimes you only care about <strong>one</strong> pattern. Writing a full <code>match</code> for that feels like overkill.</p>
+<hr />
+<h2 id="the_problem_too_much_boilerplate"><a href="#the_problem_too_much_boilerplate" class="header-anchor">The Problem: Too Much Boilerplate</a></h2>
+<p>Say you have an <code>Option&lt;u8&gt;</code> and you only want to do something if it&#39;s <code>Some</code>:</p>
+<pre><code class="language-rust">let config_max &#61; Some&#40;3u8&#41;;
+
+match config_max &#123;
+    Some&#40;max&#41; &#61;&gt; println&#33;&#40;&quot;The maximum is configured to be &#123;&#125;&quot;, max&#41;,
+    _ &#61;&gt; &#40;&#41;,  // Do nothing for None... but we HAVE to write this&#33;
+&#125;</code></pre>
+<p>That <code>_ &#61;&gt; &#40;&#41;</code> is annoying. You&#39;re forced to handle a case you don&#39;t care about, just to satisfy the compiler&#39;s exhaustiveness requirement.</p>
+<hr />
+<h2 id="the_solution_if_let"><a href="#the_solution_if_let" class="header-anchor">The Solution: <code>if let</code></a></h2>
+<p><code>if let</code> lets you match on just one pattern and ignore everything else:</p>
+<pre><code class="language-rust">let config_max &#61; Some&#40;3u8&#41;;
+
+if let Some&#40;max&#41; &#61; config_max &#123;
+    println&#33;&#40;&quot;The maximum is configured to be &#123;&#125;&quot;, max&#41;;
+&#125;</code></pre>
+<p><strong>Read it as:</strong> &quot;If <code>config_max</code> matches the pattern <code>Some&#40;max&#41;</code>, then run this code.&quot;</p>
+<p>Much cleaner&#33; No boilerplate <code>_ &#61;&gt; &#40;&#41;</code> needed.</p>
+<hr />
+<h2 id="how_if_let_works"><a href="#how_if_let_works" class="header-anchor">How <code>if let</code> Works</a></h2>
+<p>The syntax is:</p>
+<pre><code class="language-rust">if let PATTERN &#61; EXPRESSION &#123;
+    // Code runs only if PATTERN matches
+&#125;</code></pre>
+<p>It&#39;s basically <strong>syntax sugar</strong> for a <code>match</code> with one arm you care about and a catch-all that does nothing:</p>
+<pre><code class="language-rust">// These two are equivalent:
+
+// if let version
+if let Some&#40;x&#41; &#61; my_option &#123;
+    println&#33;&#40;&quot;&#123;&#125;&quot;, x&#41;;
+&#125;
+
+// match version
+match my_option &#123;
+    Some&#40;x&#41; &#61;&gt; println&#33;&#40;&quot;&#123;&#125;&quot;, x&#41;,
+    _ &#61;&gt; &#40;&#41;,
+&#125;</code></pre>
+<hr />
+<h2 id="if_let_with_else"><a href="#if_let_with_else" class="header-anchor"><code>if let</code> with <code>else</code></a></h2>
+<p>What if you want to do something when it <strong>doesn&#39;t</strong> match? Use <code>else</code>:</p>
+<pre><code class="language-rust">let coin &#61; Coin::Quarter&#40;UsState::Alaska&#41;;
+
+if let Coin::Quarter&#40;state&#41; &#61; coin &#123;
+    println&#33;&#40;&quot;State quarter from &#123;:?&#125;&#33;&quot;, state&#41;;
+&#125; else &#123;
+    println&#33;&#40;&quot;Not a quarter&quot;&#41;;
+&#125;</code></pre>
+<p>This is equivalent to:</p>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Quarter&#40;state&#41; &#61;&gt; println&#33;&#40;&quot;State quarter from &#123;:?&#125;&#33;&quot;, state&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;Not a quarter&quot;&#41;,
+&#125;</code></pre>
+<hr />
+<h2 id="real_example_counting_non-quarters"><a href="#real_example_counting_non-quarters" class="header-anchor">Real Example: Counting Non-Quarters</a></h2>
+<pre><code class="language-rust">let mut count &#61; 0;
+
+// With match
+match coin &#123;
+    Coin::Quarter&#40;state&#41; &#61;&gt; println&#33;&#40;&quot;State quarter from &#123;:?&#125;&#33;&quot;, state&#41;,
+    _ &#61;&gt; count &#43;&#61; 1,
+&#125;
+
+// With if let &#40;same behavior&#41;
+if let Coin::Quarter&#40;state&#41; &#61; coin &#123;
+    println&#33;&#40;&quot;State quarter from &#123;:?&#125;&#33;&quot;, state&#41;;
+&#125; else &#123;
+    count &#43;&#61; 1;
+&#125;</code></pre>
+<p>Both work. Use whichever reads better in context.</p>
+<hr />
+<h2 id="the_trade-off_no_exhaustiveness_checking"><a href="#the_trade-off_no_exhaustiveness_checking" class="header-anchor">The Trade-Off: No Exhaustiveness Checking</a></h2>
+<p><strong>With <code>match</code>:</strong> The compiler ensures you handle every case. Forget one? Compilation error.</p>
+<p><strong>With <code>if let</code>:</strong> You&#39;re explicitly saying &quot;I only care about this one pattern.&quot; The compiler won&#39;t warn you about unhandled cases.</p>
+<p>Choose based on your situation:</p>
+<ul>
+<li><p>Use <code>match</code> when you need to handle multiple cases or want the compiler to catch forgotten cases</p>
+</li>
+<li><p>Use <code>if let</code> when you genuinely only care about one pattern</p>
+</li>
+</ul>
+<hr />
+<h2 id="let_else_staying_on_the_happy_path"><a href="#let_else_staying_on_the_happy_path" class="header-anchor"><code>let else</code>: Staying on the &quot;Happy Path&quot;</a></h2>
+<p>Sometimes you want to extract a value or <strong>bail out early</strong>. Here&#39;s a common pattern:</p>
+<pre><code class="language-rust">fn describe_state_quarter&#40;coin: Coin&#41; -&gt; Option&lt;String&gt; &#123;
+    // Extract the state, or return early if it&#39;s not a quarter
+    let state &#61; if let Coin::Quarter&#40;state&#41; &#61; coin &#123;
+        state
+    &#125; else &#123;
+        return None;
+    &#125;;
+
+    // Now we can use &#96;state&#96; knowing it exists
+    if state.existed_in&#40;1900&#41; &#123;
+        Some&#40;format&#33;&#40;&quot;&#123;:?&#125; is pretty old, for America&#33;&quot;, state&#41;&#41;
+    &#125; else &#123;
+        Some&#40;format&#33;&#40;&quot;&#123;:?&#125; is relatively new.&quot;, state&#41;&#41;
+    &#125;
+&#125;</code></pre>
+<p>This works, but it&#39;s a bit clunky. One branch returns a value, the other returns from the function entirely.</p>
+<h3 id="let_else_makes_this_cleaner"><a href="#let_else_makes_this_cleaner" class="header-anchor"><code>let else</code> Makes This Cleaner</a></h3>
+<p>Rust has <code>let else</code> for exactly this pattern:</p>
+<pre><code class="language-rust">fn describe_state_quarter&#40;coin: Coin&#41; -&gt; Option&lt;String&gt; &#123;
+    let Coin::Quarter&#40;state&#41; &#61; coin else &#123;
+        return None;  // Must diverge &#40;return, break, panic, etc.&#41;
+    &#125;;
+
+    // &#96;state&#96; is now available here&#33;
+    if state.existed_in&#40;1900&#41; &#123;
+        Some&#40;format&#33;&#40;&quot;&#123;:?&#125; is pretty old, for America&#33;&quot;, state&#41;&#41;
+    &#125; else &#123;
+        Some&#40;format&#33;&#40;&quot;&#123;:?&#125; is relatively new.&quot;, state&#41;&#41;
+    &#125;
+&#125;</code></pre>
+<p><strong>Read it as:</strong> &quot;Let this pattern match, otherwise do this &#40;and exit&#41;.&quot;</p>
+<h3 id="how_let_else_works"><a href="#how_let_else_works" class="header-anchor">How <code>let else</code> Works</a></h3>
+<pre><code class="language-rust">let PATTERN &#61; EXPRESSION else &#123;
+    // This block MUST diverge &#40;return, break, continue, panic&#33;, etc.&#41;
+    // It cannot just &quot;fall through&quot; to the next line
+&#125;;
+// If the pattern matched, the bound variables are available here</code></pre>
+<p>The key rule: <strong>the <code>else</code> block must diverge</strong>. It can&#39;t just do nothing—it must exit the current flow &#40;return from function, break from loop, panic, etc.&#41;.</p>
+<h3 id="why_happy_path"><a href="#why_happy_path" class="header-anchor">Why &quot;Happy Path&quot;?</a></h3>
+<p>With <code>let else</code>, your main code stays at the top level, reading straight down:</p>
+<pre><code class="language-rust">fn process&#40;input: Option&lt;Data&gt;&#41; -&gt; Result&lt;Output, Error&gt; &#123;
+    let Some&#40;data&#41; &#61; input else &#123;
+        return Err&#40;Error::NoInput&#41;;
+    &#125;;
+
+    let validated &#61; validate&#40;data&#41; else &#123;
+        return Err&#40;Error::Invalid&#41;;
+    &#125;;
+
+    let result &#61; compute&#40;validated&#41; else &#123;
+        return Err&#40;Error::ComputeFailed&#41;;
+    &#125;;
+
+    Ok&#40;result&#41;
+&#125;</code></pre>
+<p>Each <code>let else</code> is a checkpoint: &quot;if this doesn&#39;t work, bail out.&quot; The main logic flows straight down without nesting deeper and deeper.</p>
+<hr />
+<h2 id="when_to_use_what"><a href="#when_to_use_what" class="header-anchor">When to Use What?</a></h2>
+<table><tr><th align="right">Situation</th><th align="right">Use</th></tr><tr><td align="right">Handle all cases explicitly</td><td align="right"><code>match</code></td></tr><tr><td align="right">Only care about one case, ignore the rest</td><td align="right"><code>if let</code></td></tr><tr><td align="right">One case &#43; do something for everything else</td><td align="right"><code>if let</code> &#43; <code>else</code></td></tr><tr><td align="right">Extract value or bail out early</td><td align="right"><code>let else</code></td></tr></table>
+<hr />
+<h2 id="quick_comparison"><a href="#quick_comparison" class="header-anchor">Quick Comparison</a></h2>
+<pre><code class="language-rust">let maybe_value: Option&lt;i32&gt; &#61; Some&#40;42&#41;;
+
+// match - handles all cases explicitly
+match maybe_value &#123;
+    Some&#40;v&#41; &#61;&gt; println&#33;&#40;&quot;Got &#123;&#125;&quot;, v&#41;,
+    None &#61;&gt; println&#33;&#40;&quot;Got nothing&quot;&#41;,
+&#125;
+
+// if let - only care about Some
+if let Some&#40;v&#41; &#61; maybe_value &#123;
+    println&#33;&#40;&quot;Got &#123;&#125;&quot;, v&#41;;
+&#125;
+
+// if let &#43; else - care about Some, do something else for None
+if let Some&#40;v&#41; &#61; maybe_value &#123;
+    println&#33;&#40;&quot;Got &#123;&#125;&quot;, v&#41;;
+&#125; else &#123;
+    println&#33;&#40;&quot;Got nothing&quot;&#41;;
+&#125;
+
+// let else - extract or bail out
+fn use_value&#40;opt: Option&lt;i32&gt;&#41; -&gt; i32 &#123;
+    let Some&#40;v&#41; &#61; opt else &#123;
+        return -1;  // bail out with default
+    &#125;;
+    v * 2  // use the extracted value
+&#125;</code></pre>
+<hr />
+<h2 id="summary"><a href="#summary" class="header-anchor">Summary</a></h2>
+<ul>
+<li><p><strong><code>if let</code></strong> &#61; &quot;If this pattern matches, do something&quot; &#40;ignore non-matches&#41;</p>
+</li>
+<li><p><strong><code>if let</code> &#43; <code>else</code></strong> &#61; &quot;If this pattern matches, do X; otherwise do Y&quot;</p>
+</li>
+<li><p><strong><code>let else</code></strong> &#61; &quot;Extract this value, or bail out early&quot;</p>
+</li>
+</ul>
+<p>All three are shortcuts for common <code>match</code> patterns. They make your code more concise when you don&#39;t need full pattern matching power.</p>
+<p><strong>Remember:</strong> <code>if let</code> trades exhaustiveness checking for conciseness. Use <code>match</code> when you want the compiler to ensure you&#39;ve handled all cases.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
