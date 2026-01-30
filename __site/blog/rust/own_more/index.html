@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Ownership: References, Slices, and Practical Patterns</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_ownership_references_slices_and_practical_patterns"><a href="#rust_ownership_references_slices_and_practical_patterns" class="header-anchor">Rust Ownership: References, Slices, and Practical Patterns</a></h1>
+<p>This continues from <a href="/blog/rust/ownership/">ownership.md</a> and covers the practical side of borrowing that beginners need.</p>
+<hr />
+<h2 id="references_borrowing_without_taking_ownership"><a href="#references_borrowing_without_taking_ownership" class="header-anchor">References: Borrowing Without Taking Ownership</a></h2>
+<p>Remember how passing a <code>String</code> to a function moves it?</p>
+<pre><code class="language-rust">fn calculate_length&#40;s: String&#41; -&gt; usize &#123;
+    s.len&#40;&#41;
+&#125;
+
+let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let len &#61; calculate_length&#40;s&#41;;
+// println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // ❌ Error&#33; s was moved</code></pre>
+<p><strong>References</strong> solve this. The <code>&amp;</code> symbol means &quot;borrow this, don&#39;t take ownership&quot;:</p>
+<pre><code class="language-rust">fn calculate_length&#40;s: &amp;String&#41; -&gt; usize &#123;  // Takes a reference
+    s.len&#40;&#41;
+&#125;
+
+let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let len &#61; calculate_length&#40;&amp;s&#41;;  // Pass a reference with &amp;
+println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // ✅ Works&#33; s wasn&#39;t moved</code></pre>
+<h3 id="what_just_happened"><a href="#what_just_happened" class="header-anchor">What Just Happened?</a></h3>
+<ul>
+<li><p><code>&amp;s</code> creates a <strong>reference</strong> to <code>s</code> &#40;like a pointer that can&#39;t be null&#41;</p>
+</li>
+<li><p>The function <strong>borrows</strong> <code>s</code> temporarily</p>
+</li>
+<li><p>When the function ends, the borrow ends</p>
+</li>
+<li><p><code>s</code> still owns the data—nothing was moved</p>
+</li>
+</ul>
+<p>Think of it like lending a book: your friend can read it, but you still own it.</p>
+<hr />
+<h2 id="vs_mut_shared_vs_exclusive_borrowing"><a href="#vs_mut_shared_vs_exclusive_borrowing" class="header-anchor"><code>&amp;</code> vs <code>&amp;mut</code>: Shared vs Exclusive Borrowing</a></h2>
+<p>There are two kinds of references:</p>
+<h3 id="immutable_reference_t_read-only_access"><a href="#immutable_reference_t_read-only_access" class="header-anchor">Immutable Reference &#40;<code>&amp;T</code>&#41; — &quot;Read-only access&quot;</a></h3>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r1 &#61; &amp;s;  // Immutable reference
+let r2 &#61; &amp;s;  // Another one - totally fine&#33;
+println&#33;&#40;&quot;&#123;&#125; and &#123;&#125;&quot;, r1, r2&#41;;  // ✅ Multiple readers OK</code></pre>
+<p>You can have <strong>as many <code>&amp;T</code> references as you want</strong>. They can all read, but none can modify.</p>
+<h3 id="mutable_reference_mut_t_exclusive_write_access"><a href="#mutable_reference_mut_t_exclusive_write_access" class="header-anchor">Mutable Reference &#40;<code>&amp;mut T</code>&#41; — &quot;Exclusive write access&quot;</a></h3>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;  // Note: s must be &#96;mut&#96;
+let r &#61; &amp;mut s;                      // Mutable reference
+r.push_str&#40;&quot; world&quot;&#41;;                // ✅ Can modify through r
+println&#33;&#40;&quot;&#123;&#125;&quot;, r&#41;;  // &quot;hello world&quot;</code></pre>
+<p>You can have <strong>exactly one <code>&amp;mut T</code> reference at a time</strong>. And while it exists, no other references &#40;not even <code>&amp;T</code>&#41; are allowed.</p>
+<h3 id="why_the_restriction"><a href="#why_the_restriction" class="header-anchor">Why the Restriction?</a></h3>
+<p>This prevents <strong>data races</strong>. Imagine two pieces of code trying to modify the same data simultaneously—that&#39;s a recipe for bugs. Rust says: &quot;Either many readers OR one writer, never both.&quot;</p>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r1 &#61; &amp;s;      // Immutable borrow
+let r2 &#61; &amp;s;      // Another immutable borrow - fine
+// let r3 &#61; &amp;mut s;  // ❌ Error&#33; Can&#39;t borrow mutably while borrowed immutably
+println&#33;&#40;&quot;&#123;&#125;, &#123;&#125;&quot;, r1, r2&#41;;</code></pre>
+<hr />
+<h2 id="let_mut_vs_mut_theyre_different_things"><a href="#let_mut_vs_mut_theyre_different_things" class="header-anchor"><code>let mut</code> vs <code>&amp;mut</code>: They&#39;re Different Things&#33;</a></h2>
+<p>This confuses many beginners:</p>
+<pre><code class="language-rust">let mut x &#61; 5;  // x is a MUTABLE VARIABLE &#40;can be reassigned&#41;
+x &#61; 10;         // ✅ Fine, x is mutable
+
+let r &#61; &amp;mut x; // r is a MUTABLE REFERENCE &#40;can modify what it points to&#41;
+*r &#61; 15;        // ✅ Modify x through r</code></pre>
+<table><tr><th align="right">Syntax</th><th align="right">Meaning</th></tr><tr><td align="right"><code>let x &#61; 5;</code></td><td align="right">Immutable variable &#40;can&#39;t change x&#41;</td></tr><tr><td align="right"><code>let mut x &#61; 5;</code></td><td align="right">Mutable variable &#40;can reassign x&#41;</td></tr><tr><td align="right"><code>&amp;x</code></td><td align="right">Immutable reference &#40;can read, not write&#41;</td></tr><tr><td align="right"><code>&amp;mut x</code></td><td align="right">Mutable reference &#40;can read AND write&#41;</td></tr></table>
+<p><strong>Key insight</strong>: To get a <code>&amp;mut</code> reference, the original variable must be <code>mut</code>:</p>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;  // Not mutable
+// let r &#61; &amp;mut s;  // ❌ Error&#33; Can&#39;t mutably borrow an immutable variable
+
+let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;  // Mutable
+let r &#61; &amp;mut s;  // ✅ Works</code></pre>
+<hr />
+<h2 id="the_dereference_operator"><a href="#the_dereference_operator" class="header-anchor">The Dereference Operator &#40;<code>*</code>&#41;</a></h2>
+<p>When you have a reference and want to access the actual value, use <code>*</code>:</p>
+<pre><code class="language-rust">let x &#61; 5;
+let r &#61; &amp;x;
+println&#33;&#40;&quot;&#123;&#125;&quot;, *r&#41;;  // Prints 5 - dereferencing r to get the value</code></pre>
+<p>For modifying through a mutable reference:</p>
+<pre><code class="language-rust">let mut x &#61; 5;
+let r &#61; &amp;mut x;
+*r &#61; 10;  // Dereference and assign
+println&#33;&#40;&quot;&#123;&#125;&quot;, x&#41;;  // Prints 10</code></pre>
+<blockquote>
+<p><strong>Wait, but I didn&#39;t use <code>*</code> earlier with strings?</strong></p>
+<p>Good catch&#33; Rust has <strong>automatic dereferencing</strong> &#40;called &quot;deref coercion&quot;&#41; for method calls. When you write <code>r.push_str&#40;&quot;...&quot;&#41;</code>, Rust automatically dereferences as needed. You only need explicit <code>*</code> for things like assignment or comparison with primitives.</p>
+</blockquote>
+<hr />
+<h2 id="slices_borrowing_part_of_a_collection"><a href="#slices_borrowing_part_of_a_collection" class="header-anchor">Slices: Borrowing Part of a Collection</a></h2>
+<p>A <strong>slice</strong> is a reference to a contiguous portion of a collection. It lets you borrow part of the data without copying.</p>
+<h3 id="string_slices_str"><a href="#string_slices_str" class="header-anchor">String Slices &#40;<code>&amp;str</code>&#41;</a></h3>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello world&quot;&#41;;
+
+let hello &#61; &amp;s&#91;0..5&#93;;   // Slice from index 0 to 4
+let world &#61; &amp;s&#91;6..11&#93;;  // Slice from index 6 to 10
+
+println&#33;&#40;&quot;&#123;&#125; &#123;&#125;&quot;, hello, world&#41;;  // &quot;hello world&quot;</code></pre>
+<p>The slice <code>&amp;s&#91;0..5&#93;</code> doesn&#39;t copy &quot;hello&quot;—it&#39;s just a reference to that part of the string.</p>
+<p><strong>Syntax shortcuts:</strong></p>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let slice &#61; &amp;s&#91;0..2&#93;;  // &quot;he&quot;
+let slice &#61; &amp;s&#91;..2&#93;;   // Same - start from 0
+let slice &#61; &amp;s&#91;2..&#93;;   // &quot;llo&quot; - go to end
+let slice &#61; &amp;s&#91;..&#93;;    // Whole string</code></pre>
+<h3 id="why_str_instead_of_string"><a href="#why_str_instead_of_string" class="header-anchor">Why <code>&amp;str</code> Instead of <code>&amp;String</code>?</a></h3>
+<p>This is a key pattern. When writing functions, prefer <code>&amp;str</code> over <code>&amp;String</code>:</p>
+<pre><code class="language-rust">// ❌ Less flexible - only accepts &amp;String
+fn first_word_bad&#40;s: &amp;String&#41; -&gt; &amp;str &#123;
+    // ...
+&#125;
+
+// ✅ More flexible - accepts &amp;String AND &amp;str
+fn first_word&#40;s: &amp;str&#41; -&gt; &amp;str &#123;
+    let bytes &#61; s.as_bytes&#40;&#41;;
+    for &#40;i, &amp;item&#41; in bytes.iter&#40;&#41;.enumerate&#40;&#41; &#123;
+        if item &#61;&#61; b&#39; &#39; &#123;
+            return &amp;s&#91;..i&#93;;
+        &#125;
+    &#125;
+    &amp;s&#91;..&#93;
+&#125;
+
+let my_string &#61; String::from&#40;&quot;hello world&quot;&#41;;
+first_word&#40;&amp;my_string&#41;;     // ✅ Works with &amp;String
+first_word&#40;&amp;my_string&#91;..&#93;&#41;; // ✅ Works with slice of String
+first_word&#40;&quot;hello world&quot;&#41;;  // ✅ Works with string literal &#40;&amp;str&#41;</code></pre>
+<blockquote>
+<p><strong>So <code>&amp;str</code> is the &quot;general purpose&quot; string reference?</strong></p>
+<p>Exactly&#33; A <code>&amp;String</code> can automatically coerce to <code>&amp;str</code>, but not vice versa. So <code>&amp;str</code> accepts both.</p>
+<p>Think of it like this:</p>
+<ul>
+<li><p><code>String</code> &#61; owned string data &#40;you can modify it&#41;</p>
+</li>
+<li><p><code>&amp;str</code> &#61; borrowed view of string data &#40;read-only&#41;</p>
+</li>
+</ul>
+<p>String literals like <code>&quot;hello&quot;</code> are already <code>&amp;str</code> &#40;they&#39;re baked into your program&#41;.</p>
+</blockquote>
+<h3 id="array_slices"><a href="#array_slices" class="header-anchor">Array Slices</a></h3>
+<p>Same concept works for arrays and vectors:</p>
+<pre><code class="language-rust">let a &#61; &#91;1, 2, 3, 4, 5&#93;;
+let slice &#61; &amp;a&#91;1..3&#93;;  // &#91;2, 3&#93; - type is &amp;&#91;i32&#93;
+
+let v &#61; vec&#33;&#91;1, 2, 3, 4, 5&#93;;
+let slice &#61; &amp;v&#91;1..3&#93;;  // Same - borrows part of the vector</code></pre>
+<hr />
+<h2 id="practical_patterns_when_to_use_what"><a href="#practical_patterns_when_to_use_what" class="header-anchor">Practical Patterns: When to Use What</a></h2>
+<h3 id="pattern_1_read-only_access_use_t"><a href="#pattern_1_read-only_access_use_t" class="header-anchor">Pattern 1: Read-only access → Use <code>&amp;T</code></a></h3>
+<pre><code class="language-rust">fn print_length&#40;s: &amp;String&#41; &#123;  // Just reading, use &amp;
+    println&#33;&#40;&quot;Length: &#123;&#125;&quot;, s.len&#40;&#41;&#41;;
+&#125;
+
+let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+print_length&#40;&amp;s&#41;;
+println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // s still valid</code></pre>
+<h3 id="pattern_2_need_to_modify_use_mut_t"><a href="#pattern_2_need_to_modify_use_mut_t" class="header-anchor">Pattern 2: Need to modify → Use <code>&amp;mut T</code></a></h3>
+<pre><code class="language-rust">fn add_exclamation&#40;s: &amp;mut String&#41; &#123;
+    s.push_str&#40;&quot;&#33;&quot;&#41;;
+&#125;
+
+let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+add_exclamation&#40;&amp;mut s&#41;;
+println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // &quot;hello&#33;&quot;</code></pre>
+<h3 id="pattern_3_function_takes_ownership_consumes_the_value_use_t"><a href="#pattern_3_function_takes_ownership_consumes_the_value_use_t" class="header-anchor">Pattern 3: Function takes ownership &#40;consumes the value&#41; → Use <code>T</code></a></h3>
+<pre><code class="language-rust">fn consume_and_transform&#40;s: String&#41; -&gt; String &#123;
+    s.to_uppercase&#40;&#41;  // Takes s, returns new String
+&#125;
+
+let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s &#61; consume_and_transform&#40;s&#41;;  // s moved in, result moved out
+// Old s is gone, but we have new s</code></pre>
+<h3 id="pattern_4_expensive_to_clone_need_owned_copy_think_twice_maybe_borrow"><a href="#pattern_4_expensive_to_clone_need_owned_copy_think_twice_maybe_borrow" class="header-anchor">Pattern 4: Expensive to clone, need owned copy → Think twice, maybe borrow</a></h3>
+<pre><code class="language-rust">// ❌ Expensive if data is large
+fn process&#40;data: Vec&lt;i32&gt;&#41; &#123;
+    // ...
+&#125;
+let v &#61; vec&#33;&#91;1, 2, 3, /* ... thousands more */&#93;;
+process&#40;v.clone&#40;&#41;&#41;;  // Cloning is expensive&#33;
+
+// ✅ Better - just borrow
+fn process&#40;data: &amp;&#91;i32&#93;&#41; &#123;
+    // ...
+&#125;
+let v &#61; vec&#33;&#91;1, 2, 3, /* ... thousands more */&#93;;
+process&#40;&amp;v&#41;;  // No clone needed</code></pre>
+<hr />
+<h2 id="lifetime_annotations_a_quick_preview"><a href="#lifetime_annotations_a_quick_preview" class="header-anchor">Lifetime Annotations: A Quick Preview</a></h2>
+<p>Sometimes Rust can&#39;t figure out how long a reference should live:</p>
+<pre><code class="language-rust">// ❌ Won&#39;t compile - Rust doesn&#39;t know which reference&#39;s lifetime to use
+fn longest&#40;x: &amp;str, y: &amp;str&#41; -&gt; &amp;str &#123;
+    if x.len&#40;&#41; &gt; y.len&#40;&#41; &#123; x &#125; else &#123; y &#125;
+&#125;</code></pre>
+<p>You tell Rust explicitly with <strong>lifetime annotations</strong>:</p>
+<pre><code class="language-rust">fn longest&lt;&#39;a&gt;&#40;x: &amp;&#39;a str, y: &amp;&#39;a str&#41; -&gt; &amp;&#39;a str &#123;
+    if x.len&#40;&#41; &gt; y.len&#40;&#41; &#123; x &#125; else &#123; y &#125;
+&#125;</code></pre>
+<p>The <code>&#39;a</code> says: &quot;The returned reference lives as long as the shorter of the two inputs.&quot;</p>
+<blockquote>
+<p><strong>This looks scary&#33;</strong></p>
+<p>It does at first. But here&#39;s the mental model:</p>
+<ul>
+<li><p><code>&#39;a</code> is just a name &#40;like a variable name, but for lifetimes&#41;</p>
+</li>
+<li><p><code>&amp;&#39;a str</code> means &quot;a reference that&#39;s valid for at least lifetime &#39;a&quot;</p>
+</li>
+<li><p>When two parameters share the same <code>&#39;a</code>, it means &quot;these references must be valid for the same &#40;overlapping&#41; period&quot;</p>
+</li>
+</ul>
+<p>Most of the time, Rust figures out lifetimes automatically &#40;&quot;lifetime elision&quot;&#41;. You only need to write them when Rust asks you to.</p>
+</blockquote>
+<hr />
+<h2 id="common_mistakes_and_fixes"><a href="#common_mistakes_and_fixes" class="header-anchor">Common Mistakes and Fixes</a></h2>
+<h3 id="mistake_1_returning_a_reference_to_local_data"><a href="#mistake_1_returning_a_reference_to_local_data" class="header-anchor">Mistake 1: Returning a reference to local data</a></h3>
+<pre><code class="language-rust">// ❌ Won&#39;t compile
+fn create_string&#40;&#41; -&gt; &amp;String &#123;
+    let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+    &amp;s  // s is dropped here, reference would dangle&#33;
+&#125;
+
+// ✅ Fix: Return owned data
+fn create_string&#40;&#41; -&gt; String &#123;
+    String::from&#40;&quot;hello&quot;&#41;  // Ownership moves to caller
+&#125;</code></pre>
+<h3 id="mistake_2_mutating_while_borrowing"><a href="#mistake_2_mutating_while_borrowing" class="header-anchor">Mistake 2: Mutating while borrowing</a></h3>
+<pre><code class="language-rust">let mut v &#61; vec&#33;&#91;1, 2, 3&#93;;
+let first &#61; &amp;v&#91;0&#93;;  // Immutable borrow
+v.push&#40;4&#41;;          // ❌ Error&#33; Can&#39;t mutate while borrowed
+println&#33;&#40;&quot;&#123;&#125;&quot;, first&#41;;
+
+// ✅ Fix: Finish using the borrow first
+let mut v &#61; vec&#33;&#91;1, 2, 3&#93;;
+let first &#61; v&#91;0&#93;;   // Copy the value &#40;i32 has Copy&#41;
+v.push&#40;4&#41;;          // ✅ Now fine
+println&#33;&#40;&quot;&#123;&#125;&quot;, first&#41;;</code></pre>
+<h3 id="mistake_3_multiple_mutable_borrows"><a href="#mistake_3_multiple_mutable_borrows" class="header-anchor">Mistake 3: Multiple mutable borrows</a></h3>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r1 &#61; &amp;mut s;
+let r2 &#61; &amp;mut s;  // ❌ Error&#33; Can&#39;t have two &amp;mut
+println&#33;&#40;&quot;&#123;&#125;, &#123;&#125;&quot;, r1, r2&#41;;
+
+// ✅ Fix: Use them sequentially
+let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+&#123;
+    let r1 &#61; &amp;mut s;
+    r1.push_str&#40;&quot; world&quot;&#41;;
+&#125;  // r1 goes out of scope
+let r2 &#61; &amp;mut s;  // ✅ Now fine
+r2.push_str&#40;&quot;&#33;&quot;&#41;;</code></pre>
+<hr />
+<h2 id="quick_reference"><a href="#quick_reference" class="header-anchor">Quick Reference</a></h2>
+<table><tr><th align="right">I want to...</th><th align="right">Use</th><th align="right">Example</th></tr><tr><td align="right">Read data without owning</td><td align="right"><code>&amp;T</code></td><td align="right"><code>fn len&#40;s: &amp;String&#41;</code></td></tr><tr><td align="right">Modify data without owning</td><td align="right"><code>&amp;mut T</code></td><td align="right"><code>fn append&#40;s: &amp;mut String&#41;</code></td></tr><tr><td align="right">Take ownership &#40;consume&#41;</td><td align="right"><code>T</code></td><td align="right"><code>fn consume&#40;s: String&#41;</code></td></tr><tr><td align="right">Borrow part of a string</td><td align="right"><code>&amp;str</code></td><td align="right"><code>&amp;my_string&#91;0..5&#93;</code></td></tr><tr><td align="right">Borrow part of an array/vec</td><td align="right"><code>&amp;&#91;T&#93;</code></td><td align="right"><code>&amp;my_vec&#91;1..3&#93;</code></td></tr><tr><td align="right">Copy the data entirely</td><td align="right"><code>.clone&#40;&#41;</code></td><td align="right"><code>let copy &#61; s.clone&#40;&#41;</code></td></tr></table>
+<hr />
+<h2 id="mental_model_summary"><a href="#mental_model_summary" class="header-anchor">Mental Model Summary</a></h2>
+<p>Think of ownership like library books:</p>
+<ul>
+<li><p><strong>Owning</strong> &#61; You checked out the book. It&#39;s yours until you return it.</p>
+</li>
+<li><p><strong><code>&amp;</code> borrowing</strong> &#61; A friend is reading over your shoulder. They can look, but you still have it.</p>
+</li>
+<li><p><strong><code>&amp;mut</code> borrowing</strong> &#61; You handed the book to a friend to take notes. While they have it, you can&#39;t even look at it.</p>
+</li>
+<li><p><strong>Moving</strong> &#61; You gave the book to someone else. You can&#39;t use it anymore.</p>
+</li>
+<li><p><strong>Cloning</strong> &#61; You photocopied the entire book. Now there are two copies.</p>
+</li>
+<li><p><strong>Slices</strong> &#61; Someone took a photo of one page. They can see that page, but don&#39;t have the book.</p>
+</li>
+</ul>
+<p>The borrow checker is the librarian making sure nobody breaks the rules&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

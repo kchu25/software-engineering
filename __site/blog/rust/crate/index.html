@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Packages and Crates: Untangled</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_packages_and_crates_untangled"><a href="#rust_packages_and_crates_untangled" class="header-anchor">Rust Packages and Crates: Untangled</a></h1>
+<p>The official Rust book introduces three concepts at once—crates, packages, and modules—which can feel overwhelming. Let&#39;s untangle them one layer at a time.</p>
+<hr />
+<h2 id="the_big_picture"><a href="#the_big_picture" class="header-anchor">The Big Picture</a></h2>
+<pre><code class="language-julia">Package &#40;has Cargo.toml&#41;
+├── Crate &#40;binary&#41; ← compiled to executable
+├── Crate &#40;library&#41; ← compiled to shareable code
+└── Crate &#40;binary&#41; ← you can have multiple binaries</code></pre>
+<p>Think of it like this:</p>
+<ul>
+<li><p><strong>Crate</strong> &#61; a unit of compilation &#40;what <code>rustc</code> compiles&#41;</p>
+</li>
+<li><p><strong>Package</strong> &#61; a bundle of crates managed by Cargo &#40;has <code>Cargo.toml</code>&#41;</p>
+</li>
+<li><p><strong>Module</strong> &#61; organization within a crate &#40;we&#39;ll cover this separately&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="what_is_a_crate"><a href="#what_is_a_crate" class="header-anchor">What is a Crate?</a></h2>
+<p>A <strong>crate</strong> is the smallest unit of code the Rust compiler deals with. When you run <code>rustc</code> on a file, that file is a crate.</p>
+<h3 id="two_kinds_of_crates"><a href="#two_kinds_of_crates" class="header-anchor">Two Kinds of Crates</a></h3>
+<table><tr><th align="right">Type</th><th align="right">Has <code>main</code>?</th><th align="right">Compiles to</th><th align="right">Example</th></tr><tr><td align="right"><strong>Binary crate</strong></td><td align="right">Yes</td><td align="right">Executable you can run</td><td align="right">CLI tool, server, game</td></tr><tr><td align="right"><strong>Library crate</strong></td><td align="right">No</td><td align="right">Code others can use</td><td align="right"><code>rand</code>, <code>serde</code>, <code>tokio</code></td></tr></table>
+<pre><code class="language-rust">// Binary crate - has main&#40;&#41;, runs as a program
+fn main&#40;&#41; &#123;
+    println&#33;&#40;&quot;I&#39;m an executable&#33;&quot;&#41;;
+&#125;
+
+// Library crate - no main&#40;&#41;, provides functionality
+pub fn useful_function&#40;&#41; &#123;
+    // Other code can call this
+&#125;</code></pre>
+<blockquote>
+<p><strong>&quot;Crate&quot; usually means library</strong></p>
+<p>When Rustaceans say &quot;I&#39;m using the <code>serde</code> crate,&quot; they mean library crate. It&#39;s interchangeable with &quot;library&quot; in casual conversation.</p>
+</blockquote>
+<h3 id="the_crate_root"><a href="#the_crate_root" class="header-anchor">The Crate Root</a></h3>
+<p>Every crate has a <strong>root file</strong>—the starting point for compilation:</p>
+<table><tr><th align="right">Crate type</th><th align="right">Root file</th></tr><tr><td align="right">Binary</td><td align="right"><code>src/main.rs</code></td></tr><tr><td align="right">Library</td><td align="right"><code>src/lib.rs</code></td></tr></table>
+<p>The compiler starts at the root and follows all the <code>mod</code> declarations to find the rest of your code.</p>
+<hr />
+<h2 id="what_is_a_package"><a href="#what_is_a_package" class="header-anchor">What is a Package?</a></h2>
+<p>A <strong>package</strong> is what you create when you run <code>cargo new</code>. It&#39;s a directory with:</p>
+<ul>
+<li><p>A <code>Cargo.toml</code> file &#40;the manifest&#41;</p>
+</li>
+<li><p>One or more crates</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>What&#39;s a manifest?</strong></p>
+<p>A <strong>manifest</strong> is a file that describes your project&#39;s metadata and configuration. In Rust, it&#39;s <code>Cargo.toml</code>. It tells Cargo:</p>
+<ul>
+<li><p>What your package is called</p>
+</li>
+<li><p>What version it is</p>
+</li>
+<li><p>What dependencies it needs</p>
+</li>
+<li><p>How to build it</p>
+</li>
+</ul>
+<p>Think of it like a shipping label &#43; packing list for your code. The name comes from shipping terminology—a ship&#39;s manifest lists everything on board.</p>
+</blockquote>
+<pre><code class="language-bash">&#36; cargo new my-project
+     Created binary &#40;application&#41; &#96;my-project&#96; package
+
+&#36; tree my-project
+my-project
+├── Cargo.toml    ← Package manifest
+└── src
+    └── main.rs   ← Binary crate root</code></pre>
+<h3 id="package_rules"><a href="#package_rules" class="header-anchor">Package Rules</a></h3>
+<ol>
+<li><p><strong>At least one crate</strong> &#40;binary or library&#41;</p>
+</li>
+<li><p><strong>At most one library crate</strong> &#40;you can only have one <code>src/lib.rs</code>&#41;</p>
+</li>
+<li><p><strong>Any number of binary crates</strong> &#40;multiple executables are fine&#41;</p>
+</li>
+</ol>
+<hr />
+<h2 id="package_configurations"><a href="#package_configurations" class="header-anchor">Package Configurations</a></h2>
+<h3 id="binary_only_most_common_for_applications"><a href="#binary_only_most_common_for_applications" class="header-anchor">Binary Only &#40;most common for applications&#41;</a></h3>
+<pre><code class="language-julia">my-app/
+├── Cargo.toml
+└── src/
+    └── main.rs      ← Binary crate &quot;my-app&quot;</code></pre>
+<p>This is what <code>cargo new my-app</code> creates.</p>
+<h3 id="library_only_for_sharing_code"><a href="#library_only_for_sharing_code" class="header-anchor">Library Only &#40;for sharing code&#41;</a></h3>
+<pre><code class="language-julia">my-lib/
+├── Cargo.toml
+└── src/
+    └── lib.rs       ← Library crate &quot;my-lib&quot;</code></pre>
+<p>This is what <code>cargo new my-lib --lib</code> creates.</p>
+<h3 id="both_binary_and_library"><a href="#both_binary_and_library" class="header-anchor">Both Binary and Library</a></h3>
+<pre><code class="language-julia">my-project/
+├── Cargo.toml
+└── src/
+    ├── main.rs      ← Binary crate &quot;my-project&quot;
+    └── lib.rs       ← Library crate &quot;my-project&quot;</code></pre>
+<p>The binary can use the library:</p>
+<pre><code class="language-rust">// src/main.rs
+use my_project::useful_function;  // Import from the library crate
+
+fn main&#40;&#41; &#123;
+    useful_function&#40;&#41;;
+&#125;</code></pre>
+<pre><code class="language-rust">// src/lib.rs
+pub fn useful_function&#40;&#41; &#123;
+    println&#33;&#40;&quot;Called from the library&#33;&quot;&#41;;
+&#125;</code></pre>
+<h3 id="multiple_binaries"><a href="#multiple_binaries" class="header-anchor">Multiple Binaries</a></h3>
+<pre><code class="language-julia">my-project/
+├── Cargo.toml
+└── src/
+    ├── main.rs          ← Binary &quot;my-project&quot;
+    ├── lib.rs           ← Library &quot;my-project&quot;
+    └── bin/
+        ├── tool1.rs     ← Binary &quot;tool1&quot;
+        └── tool2.rs     ← Binary &quot;tool2&quot;</code></pre>
+<p>Run them with:</p>
+<pre><code class="language-bash">cargo run --bin my-project
+cargo run --bin tool1
+cargo run --bin tool2</code></pre>
+<hr />
+<h2 id="convention_over_configuration"><a href="#convention_over_configuration" class="header-anchor">Convention Over Configuration</a></h2>
+<p>Cargo uses <strong>file location</strong> to determine crate structure. You don&#39;t need to specify these in <code>Cargo.toml</code>:</p>
+<table><tr><th align="right">File exists</th><th align="right">Cargo assumes</th></tr><tr><td align="right"><code>src/main.rs</code></td><td align="right">Binary crate with package name</td></tr><tr><td align="right"><code>src/lib.rs</code></td><td align="right">Library crate with package name</td></tr><tr><td align="right"><code>src/bin/foo.rs</code></td><td align="right">Additional binary crate named &quot;foo&quot;</td></tr></table>
+<p>This is why <code>Cargo.toml</code> often has no explicit crate configuration—Cargo just looks at your file structure.</p>
+<hr />
+<h2 id="why_separate_binary_and_library"><a href="#why_separate_binary_and_library" class="header-anchor">Why Separate Binary and Library?</a></h2>
+<p>A common pattern: put your logic in a library crate, and keep <code>main.rs</code> thin.</p>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li><p>Library can be tested independently</p>
+</li>
+<li><p>Library can be used by other projects</p>
+</li>
+<li><p>Binary is just a thin wrapper that calls library functions</p>
+</li>
+</ul>
+<pre><code class="language-rust">// src/lib.rs - All the real logic
+pub fn run_app&#40;args: Vec&lt;String&gt;&#41; -&gt; Result&lt;&#40;&#41;, String&gt; &#123;
+    // Complex logic here
+    Ok&#40;&#40;&#41;&#41;
+&#125;
+
+// src/main.rs - Just the entry point
+fn main&#40;&#41; &#123;
+    let args: Vec&lt;String&gt; &#61; std::env::args&#40;&#41;.collect&#40;&#41;;
+    if let Err&#40;e&#41; &#61; my_project::run_app&#40;args&#41; &#123;
+        eprintln&#33;&#40;&quot;Error: &#123;&#125;&quot;, e&#41;;
+        std::process::exit&#40;1&#41;;
+    &#125;
+&#125;</code></pre>
+<hr />
+<h2 id="quick_reference"><a href="#quick_reference" class="header-anchor">Quick Reference</a></h2>
+<table><tr><th align="right">Term</th><th align="right">What it is</th><th align="right">Example</th></tr><tr><td align="right"><strong>Crate</strong></td><td align="right">Compilation unit</td><td align="right"><code>rand</code>, your <code>main.rs</code></td></tr><tr><td align="right"><strong>Binary crate</strong></td><td align="right">Compiles to executable</td><td align="right">CLI app, server</td></tr><tr><td align="right"><strong>Library crate</strong></td><td align="right">Compiles to reusable code</td><td align="right"><code>serde</code>, <code>tokio</code></td></tr><tr><td align="right"><strong>Crate root</strong></td><td align="right">Entry point for compiler</td><td align="right"><code>src/main.rs</code>, <code>src/lib.rs</code></td></tr><tr><td align="right"><strong>Package</strong></td><td align="right">Bundle of crates &#43; <code>Cargo.toml</code></td><td align="right">What <code>cargo new</code> creates</td></tr></table>
+<hr />
+<h2 id="mental_model"><a href="#mental_model" class="header-anchor">Mental Model</a></h2>
+<pre><code class="language-julia">┌─────────────────────────────────────────┐
+│  Package &#40;Cargo.toml&#41;                   │
+│  &quot;A project managed by Cargo&quot;           │
+│                                         │
+│  ┌──────────────┐  ┌──────────────┐    │
+│  │ Binary Crate │  │ Library Crate│    │
+│  │ &#40;main.rs&#41;    │  │ &#40;lib.rs&#41;     │    │
+│  │              │  │              │    │
+│  │ → Executable │  │ → .rlib file │    │
+│  └──────────────┘  └──────────────┘    │
+│                                         │
+│  ┌──────────────┐  ┌──────────────┐    │
+│  │ Binary Crate │  │ Binary Crate │    │
+│  │ &#40;bin/a.rs&#41;   │  │ &#40;bin/b.rs&#41;   │    │
+│  └──────────────┘  └──────────────┘    │
+└─────────────────────────────────────────┘</code></pre>
+<p><strong>Next up:</strong> Modules—how to organize code <em>within</em> a crate.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
