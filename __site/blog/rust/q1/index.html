@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Enums, Match, and if let: The Confusing Parts Explained</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_enums_match_and_if_let_the_confusing_parts_explained"><a href="#rust_enums_match_and_if_let_the_confusing_parts_explained" class="header-anchor">Rust Enums, Match, and if let: The Confusing Parts Explained</a></h1>
+<p>This page addresses the confusing terminology and concepts around enums, match, and <code>if let</code> in Rust.</p>
+<hr />
+<h2 id="structs_vs_enums_fields_vs_variants"><a href="#structs_vs_enums_fields_vs_variants" class="header-anchor">Structs vs Enums: Fields vs Variants</a></h2>
+<h3 id="why_are_they_called_different_things"><a href="#why_are_they_called_different_things" class="header-anchor">Why are they called different things?</a></h3>
+<p>Because they represent <strong>fundamentally different relationships</strong>:</p>
+<p><strong>Struct &#61; AND &#40;all fields exist together&#41;</strong></p>
+<pre><code class="language-rust">struct Point &#123;
+    x: i32,  // field
+    y: i32,  // field
+&#125;
+
+let p &#61; Point &#123; x: 5, y: 10 &#125;;
+// p has BOTH x AND y simultaneously
+// A Point ALWAYS has all its fields</code></pre>
+<p><strong>Enum &#61; OR &#40;only one variant at a time&#41;</strong></p>
+<pre><code class="language-rust">enum Shape &#123;
+    Circle&#40;f64&#41;,          // variant
+    Rectangle&#40;f64, f64&#41;,  // variant
+&#125;
+
+let s &#61; Shape::Circle&#40;5.0&#41;;
+// s is EITHER a Circle OR a Rectangle
+// Never both at the same time</code></pre>
+<p><strong>Summary:</strong></p>
+<ul>
+<li><p><strong>Field</strong> &#61; &quot;one piece of a whole&quot; &#40;all fields exist together&#41;</p>
+</li>
+<li><p><strong>Variant</strong> &#61; &quot;one possibility among many&quot; &#40;only one exists at a time&#41;</p>
+</li>
+</ul>
+<hr />
+<h2 id="creating_enum_values_youre_not_creating_an_enum"><a href="#creating_enum_values_youre_not_creating_an_enum" class="header-anchor">Creating Enum Values: You&#39;re Not &quot;Creating an Enum&quot;</a></h2>
+<p>This terminology trips people up:</p>
+<pre><code class="language-rust">// DEFINING the enum TYPE &#40;done once, like a blueprint&#41;
+enum Option&lt;T&gt; &#123;
+    Some&#40;T&#41;,
+    None,
+&#125;
+
+// CREATING VALUES of that type &#40;done many times&#41;
+let x &#61; Some&#40;5&#41;;   // x is a VALUE, specifically the Some VARIANT
+let y &#61; None;      // y is a VALUE, specifically the None VARIANT</code></pre>
+<p><strong>You don&#39;t &quot;create an enum.&quot;</strong> You create a <strong>value</strong> that is one of the enum&#39;s <strong>variants</strong>.</p>
+<p>It&#39;s like <code>bool</code>:</p>
+<pre><code class="language-rust">let a: bool &#61; true;   // true is a VALUE of type bool
+let b: bool &#61; false;  // false is a VALUE of type bool
+
+let x: Option&lt;i32&gt; &#61; Some&#40;5&#41;;  // Some&#40;5&#41; is a VALUE of type Option&lt;i32&gt;
+let y: Option&lt;i32&gt; &#61; None;     // None is a VALUE of type Option&lt;i32&gt;</code></pre>
+<hr />
+<h2 id="variant_data_is_like_an_anonymous_struct_already_defined"><a href="#variant_data_is_like_an_anonymous_struct_already_defined" class="header-anchor">Variant Data is Like an Anonymous Struct &#40;Already Defined&#41;</a></h2>
+<p>Here&#39;s a key insight: <strong>the data inside a variant is defined inline</strong>—you don&#39;t need to define it separately.</p>
+<pre><code class="language-rust">// When you define the enum, you also define what each variant holds
+enum Message &#123;
+    Move &#123; x: i32, y: i32 &#125;,  // ← This IS the definition. Like an anonymous struct.
+    Write&#40;String&#41;,            // ← Holds a String. No separate definition needed.
+&#125;
+
+// To use it, just create a value:
+let msg &#61; Message::Move &#123; x: 10, y: 20 &#125;;
+let msg2 &#61; Message::Write&#40;String::from&#40;&quot;hello&quot;&#41;&#41;;</code></pre>
+<h3 id="option_and_some_already_defined_for_you"><a href="#option_and_some_already_defined_for_you" class="header-anchor"><code>Option</code> and <code>Some</code>: Already Defined for You</a></h3>
+<p><code>Option&lt;T&gt;</code> is defined in Rust&#39;s standard library:</p>
+<pre><code class="language-rust">// Rust already defined this &#40;you don&#39;t write this yourself&#41;:
+enum Option&lt;T&gt; &#123;
+    Some&#40;T&#41;,   // ← Variant that holds one value of type T
+    None,      // ← Variant that holds nothing
+&#125;</code></pre>
+<p>So when you write <code>Some&#40;5&#41;</code>, you&#39;re:</p>
+<ol>
+<li><p>Using the <code>Some</code> variant &#40;already defined in <code>Option</code>&#41;</p>
+</li>
+<li><p>Putting <code>5</code> into it</p>
+</li>
+</ol>
+<pre><code class="language-rust">let x &#61; Some&#40;5&#41;;          // Create a Some holding 5
+let name &#61; Some&#40;&quot;Alice&quot;&#41;; // Create a Some holding &quot;Alice&quot;
+
+// Later, extract it with if let:
+if let Some&#40;n&#41; &#61; x &#123;
+    println&#33;&#40;&quot;Got: &#123;&#125;&quot;, n&#41;;  // n is 5
+&#125;</code></pre>
+<p>You didn&#39;t have to define <code>Some</code> or declare what it holds—<strong>it&#39;s already defined as part of <code>Option&lt;T&gt;</code></strong>, and <code>T</code> becomes whatever type you put in.</p>
+<h3 id="comparison_what_you_define_vs_whats_pre-defined"><a href="#comparison_what_you_define_vs_whats_pre-defined" class="header-anchor">Comparison: What You Define vs. What&#39;s Pre-defined</a></h3>
+<table><tr><th align="right">Enum</th><th align="right">Who defines it?</th><th align="right">Example usage</th></tr><tr><td align="right"><code>Option&lt;T&gt;</code></td><td align="right">Rust standard library</td><td align="right"><code>Some&#40;42&#41;</code>, <code>None</code></td></tr><tr><td align="right"><code>Result&lt;T, E&gt;</code></td><td align="right">Rust standard library</td><td align="right"><code>Ok&#40;value&#41;</code>, <code>Err&#40;error&#41;</code></td></tr><tr><td align="right"><code>Message</code> &#40;custom&#41;</td><td align="right">You define it</td><td align="right"><code>Message::Write&#40;s&#41;</code></td></tr></table>
+<hr />
+<h2 id="why_do_enum_variants_hold_data"><a href="#why_do_enum_variants_hold_data" class="header-anchor">Why Do Enum Variants Hold Data?</a></h2>
+<p>In many languages, enums are just named integers:</p>
+<pre><code class="language-c">// C enum - just numbers with names
+enum Color &#123; RED, GREEN, BLUE &#125;;  // RED&#61;0, GREEN&#61;1, BLUE&#61;2</code></pre>
+<p>Rust&#39;s enums are different: <strong>each variant can hold its own data</strong>.</p>
+<h3 id="why_is_this_useful"><a href="#why_is_this_useful" class="header-anchor">Why is this useful?</a></h3>
+<p>Imagine an IP address that can be either IPv4 &#40;4 numbers&#41; or IPv6 &#40;a string&#41;:</p>
+<pre><code class="language-rust">// ❌ Without data-holding variants: awkward
+struct IpAddr &#123;
+    v4_octets: Option&lt;&#91;u8; 4&#93;&gt;,  // Only used if v4
+    v6_addr: Option&lt;String&gt;,     // Only used if v6
+    is_v4: bool,                 // Which one is it?
+&#125;
+
+// ✅ With data-holding variants: clean
+enum IpAddr &#123;
+    V4&#40;u8, u8, u8, u8&#41;,  // Holds 4 numbers
+    V6&#40;String&#41;,          // Holds a string
+&#125;</code></pre>
+<p>Each variant carries exactly the data it needs. No wasted <code>Option</code> fields, no separate <code>is_v4</code> flag.</p>
+<hr />
+<h2 id="match_why_does_it_return_a_value"><a href="#match_why_does_it_return_a_value" class="header-anchor">Match: Why Does It &quot;Return&quot; a Value?</a></h2>
+<p><strong><code>match</code> doesn&#39;t &quot;return&quot;—it&#39;s an expression.</strong></p>
+<p>In C, <code>switch</code> is a statement &#40;just does things&#41;:</p>
+<pre><code class="language-c">int value;
+switch &#40;coin&#41; &#123;
+    case PENNY: value &#61; 1; break;
+    case NICKEL: value &#61; 5; break;
+&#125;</code></pre>
+<p>In Rust, <code>match</code> is an expression &#40;produces a value&#41;:</p>
+<pre><code class="language-rust">let value &#61; match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+    Coin::Dime &#61;&gt; 10,
+    Coin::Quarter &#61;&gt; 25,
+&#125;;</code></pre>
+<p><strong>Why?</strong> Less repetition, guaranteed initialization, and you can use it anywhere a value is needed.</p>
+<hr />
+<h2 id="if_let_what_is_it_actually_doing"><a href="#if_let_what_is_it_actually_doing" class="header-anchor">if let: What Is It Actually Doing?</a></h2>
+<h3 id="why_not_just_use_if"><a href="#why_not_just_use_if" class="header-anchor">Why not just use <code>if</code>?</a></h3>
+<p>Regular <code>if</code> needs a boolean. You can&#39;t do:</p>
+<pre><code class="language-rust">let x &#61; Some&#40;5&#41;;
+if x &#123;  // ❌ Error: Option is not true/false&#33;</code></pre>
+<p>And even checking equality doesn&#39;t let you get the inner value:</p>
+<pre><code class="language-rust">if x &#61;&#61; Some&#40;5&#41; &#123;
+    // I know x is Some&#40;5&#41;, but I can&#39;t ACCESS the 5&#33;
+&#125;</code></pre>
+<h3 id="what_if_let_actually_does_check_variant_assign"><a href="#what_if_let_actually_does_check_variant_assign" class="header-anchor">What <code>if let</code> actually does: Check variant &#43; Assign</a></h3>
+<pre><code class="language-rust">if let Some&#40;value&#41; &#61; x &#123;
+    println&#33;&#40;&quot;&#123;&#125;&quot;, value&#41;;
+&#125;</code></pre>
+<p>This does <strong>two things</strong>:</p>
+<ol>
+<li><p><strong>Checks the variant:</strong> Is <code>x</code> the <code>Some</code> variant?</p>
+</li>
+<li><p><strong>Assigns:</strong> If yes, put the inner value into <code>value</code></p>
+</li>
+</ol>
+<p><strong>Read it as:</strong> &quot;If <code>x</code> is the <code>Some</code> variant, assign its contents to <code>value</code>.&quot;</p>
+<h3 id="the_is_doing_both_matching_and_assigning"><a href="#the_is_doing_both_matching_and_assigning" class="header-anchor">The <code>&#61;</code> is doing both matching AND assigning</a></h3>
+<p>It&#39;s not just assignment, and it&#39;s not just matching. It&#39;s:</p>
+<ol>
+<li><p><strong>Match the variant:</strong> Is this a <code>Some</code>?</p>
+</li>
+<li><p><strong>If yes, assign:</strong> <code>value &#61; &#40;the inner contents&#41;</code></p>
+</li>
+</ol>
+<p>If <code>x</code> is <code>None</code>, there&#39;s nothing inside to assign, so the whole thing fails and we skip the block.</p>
+<h3 id="a_more_explicit_way_to_read_it"><a href="#a_more_explicit_way_to_read_it" class="header-anchor">A more explicit way to read it</a></h3>
+<pre><code class="language-rust">if let Some&#40;value&#41; &#61; x &#123;
+    // ...
+&#125;
+
+// Means:
+// &quot;If x is the Some variant,
+//  assign its contents to value,
+//  and run this block.&quot;</code></pre>
+<hr />
+<h2 id="why_is_used_for_pattern_matching"><a href="#why_is_used_for_pattern_matching" class="header-anchor">Why Is <code>&#61;</code> Used for Pattern Matching?</a></h2>
+<p>This syntax comes from Rust&#39;s destructuring assignments:</p>
+<pre><code class="language-rust">let &#40;a, b&#41; &#61; &#40;1, 2&#41;;     // Destructure tuple: a&#61;1, b&#61;2
+let Point &#123; x, y &#125; &#61; p;  // Destructure struct: x&#61;p.x, y&#61;p.y</code></pre>
+<p>The <strong>left side is a pattern</strong> &#40;a shape with &quot;holes&quot; to fill&#41;, the right side is a value. Rust fills in the holes.</p>
+<p><code>if let</code> extends this idea:</p>
+<pre><code class="language-rust">if let Some&#40;value&#41; &#61; x
+//     ^^^^^-----^
+//     Pattern with a &quot;hole&quot; called value</code></pre>
+<p>If <code>x</code> fits this shape &#40;<code>Some&#40;something&#41;</code>&#41;, Rust fills the hole: <code>value &#61; something</code>.</p>
+<p>If <code>x</code> doesn&#39;t fit &#40;it&#39;s <code>None</code>&#41;, there&#39;s nothing to fill, so we skip the block.</p>
+<p><strong>So <code>&#61;</code> means:</strong> &quot;Try to destructure the right side into the left side&#39;s pattern.&quot;</p>
+<hr />
+<h2 id="the_complete_mental_model"><a href="#the_complete_mental_model" class="header-anchor">The Complete Mental Model</a></h2>
+<h3 id="enum"><a href="#enum" class="header-anchor">Enum</a></h3>
+<ul>
+<li><p>An enum is a <strong>type</strong> with multiple <strong>variants</strong></p>
+</li>
+<li><p>A value of an enum type is <strong>one specific variant</strong></p>
+</li>
+<li><p>Variants can hold data &#40;each variant has its own shape&#41;</p>
+</li>
+</ul>
+<h3 id="match"><a href="#match" class="header-anchor">Match</a></h3>
+<ul>
+<li><p>Checks which <strong>variant</strong> a value is</p>
+</li>
+<li><p>Runs the code for the matching arm</p>
+</li>
+<li><p>Is an <strong>expression</strong> &#40;produces a value&#41;</p>
+</li>
+<li><p>Only <strong>one arm</strong> runs &#40;no fall-through&#41;</p>
+</li>
+</ul>
+<h3 id="if_let"><a href="#if_let" class="header-anchor">if let</a></h3>
+<ul>
+<li><p><strong>Checks:</strong> Is this value the specified variant?</p>
+</li>
+<li><p><strong>Assigns:</strong> If yes, put the inner contents into variables</p>
+</li>
+<li><p>Skips the block if the variant doesn&#39;t match</p>
+</li>
+<li><p>Shortcut for a <code>match</code> where you only care about one case</p>
+</li>
+</ul>
+<h3 id="the_in_patterns"><a href="#the_in_patterns" class="header-anchor">The <code>&#61;</code> in patterns</a></h3>
+<ul>
+<li><p><strong>Not</strong> equality checking &#40;<code>&#61;&#61;</code>&#41;</p>
+</li>
+<li><p><strong>Not</strong> simple assignment in one direction</p>
+</li>
+<li><p>Means: &quot;destructure the right side into the left side&#39;s pattern&quot;</p>
+</li>
+<li><p>For <code>if let</code>: &quot;try to destructure; if successful, run the block&quot;</p>
+</li>
+</ul>
+<hr />
+<h2 id="quick_reference"><a href="#quick_reference" class="header-anchor">Quick Reference</a></h2>
+<table><tr><th align="right">Concept</th><th align="right">What it means</th></tr><tr><td align="right">Struct field</td><td align="right">A piece of data that&#39;s always present</td></tr><tr><td align="right">Enum variant</td><td align="right">One possibility among several &#40;only one exists at a time&#41;</td></tr><tr><td align="right"><code>Some&#40;5&#41;</code></td><td align="right">A <strong>value</strong> of type <code>Option</code>, specifically the <code>Some</code> variant</td></tr><tr><td align="right"><code>match</code></td><td align="right">Check which variant, run corresponding code, return a value</td></tr><tr><td align="right"><code>if let Some&#40;x&#41; &#61; y</code></td><td align="right">&quot;If y is Some, assign contents to x and run this block&quot;</td></tr><tr><td align="right"><code>&#61;</code> in patterns</td><td align="right">&quot;Destructure right side into left side&#39;s pattern&quot;</td></tr></table>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
