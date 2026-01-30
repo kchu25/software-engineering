@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Ownership, Simplified</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_ownership_simplified"><a href="#rust_ownership_simplified" class="header-anchor">Rust Ownership, Simplified</a></h1>
+<h2 id="the_big_idea"><a href="#the_big_idea" class="header-anchor">The Big Idea</a></h2>
+<p>Ownership is Rust&#39;s superpower for managing memory without a garbage collector or manual memory management. Think of it like this: every piece of data has exactly one owner at a time, and when that owner disappears, the data gets cleaned up automatically.</p>
+<p>Three simple rules:</p>
+<ul>
+<li><p>Every value has one owner</p>
+</li>
+<li><p>Only one owner at a time</p>
+</li>
+<li><p>When the owner goes away, the value gets dropped</p>
+</li>
+</ul>
+<h2 id="stack_vs_heap_a_quick_refresher"><a href="#stack_vs_heap_a_quick_refresher" class="header-anchor">Stack vs Heap: A Quick Refresher</a></h2>
+<p><strong>The Stack</strong> is like a stack of plates—last in, first out. Super fast, but only works for data with a known, fixed size.</p>
+<p><strong>The Heap</strong> is more flexible but slower. When you need space, the memory allocator finds a spot and gives you back a pointer &#40;an address&#41;. Think of it like getting seated at a restaurant—someone finds you a table and you remember where it is.</p>
+<p>Why does this matter? Because ownership is really about managing heap data.</p>
+<h2 id="how_ownership_actually_works"><a href="#how_ownership_actually_works" class="header-anchor">How Ownership Actually Works</a></h2>
+<h3 id="string_literals_vs_string_type"><a href="#string_literals_vs_string_type" class="header-anchor">String Literals vs String Type</a></h3>
+<pre><code class="language-rust">let s &#61; &quot;hello&quot;;  // String literal - lives in the program itself</code></pre>
+<p>This is hardcoded into your executable. Fast, but immutable and you need to know it at compile time.</p>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+s.push_str&#40;&quot;, world&#33;&quot;&#41;;  // Now we can grow it&#33;</code></pre>
+<p>The <code>String</code> type lives on the heap, so it can grow and change. But someone needs to clean it up when we&#39;re done.</p>
+<blockquote>
+<p><strong>Wait, so there are TWO string types?</strong></p>
+<p>Yep&#33; And the difference is crucial:</p>
+<p><strong>String literals &#40;<code>&amp;str</code>&#41;</strong> are baked into your compiled program. When you write <code>&quot;hello&quot;</code>, that text literally becomes part of your executable file. It sits in a special read-only memory section, which is why you can&#39;t change it. It&#39;s incredibly fast &#40;no allocation needed&#41;, but completely inflexible—you have to know the exact text when you&#39;re writing your code.</p>
+<p><strong><code>String</code> &#40;the type&#41;</strong> is like a smart container that lives on the heap. It owns its data and can grow, shrink, and change. When you do <code>String::from&#40;&quot;hello&quot;&#41;</code>, Rust allocates memory on the heap, copies &quot;hello&quot; into it, and gives you a <code>String</code> that manages that memory.</p>
+<p>Think of it like this: A string literal is like a sign painted on a wall—permanent, fast to read, but you can&#39;t change it. A <code>String</code> is like a whiteboard—you can write, erase, and rewrite, but someone has to set it up and clean it up.</p>
+<p><strong>Why <code>&amp;str</code> instead of just <code>str</code>?</strong></p>
+<p>Good catch&#33; The type is actually <code>str</code>, but you&#39;ll almost never see it alone—it&#39;s always behind a reference &#40;<code>&amp;str</code>&#41;. Here&#39;s why: <code>str</code> is a &quot;slice&quot; that doesn&#39;t have a known size &#40;it could be any length&#41;, and Rust needs to know sizes to put things on the stack. So you always access it through a reference &#40;<code>&amp;</code>&#41;, which IS a known size &#40;just a pointer &#43; length&#41;.</p>
+<p>When you write <code>let s &#61; &quot;hello&quot;;</code>, the type is actually <code>&amp;str</code>—a reference to string data. The <code>&amp;</code> means &quot;I&#39;m borrowing this, I don&#39;t own it.&quot;</p>
+<p><strong>Do you need the String library?</strong></p>
+<p>Nope&#33; <code>String</code> is in Rust&#39;s standard library, which is automatically available. You don&#39;t need to import anything. Just use <code>String::from&#40;&quot;text&quot;&#41;</code> and you&#39;re good to go. The <code>::from</code> is just the syntax for calling a function that belongs to the <code>String</code> type.</p>
+</blockquote>
+<h3 id="the_magic_moment_automatic_cleanup"><a href="#the_magic_moment_automatic_cleanup" class="header-anchor">The Magic Moment: Automatic Cleanup</a></h3>
+<pre><code class="language-rust">&#123;
+    let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+    // use s
+&#125;  // &lt;- s goes out of scope, memory automatically freed</code></pre>
+<p>When <code>s</code> goes out of scope, Rust calls a special function called <code>drop</code> that cleans up the memory. No garbage collector needed, no manual <code>free&#40;&#41;</code> calls. Just works.</p>
+<h2 id="the_move_not_what_youd_expect"><a href="#the_move_not_what_youd_expect" class="header-anchor">The Move: Not What You&#39;d Expect</a></h2>
+<p>Here&#39;s where Rust gets interesting:</p>
+<pre><code class="language-rust">let x &#61; 5;
+let y &#61; x;  // Both x and y are valid - simple copy</code></pre>
+<p>Integers are small and live on the stack, so copying is cheap. Both variables work fine.</p>
+<p>But watch what happens with heap data:</p>
+<pre><code class="language-rust">let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s2 &#61; s1;  // s1 is now INVALID&#33;
+
+println&#33;&#40;&quot;&#123;&#125;&quot;, s1&#41;;  // ERROR&#33; Can&#39;t use s1 anymore</code></pre>
+<p>Why? A <code>String</code> is really three things on the stack: a pointer to heap data, a length, and a capacity. When you do <code>let s2 &#61; s1</code>, Rust copies those three things but NOT the actual text data on the heap.</p>
+<p>If both <code>s1</code> and <code>s2</code> pointed to the same heap data, they&#39;d both try to free it when they go out of scope—a nasty bug called a &quot;double free.&quot; So Rust invalidates <code>s1</code> entirely. We say <code>s1</code> was <strong>moved</strong> into <code>s2</code>.</p>
+<h3 id="when_you_actually_want_a_copy"><a href="#when_you_actually_want_a_copy" class="header-anchor">When You Actually Want a Copy</a></h3>
+<pre><code class="language-rust">let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s2 &#61; s1.clone&#40;&#41;;  // Deep copy - both valid
+
+println&#33;&#40;&quot;s1 &#61; &#123;&#125;, s2 &#61; &#123;&#125;&quot;, s1, s2&#41;;  // Works&#33;</code></pre>
+<p>Use <code>.clone&#40;&#41;</code> when you need an actual copy of heap data. It&#39;s explicit because it can be expensive.</p>
+<h3 id="types_that_do_copy"><a href="#types_that_do_copy" class="header-anchor">Types That Do Copy</a></h3>
+<p>Some types are so simple they just get copied automatically:</p>
+<ul>
+<li><p>Integers &#40;<code>i32</code>, <code>u64</code>, etc.&#41;</p>
+</li>
+<li><p>Booleans</p>
+</li>
+<li><p>Floating-point numbers</p>
+</li>
+<li><p>Characters</p>
+</li>
+<li><p>Tuples of these types</p>
+</li>
+</ul>
+<p>These have the <code>Copy</code> trait. If a type implements <code>Copy</code>, the old variable stays valid after assignment.</p>
+<blockquote>
+<p><strong>What&#39;s a trait?</strong></p>
+<p>Think of a trait as a label that says &quot;this type can do X.&quot; It&#39;s like an interface or a capability badge.</p>
+<p>The <code>Copy</code> trait means &quot;this type is simple enough to just duplicate in memory.&quot; If your type has <code>Copy</code>, assignments make a real copy instead of a move. </p>
+<p>Integers have <code>Copy</code> because copying 4 bytes is trivial. But <code>String</code> doesn&#39;t have <code>Copy</code> because it owns heap data—copying would mean duplicating all that heap memory, which could be expensive. Rust wants to make that explicit &#40;with <code>.clone&#40;&#41;</code>&#41;, not automatic.</p>
+<p><strong>How does <code>Copy</code> actually work?</strong></p>
+<p>It&#39;s automatic&#33; You don&#39;t &quot;apply&quot; it—Rust does it for you based on the type:</p>
+</blockquote>
+<pre><code class="language-rust">&gt; let x &#61; 5;        // i32 has Copy
+&gt; let y &#61; x;        // Rust sees &quot;i32 has Copy&quot; → makes a copy
+&gt; // Both x and y are valid&#33;
+&gt;
+&gt; let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;  // String doesn&#39;t have Copy
+&gt; let s2 &#61; s1;                     // Rust sees &quot;no Copy&quot; → moves instead
+&gt; // s1 is now invalid&#33;
+&gt;</code></pre>
+<blockquote>
+<p>You don&#39;t write any special code. Rust checks: &quot;Does this type have the <code>Copy</code> trait?&quot; If yes → copy. If no → move. That&#39;s it.</p>
+<p><strong>So things without <code>Copy</code> always get moved?</strong></p>
+<p>Yep&#33; That&#39;s the rule:</p>
+<ul>
+<li><p>Has <code>Copy</code> → assignment/function call makes a copy, original stays valid</p>
+</li>
+<li><p>No <code>Copy</code> → assignment/function call moves it, original becomes invalid</p>
+</li>
+</ul>
+<p>Most heap-allocated types &#40;<code>String</code>, <code>Vec</code>, custom structs with heap data&#41; don&#39;t have <code>Copy</code>, so they move by default. This prevents accidental expensive copies and prevents the double-free bug.</p>
+<p>You&#39;ll learn more about traits later, but for now: <code>Copy</code> &#61; &quot;safe and cheap to duplicate automatically.&quot;</p>
+</blockquote>
+<h2 id="functions_and_ownership"><a href="#functions_and_ownership" class="header-anchor">Functions and Ownership</a></h2>
+<p>Passing values to functions works just like assignment:</p>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+takes_ownership&#40;s&#41;;  // s is moved, can&#39;t use it anymore
+
+let x &#61; 5;
+makes_copy&#40;x&#41;;  // x is copied, still usable</code></pre>
+<blockquote>
+<p><strong>Wait, so I can&#39;t use <code>s</code> after calling the function?</strong></p>
+<p>Exactly right&#33; Once you pass <code>s</code> to <code>takes_ownership&#40;s&#41;</code>, ownership moves into the function. The <code>s</code> variable in <code>main</code> becomes invalid—you literally can&#39;t use it anymore. Try it and Rust will give you a compile error.</p>
+</blockquote>
+<pre><code class="language-rust">&gt; let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+&gt; takes_ownership&#40;s&#41;;
+&gt; println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // ERROR&#33; s was moved
+&gt;</code></pre>
+<blockquote>
+<p>But <code>x</code> works fine because integers have <code>Copy</code>. The function gets a copy, your original <code>x</code> stays valid.</p>
+</blockquote>
+<pre><code class="language-rust">&gt; let x &#61; 5;
+&gt; makes_copy&#40;x&#41;;
+&gt; println&#33;&#40;&quot;&#123;&#125;&quot;, x&#41;;  // Totally fine&#33; x is still 5
+&gt;</code></pre>
+<blockquote>
+<p>This is the &quot;tedious&quot; part the article mentions—you have to be really careful about ownership when calling functions with heap data. That&#39;s why references &#40;next chapter&#41; are so important&#33;</p>
+</blockquote>
+<p>Same with return values—they transfer ownership:</p>
+<pre><code class="language-rust">fn gives_ownership&#40;&#41; -&gt; String &#123;
+    String::from&#40;&quot;yours&quot;&#41;  // Ownership moves to the caller
+&#125;
+
+let s &#61; gives_ownership&#40;&#41;;  // s now owns the string</code></pre>
+<h2 id="the_tedious_part"><a href="#the_tedious_part" class="header-anchor">The Tedious Part</a></h2>
+<p>Having to move ownership in and out of functions gets annoying:</p>
+<pre><code class="language-rust">fn calculate_length&#40;s: String&#41; -&gt; &#40;String, usize&#41; &#123;
+    let length &#61; s.len&#40;&#41;;
+    &#40;s, length&#41;  // Return the string back so caller can still use it
+&#125;</code></pre>
+<p>This is clunky. The good news? Rust has <strong>references</strong> &#40;coming up in the next chapter&#41; that let you use values without taking ownership.</p>
+<h2 id="mental_model"><a href="#mental_model" class="header-anchor">Mental Model</a></h2>
+<p>Think of ownership like holding a book:</p>
+<ul>
+<li><p>Only one person can hold it at a time &#40;one owner&#41;</p>
+</li>
+<li><p>You can hand it to someone else &#40;move&#41;</p>
+</li>
+<li><p>You can photocopy pages &#40;clone&#41;</p>
+</li>
+<li><p>When everyone&#39;s done with it, it gets returned to the library &#40;drop&#41;</p>
+</li>
+<li><p>Some things are like pamphlets—so cheap you can just make copies &#40;Copy types&#41;</p>
+</li>
+</ul>
+<p>The compiler enforces these rules at compile time, so you can&#39;t accidentally create memory bugs. It feels restrictive at first, but it&#39;s what makes Rust safe and fast.</p>
+<h2 id="how_this_prevents_bugs"><a href="#how_this_prevents_bugs" class="header-anchor">How This Prevents Bugs</a></h2>
+<p><strong>The bugs Rust prevents:</strong></p>
+<p><strong>1. Use-after-free</strong></p>
+<pre><code class="language-rust">let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s2 &#61; s1;  // s1 is now invalid
+println&#33;&#40;&quot;&#123;&#125;&quot;, s1&#41;;  // Compile error&#33; Can&#39;t use freed memory</code></pre>
+<p>In C/C&#43;&#43;, this would compile but crash at runtime. Rust catches it immediately.</p>
+<p><strong>2. Double-free</strong></p>
+<pre><code class="language-rust">let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s2 &#61; s1;  // Only s2 can free the memory
+// When both go out of scope, only s2 calls drop
+// s1 can&#39;t because it&#39;s invalid</code></pre>
+<p>Without moves, both <code>s1</code> and <code>s2</code> would try to free the same memory—corruption or crash. Rust makes this impossible.</p>
+<p><strong>3. Memory leaks &#40;mostly&#41;</strong></p>
+<pre><code class="language-rust">&#123;
+    let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+    // Use s
+&#125;  // Automatic cleanup via drop - no manual free&#40;&#41; needed</code></pre>
+<p>You can&#39;t forget to clean up because the compiler does it for you. No need to remember to call <code>free&#40;&#41;</code>.</p>
+<p><strong>4. Data races &#40;with threads&#41;</strong> The ownership rules extend to multi-threading. Only one thread can own mutable data at a time, preventing race conditions where two threads modify the same data simultaneously.</p>
+<p><strong>The key insight:</strong> Most memory bugs happen because multiple parts of code think they&#39;re responsible for the same memory. Ownership says &quot;exactly ONE owner at a time.&quot; This simple rule, enforced at compile time, eliminates entire categories of bugs before your code ever runs.</p>
+<p>The tradeoff? You have to think about ownership while writing code. But you catch bugs in seconds &#40;compile errors&#41; instead of hours &#40;debugging crashes&#41;. And once it compiles, you know these memory bugs literally cannot happen.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

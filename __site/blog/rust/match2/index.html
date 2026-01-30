@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust's Match: A Gentler Introduction</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rusts_match_a_gentler_introduction"><a href="#rusts_match_a_gentler_introduction" class="header-anchor">Rust&#39;s Match: A Gentler Introduction</a></h1>
+<p>Think of <code>match</code> as a super-powered <code>if-else</code> chain. You give it a value, it checks that value against a list of patterns, and runs the code for whichever pattern fits first.</p>
+<hr />
+<h2 id="the_coin-sorting_machine_analogy"><a href="#the_coin-sorting_machine_analogy" class="header-anchor">The Coin-Sorting Machine Analogy</a></h2>
+<p>Imagine a machine that sorts coins. You drop a coin in, it slides down a track with different-sized holes, and falls through the first hole it fits.</p>
+<p><code>match</code> works the same way:</p>
+<ul>
+<li><p>You give it a value &#40;the coin&#41;</p>
+</li>
+<li><p>It checks each pattern from top to bottom &#40;the holes&#41;</p>
+</li>
+<li><p>When it finds a match, it runs that code and stops &#40;coin falls through&#41;</p>
+</li>
+</ul>
+<pre><code class="language-rust">enum Coin &#123;
+    Penny,
+    Nickel,
+    Dime,
+    Quarter,
+&#125;
+
+fn value_in_cents&#40;coin: Coin&#41; -&gt; u8 &#123;
+    match coin &#123;
+        Coin::Penny &#61;&gt; 1,      // Is it a penny? Return 1
+        Coin::Nickel &#61;&gt; 5,     // Is it a nickel? Return 5
+        Coin::Dime &#61;&gt; 10,      // Is it a dime? Return 10
+        Coin::Quarter &#61;&gt; 25,   // Is it a quarter? Return 25
+    &#125;
+&#125;</code></pre>
+<p><strong>How it reads:</strong> &quot;Match <code>coin</code> against these patterns. If it&#39;s a Penny, return 1. If it&#39;s a Nickel, return 5...&quot; and so on.</p>
+<hr />
+<h2 id="match_vs_if_whats_the_difference"><a href="#match_vs_if_whats_the_difference" class="header-anchor">Match vs If: What&#39;s the Difference?</a></h2>
+<p>With <code>if</code>, the condition must be true or false &#40;a boolean&#41;:</p>
+<pre><code class="language-rust">if coin_value &#61;&#61; 1 &#123;
+    println&#33;&#40;&quot;penny&quot;&#41;;
+&#125;</code></pre>
+<p>With <code>match</code>, you compare against <strong>patterns</strong>, which can be much richer:</p>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+    Coin::Dime &#61;&gt; 10,
+    Coin::Quarter &#61;&gt; 25,
+&#125;</code></pre>
+<p>The pattern <code>Coin::Penny</code> isn&#39;t a boolean—it&#39;s asking &quot;does <code>coin</code> have the shape/variant <code>Penny</code>?&quot;</p>
+<p><strong>Note on return values:</strong> Each arm returns a value. In the example above, the <code>match</code> expression returns an integer. If you just want to do something without returning a meaningful value, all arms return <code>&#40;&#41;</code> &#40;the unit type&#41;:</p>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Penny &#61;&gt; println&#33;&#40;&quot;penny&quot;&#41;,    // println&#33; returns &#40;&#41;
+    Coin::Nickel &#61;&gt; println&#33;&#40;&quot;nickel&quot;&#41;,  // println&#33; returns &#40;&#41;
+    Coin::Dime &#61;&gt; println&#33;&#40;&quot;dime&quot;&#41;,      // println&#33; returns &#40;&#41;
+    Coin::Quarter &#61;&gt; println&#33;&#40;&quot;quarter&quot;&#41;,// println&#33; returns &#40;&#41;
+&#125;
+// This whole match expression returns &#40;&#41;</code></pre>
+<p>All arms must return the <strong>same type</strong>. Here they all return <code>&#40;&#41;</code>, so it&#39;s valid.</p>
+<hr />
+<h2 id="running_multiple_lines_of_code"><a href="#running_multiple_lines_of_code" class="header-anchor">Running Multiple Lines of Code</a></h2>
+<p>Short code? Just write it after <code>&#61;&gt;</code>:</p>
+<pre><code class="language-rust">Coin::Penny &#61;&gt; 1,</code></pre>
+<p>Need multiple lines? Use curly braces:</p>
+<pre><code class="language-rust">Coin::Penny &#61;&gt; &#123;
+    println&#33;&#40;&quot;Lucky penny&#33;&quot;&#41;;
+    1  // This is still the return value
+&#125;</code></pre>
+<hr />
+<h2 id="extracting_data_from_variants_pattern_binding"><a href="#extracting_data_from_variants_pattern_binding" class="header-anchor">Extracting Data from Variants &#40;Pattern Binding&#41;</a></h2>
+<p>Here&#39;s where <code>match</code> gets interesting. Sometimes enum variants carry data inside them:</p>
+<pre><code class="language-rust">enum Coin &#123;
+    Penny,
+    Nickel,
+    Dime,
+    Quarter&#40;UsState&#41;,  // Quarters have a state&#33;
+&#125;</code></pre>
+<p>When matching, you can <strong>pull that data out</strong> and give it a name:</p>
+<pre><code class="language-rust">fn value_in_cents&#40;coin: Coin&#41; -&gt; u8 &#123;
+    match coin &#123;
+        Coin::Penny &#61;&gt; 1,
+        Coin::Nickel &#61;&gt; 5,
+        Coin::Dime &#61;&gt; 10,
+        Coin::Quarter&#40;state&#41; &#61;&gt; &#123;
+            // &#96;state&#96; now holds the UsState value&#33;
+            println&#33;&#40;&quot;State quarter from &#123;:?&#125;&#33;&quot;, state&#41;;
+            25
+        &#125;
+    &#125;
+&#125;</code></pre>
+<p>When you call <code>value_in_cents&#40;Coin::Quarter&#40;UsState::Alaska&#41;&#41;</code>:</p>
+<ol>
+<li><p>Rust sees it&#39;s a <code>Quarter</code></p>
+</li>
+<li><p>The pattern <code>Quarter&#40;state&#41;</code> matches, and <code>state</code> gets bound to <code>UsState::Alaska</code></p>
+</li>
+<li><p>You can now use <code>state</code> in your code</p>
+</li>
+</ol>
+<p><strong>Think of it like unpacking a box</strong>: The pattern describes what shape you expect, and gives names to the pieces inside.</p>
+<hr />
+<h2 id="option_handling_maybe_theres_a_value"><a href="#option_handling_maybe_theres_a_value" class="header-anchor">Option: Handling &quot;Maybe There&#39;s a Value&quot;</a></h2>
+<p>This is where people often get confused, so let&#39;s go slowly.</p>
+<h3 id="the_problem_option_solves"><a href="#the_problem_option_solves" class="header-anchor">The Problem Option Solves</a></h3>
+<p>Sometimes you don&#39;t have a value. Maybe a function couldn&#39;t find what it was looking for. Maybe the user didn&#39;t provide input. In many languages, you&#39;d use <code>null</code>:</p>
+<pre><code class="language-javascript">// JavaScript
+function findUser&#40;id&#41; &#123;
+    if &#40;/* user exists */&#41; return user;
+    return null;  // No user found
+&#125;
+
+let user &#61; findUser&#40;123&#41;;
+user.name  // 💥 CRASH if user is null&#33;</code></pre>
+<p>The problem? You might forget to check for <code>null</code>, and your program crashes.</p>
+<h3 id="rusts_solution_optiont"><a href="#rusts_solution_optiont" class="header-anchor">Rust&#39;s Solution: Option&lt;T&gt;</a></h3>
+<p>Rust doesn&#39;t have <code>null</code>. Instead, it has an enum called <code>Option</code>:</p>
+<pre><code class="language-rust">// This is the DEFINITION of the Option type &#40;already in Rust&#39;s standard library&#41;
+enum Option&lt;T&gt; &#123;
+    Some&#40;T&#41;,   // Variant 1: &quot;I have a value, and here it is&quot;
+    None,      // Variant 2: &quot;I have nothing&quot;
+&#125;</code></pre>
+<p>That <code>&lt;T&gt;</code> just means &quot;some type&quot;—it could be <code>Option&lt;i32&gt;</code> &#40;maybe an integer&#41;, <code>Option&lt;String&gt;</code> &#40;maybe a string&#41;, etc.</p>
+<h3 id="creating_option_values"><a href="#creating_option_values" class="header-anchor">Creating Option Values</a></h3>
+<p>Here&#39;s the key distinction:</p>
+<ul>
+<li><p><strong>Defining an enum</strong> &#61; Declaring what variants exist &#40;done once&#41;</p>
+</li>
+<li><p><strong>Creating a value</strong> &#61; Making an instance of one specific variant &#40;done many times&#41;</p>
+</li>
+</ul>
+<p>You don&#39;t &quot;create an enum&quot;—you create a <strong>value</strong> that is one of the enum&#39;s variants:</p>
+<pre><code class="language-rust">// Creating VALUES of type Option&lt;i32&gt;
+let has_a_number: Option&lt;i32&gt; &#61; Some&#40;5&#41;;   // A value: the Some variant holding 5
+let has_nothing: Option&lt;i32&gt; &#61; None;        // A value: the None variant
+
+// Think of it like this:
+// - Option&lt;i32&gt; is the TYPE &#40;like a category&#41;
+// - Some&#40;5&#41; is a specific VALUE of that type
+// - None is also a specific VALUE of that type</code></pre>
+<p>It&#39;s similar to how <code>true</code> and <code>false</code> are both values of type <code>bool</code>:</p>
+<pre><code class="language-rust">let a: bool &#61; true;   // A value of type bool
+let b: bool &#61; false;  // Another value of type bool
+
+let x: Option&lt;i32&gt; &#61; Some&#40;5&#41;;  // A value of type Option&lt;i32&gt;
+let y: Option&lt;i32&gt; &#61; None;     // Another value of type Option&lt;i32&gt;</code></pre>
+<h3 id="why_this_is_better_than_null"><a href="#why_this_is_better_than_null" class="header-anchor">Why This Is Better Than Null</a></h3>
+<p><strong>You can&#39;t accidentally use an <code>Option&lt;i32&gt;</code> as if it were an <code>i32</code>:</strong></p>
+<pre><code class="language-rust">let maybe_number: Option&lt;i32&gt; &#61; Some&#40;5&#41;;
+
+// ❌ This won&#39;t compile&#33;
+let result &#61; maybe_number &#43; 1;  // Error: can&#39;t add Option&lt;i32&gt; and i32</code></pre>
+<p>Rust forces you to explicitly handle &quot;what if there&#39;s no value?&quot; You can&#39;t just pretend it&#39;s always there.</p>
+<h3 id="using_match_with_option"><a href="#using_match_with_option" class="header-anchor">Using Match with Option</a></h3>
+<p>Here&#39;s a function that adds 1 to a number... if there is one:</p>
+<pre><code class="language-rust">fn plus_one&#40;x: Option&lt;i32&gt;&#41; -&gt; Option&lt;i32&gt; &#123;
+    match x &#123;
+        None &#61;&gt; None,           // Nothing in? Nothing out.
+        Some&#40;i&#41; &#61;&gt; Some&#40;i &#43; 1&#41;, // Got a number? Add 1, wrap it back in Some.
+    &#125;
+&#125;</code></pre>
+<p>Let&#39;s trace through it:</p>
+<p><strong>Case 1: <code>plus_one&#40;Some&#40;5&#41;&#41;</code></strong></p>
+<ol>
+<li><p><code>x</code> is <code>Some&#40;5&#41;</code></p>
+</li>
+<li><p>Does <code>Some&#40;5&#41;</code> match <code>None</code>? No.</p>
+</li>
+<li><p>Does <code>Some&#40;5&#41;</code> match <code>Some&#40;i&#41;</code>? Yes&#33; And <code>i</code> becomes <code>5</code>.</p>
+</li>
+<li><p>We return <code>Some&#40;5 &#43; 1&#41;</code> &#61; <code>Some&#40;6&#41;</code></p>
+</li>
+</ol>
+<p><strong>Case 2: <code>plus_one&#40;None&#41;</code></strong></p>
+<ol>
+<li><p><code>x</code> is <code>None</code></p>
+</li>
+<li><p>Does <code>None</code> match <code>None</code>? Yes&#33;</p>
+</li>
+<li><p>We return <code>None</code></p>
+</li>
+</ol>
+<pre><code class="language-rust">let five &#61; Some&#40;5&#41;;
+let six &#61; plus_one&#40;five&#41;;    // Some&#40;6&#41;
+let none &#61; plus_one&#40;None&#41;;   // None</code></pre>
+<h3 id="the_key_insight"><a href="#the_key_insight" class="header-anchor">The Key Insight</a></h3>
+<p><code>Some&#40;i&#41;</code> in the pattern does two things:</p>
+<ol>
+<li><p><strong>Checks</strong>: Is this a <code>Some</code> variant?</p>
+</li>
+<li><p><strong>Extracts</strong>: If yes, pull out the inner value and call it <code>i</code></p>
+</li>
+</ol>
+<p>It&#39;s like saying &quot;if there&#39;s something inside, take it out and call it <code>i</code>.&quot;</p>
+<hr />
+<h2 id="you_must_handle_every_case_exhaustiveness"><a href="#you_must_handle_every_case_exhaustiveness" class="header-anchor">You Must Handle Every Case &#40;Exhaustiveness&#41;</a></h2>
+<p>Rust won&#39;t let you forget a case. This code won&#39;t compile:</p>
+<pre><code class="language-rust">fn plus_one&#40;x: Option&lt;i32&gt;&#41; -&gt; Option&lt;i32&gt; &#123;
+    match x &#123;
+        Some&#40;i&#41; &#61;&gt; Some&#40;i &#43; 1&#41;,
+        // ❌ Forgot to handle None&#33;
+    &#125;
+&#125;</code></pre>
+<p>Error message:</p>
+<pre><code class="language-julia">error: non-exhaustive patterns: &#96;None&#96; not covered</code></pre>
+<p>Rust knows <code>Option&lt;i32&gt;</code> has two variants &#40;<code>Some</code> and <code>None</code>&#41;, and you only handled one. This is a <strong>feature</strong>, not a bug—it prevents you from accidentally ignoring the &quot;nothing&quot; case.</p>
+<hr />
+<h2 id="catch-all_patterns_handling_everything_else"><a href="#catch-all_patterns_handling_everything_else" class="header-anchor">Catch-All Patterns: Handling &quot;Everything Else&quot;</a></h2>
+<p>Sometimes you only care about a few specific values. Use a catch-all for the rest:</p>
+<h3 id="using_a_variable_name_when_you_need_the_value"><a href="#using_a_variable_name_when_you_need_the_value" class="header-anchor">Using a variable name &#40;when you need the value&#41;</a></h3>
+<pre><code class="language-rust">let dice_roll &#61; 9;
+
+match dice_roll &#123;
+    3 &#61;&gt; add_fancy_hat&#40;&#41;,
+    7 &#61;&gt; remove_fancy_hat&#40;&#41;,
+    other &#61;&gt; move_player&#40;other&#41;,  // Any other number: use it&#33;
+&#125;</code></pre>
+<p>The <code>other</code> pattern matches anything not already matched, and binds that value to <code>other</code> so you can use it.</p>
+<h3 id="using__when_you_dont_need_the_value"><a href="#using__when_you_dont_need_the_value" class="header-anchor">Using <code>_</code> &#40;when you don&#39;t need the value&#41;</a></h3>
+<pre><code class="language-rust">match dice_roll &#123;
+    3 &#61;&gt; add_fancy_hat&#40;&#41;,
+    7 &#61;&gt; remove_fancy_hat&#40;&#41;,
+    _ &#61;&gt; reroll&#40;&#41;,  // Anything else: just reroll, don&#39;t care what it was
+&#125;</code></pre>
+<p>The <code>_</code> pattern matches anything but <strong>doesn&#39;t bind</strong> the value. Use this when you genuinely don&#39;t care what the value is.</p>
+<h3 id="doing_nothing_for_the_catch-all"><a href="#doing_nothing_for_the_catch-all" class="header-anchor">Doing nothing for the catch-all</a></h3>
+<pre><code class="language-rust">match dice_roll &#123;
+    3 &#61;&gt; add_fancy_hat&#40;&#41;,
+    7 &#61;&gt; remove_fancy_hat&#40;&#41;,
+    _ &#61;&gt; &#40;&#41;,  // Anything else: do nothing
+&#125;</code></pre>
+<p>The <code>&#40;&#41;</code> is Rust&#39;s &quot;nothing&quot; value &#40;called the unit type&#41;. It&#39;s like an empty statement.</p>
+<hr />
+<h2 id="order_matters"><a href="#order_matters" class="header-anchor">Order Matters&#33;</a></h2>
+<p>Patterns are checked <strong>top to bottom</strong>. Once one matches, Rust stops checking.</p>
+<pre><code class="language-rust">match dice_roll &#123;
+    _ &#61;&gt; do_default_thing&#40;&#41;,  // ⚠️ This catches EVERYTHING&#33;
+    3 &#61;&gt; add_fancy_hat&#40;&#41;,     // Never reached&#33;
+    7 &#61;&gt; remove_fancy_hat&#40;&#41;,  // Never reached&#33;
+&#125;</code></pre>
+<p>Rust will warn you about unreachable patterns. Always put your catch-all &#40;<code>_</code> or <code>other</code>&#41; <strong>last</strong>.</p>
+<hr />
+<h2 id="quick_summary"><a href="#quick_summary" class="header-anchor">Quick Summary</a></h2>
+<table><tr><th align="right">Concept</th><th align="right">What it means</th></tr><tr><td align="right"><code>match value &#123; ... &#125;</code></td><td align="right">Compare <code>value</code> against patterns</td></tr><tr><td align="right"><code>Pattern &#61;&gt; code</code></td><td align="right">If pattern matches, run code</td></tr><tr><td align="right"><code>Coin::Penny &#61;&gt; 1</code></td><td align="right">Match a specific variant</td></tr><tr><td align="right"><code>Some&#40;x&#41; &#61;&gt; ...</code></td><td align="right">Match and extract inner value</td></tr><tr><td align="right"><code>other &#61;&gt; ...</code></td><td align="right">Catch-all that binds the value</td></tr><tr><td align="right"><code>_ &#61;&gt; ...</code></td><td align="right">Catch-all that ignores the value</td></tr><tr><td align="right"><code>_ &#61;&gt; &#40;&#41;</code></td><td align="right">Catch-all that does nothing</td></tr></table>
+<hr />
+<h2 id="the_mental_model"><a href="#the_mental_model" class="header-anchor">The Mental Model</a></h2>
+<p>Think of <code>match</code> as asking a series of questions:</p>
+<pre><code class="language-rust">match my_option &#123;
+    None &#61;&gt; /* &quot;Is it None? If so, do this&quot; */,
+    Some&#40;x&#41; &#61;&gt; /* &quot;Is it Some? If so, take out the value &#40;call it x&#41; and do this&quot; */,
+&#125;</code></pre>
+<p>The beauty is that Rust <strong>makes sure you&#39;ve answered all the questions</strong>. You can&#39;t accidentally forget the &quot;what if it&#39;s None?&quot; case. That&#39;s the safety guarantee that makes <code>Option</code> better than <code>null</code>.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

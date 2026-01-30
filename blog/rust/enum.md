@@ -1,4 +1,4 @@
-@def title = "Do Reference Expressions Return the Object in Rust?"
+@def title = "Rust Enums vs Julia: Different Paths to the Same Goal"
 @def published = "29 January 2026"
 @def tags = ["rust"]
 

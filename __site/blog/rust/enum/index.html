@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Enums vs Julia: Different Paths to the Same Goal</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_enums_vs_julia_different_paths_to_the_same_goal"><a href="#rust_enums_vs_julia_different_paths_to_the_same_goal" class="header-anchor">Rust Enums vs Julia: Different Paths to the Same Goal</a></h1>
+<p>You&#39;re onto something&#33; Rust enums and Julia&#39;s multiple dispatch are solving similar problems, just from opposite directions.</p>
+<h2 id="the_core_idea"><a href="#the_core_idea" class="header-anchor">The Core Idea</a></h2>
+<p>Rust enums let you say &quot;this value is one of several distinct possibilities, each with potentially different data.&quot; Then you pattern match to handle each case:</p>
+<h2 id="why_can_enum_variants_hold_data_and_why_is_the_syntax_so_clean"><a href="#why_can_enum_variants_hold_data_and_why_is_the_syntax_so_clean" class="header-anchor">Why Can Enum Variants Hold Data? &#40;And Why Is the Syntax So Clean?&#41;</a></h2>
+<p>This is a reasonable question&#33; In many languages &#40;like C or Java&#41;, enums are just named constants—glorified integers:</p>
+<pre><code class="language-c">// C enum - just integers with names
+enum Color &#123; RED, GREEN, BLUE &#125;;  // RED&#61;0, GREEN&#61;1, BLUE&#61;2</code></pre>
+<p>Rust&#39;s enums are fundamentally different: each variant can hold <strong>its own data</strong>. Why would you want this?</p>
+<h3 id="the_problem_related_data_that_comes_in_different_shapes"><a href="#the_problem_related_data_that_comes_in_different_shapes" class="header-anchor">The Problem: Related Data That Comes in Different Shapes</a></h3>
+<p>Imagine you&#39;re building a network library. An IP address can be either:</p>
+<ul>
+<li><p><strong>IPv4</strong>: 4 numbers &#40;like 192.168.1.1&#41;</p>
+</li>
+<li><p><strong>IPv6</strong>: a longer string &#40;like &quot;::1&quot;&#41;</p>
+</li>
+</ul>
+<p>These are conceptually the same thing &#40;an IP address&#41; but have <strong>different structures</strong>. Without data-holding enums, you&#39;d need awkward workarounds:</p>
+<pre><code class="language-rust">// ❌ Ugly approach: separate types, no unification
+struct IPv4 &#123; octets: &#91;u8; 4&#93; &#125;
+struct IPv6 &#123; addr: String &#125;
+
+// Now every function needs two versions or a trait...
+fn connect_v4&#40;ip: IPv4&#41; &#123; &#125;
+fn connect_v6&#40;ip: IPv6&#41; &#123; &#125;</code></pre>
+<p>Or worse:</p>
+<pre><code class="language-rust">// ❌ Really ugly: one struct with optional fields
+struct IpAddr &#123;
+    v4_octets: Option&lt;&#91;u8; 4&#93;&gt;,  // Only used if it&#39;s v4
+    v6_addr: Option&lt;String&gt;,     // Only used if it&#39;s v6
+    is_v4: bool,                 // Which one is it?
+&#125;
+// Gross&#33; And easy to mess up.</code></pre>
+<h3 id="the_solution_variants_that_carry_data"><a href="#the_solution_variants_that_carry_data" class="header-anchor">The Solution: Variants That Carry Data</a></h3>
+<p>Rust lets you bundle the &quot;which kind&quot; tag with the &quot;what data&quot; payload in one clean type:</p>
+<pre><code class="language-rust">// ✅ Clean: one type, two shapes
+enum IpAddr &#123;
+    V4&#40;u8, u8, u8, u8&#41;,
+    V6&#40;String&#41;,
+&#125;
+
+// One function handles both&#33;
+fn connect&#40;ip: IpAddr&#41; &#123;
+    match ip &#123;
+        IpAddr::V4&#40;a, b, c, d&#41; &#61;&gt; println&#33;&#40;&quot;Connecting to &#123;&#125;.&#123;&#125;.&#123;&#125;.&#123;&#125;&quot;, a, b, c, d&#41;,
+        IpAddr::V6&#40;addr&#41; &#61;&gt; println&#33;&#40;&quot;Connecting to &#123;&#125;&quot;, addr&#41;,
+    &#125;
+&#125;</code></pre>
+<h3 id="why_is_the_syntax_so_simple"><a href="#why_is_the_syntax_so_simple" class="header-anchor">Why Is the Syntax So Simple?</a></h3>
+<p>Rust deliberately made this easy because <strong>it&#39;s so useful</strong>. The syntax <code>V4&#40;u8, u8, u8, u8&#41;</code> is shorthand for &quot;this variant holds a tuple of four u8s.&quot; You don&#39;t need to define a separate struct—the data shape is declared inline.</p>
+<p>Think of each variant as having an <strong>anonymous, embedded struct</strong>:</p>
+<pre><code class="language-rust">// What you write:
+enum Message &#123;
+    Move &#123; x: i32, y: i32 &#125;,   // Named fields &#40;struct-like&#41;
+    Write&#40;String&#41;,              // Single value &#40;tuple-like&#41;
+    Quit,                       // No data &#40;unit-like&#41;
+&#125;
+
+// Conceptually similar to:
+struct MoveData &#123; x: i32, y: i32 &#125;
+struct WriteData&#40;String&#41;;
+struct QuitData;
+// ...but bundled into one type with less boilerplate</code></pre>
+<h3 id="the_payoff_type_safety_convenience"><a href="#the_payoff_type_safety_convenience" class="header-anchor">The Payoff: Type Safety &#43; Convenience</a></h3>
+<p>Because <code>IpAddr</code> is one type, you get:</p>
+<ol>
+<li><p><strong>One variable</strong> can hold either variant: <code>let addr: IpAddr &#61; ...</code></p>
+</li>
+<li><p><strong>One function signature</strong> handles all cases: <code>fn process&#40;ip: IpAddr&#41;</code></p>
+</li>
+<li><p><strong>Compiler-enforced handling</strong>: <code>match</code> forces you to deal with every variant</p>
+</li>
+</ol>
+<p>This pattern is everywhere in Rust: <code>Option&lt;T&gt;</code> &#40;value or nothing&#41;, <code>Result&lt;T, E&gt;</code> &#40;success or error&#41;, and countless custom types.</p>
+<h3 id="wait_are_variants_separate_structs"><a href="#wait_are_variants_separate_structs" class="header-anchor">Wait, Are Variants Separate Structs?</a></h3>
+<p><strong>No&#33;</strong> This is a crucial point. When you write:</p>
+<pre><code class="language-rust">enum IpAddr &#123;
+    V4&#40;u8, u8, u8, u8&#41;,
+    V6&#40;String&#41;,
+&#125;</code></pre>
+<p><code>V4</code> is <strong>not</strong> a defined struct. It&#39;s just a variant with inline data. Rust automatically generates constructor functions:</p>
+<ul>
+<li><p><code>IpAddr::V4&#40;a, b, c, d&#41;</code> - takes 4 u8s, returns an <code>IpAddr</code></p>
+</li>
+<li><p><code>IpAddr::V6&#40;s&#41;</code> - takes a String, returns an <code>IpAddr</code></p>
+</li>
+</ul>
+<p>In memory, an enum value has two parts: a <strong>tag</strong> &#40;which variant is this?&#41; plus the <strong>data</strong> &#40;the variant&#39;s payload&#41;. The tag might be 0 for V4, 1 for V6. Then the same memory region is interpreted differently:</p>
+<ul>
+<li><p>If tag &#61; 0: next 4 bytes &#61; <code>&#40;u8, u8, u8, u8&#41;</code></p>
+</li>
+<li><p>If tag &#61; 1: next bytes &#61; <code>String</code></p>
+</li>
+</ul>
+<p>You <em>could</em> define separate structs if you wanted:</p>
+<pre><code class="language-rust">struct V4Data&#40;u8, u8, u8, u8&#41;;
+struct V6Data&#40;String&#41;;
+enum IpAddr &#123;
+    V4&#40;V4Data&#41;,
+    V6&#40;V6Data&#41;,
+&#125;</code></pre>
+<p>But the first version is cleaner—it&#39;s syntactic sugar for defining the tuple structure directly in the variant.</p>
+<p><strong>Julia comparison</strong>: Julia doesn&#39;t have this &quot;inline anonymous struct&quot; feature. You&#39;d write separate named types:</p>
+<pre><code class="language-julia">struct IPv4
+    octets::NTuple&#123;4, UInt8&#125;
+end
+
+struct IPv6
+    addr::String
+end</code></pre>
+<p>Each gets its own name in the type system. Rust&#39;s enum lets you skip the naming ceremony and bundle everything under one type.</p>
+<pre><code class="language-rust">enum IpAddr &#123;
+    V4&#40;u8, u8, u8, u8&#41;,
+    V6&#40;String&#41;,
+&#125;
+
+// Pattern matching decides what to do
+match ip &#123;
+    IpAddr::V4&#40;a, b, c, d&#41; &#61;&gt; /* handle v4 */,
+    IpAddr::V6&#40;addr&#41; &#61;&gt; /* handle v6 */,
+&#125;</code></pre>
+<p>Julia says &quot;just define functions for different types, and I&#39;ll dispatch to the right one&quot;:</p>
+<pre><code class="language-julia">struct IPv4
+    octets::NTuple&#123;4, UInt8&#125;
+end
+
+struct IPv6
+    addr::String
+end
+
+# Multiple dispatch picks the right method
+route&#40;ip::IPv4&#41; &#61; # handle v4
+route&#40;ip::IPv6&#41; &#61; # handle v6</code></pre>
+<h2 id="why_they_feel_similar"><a href="#why_they_feel_similar" class="header-anchor">Why They Feel Similar</a></h2>
+<p>Both are about <strong>type-driven behavior</strong>. You&#39;re saying &quot;different types of data need different handling,&quot; and the language routes your code accordingly.</p>
+<p>The big difference? <strong>Where the branching happens:</strong></p>
+<ul>
+<li><p>Rust: branching is explicit &#40;you write <code>match</code>&#41;</p>
+</li>
+<li><p>Julia: branching is implicit &#40;the compiler picks the method&#41;</p>
+</li>
+</ul>
+<h2 id="the_structural_difference"><a href="#the_structural_difference" class="header-anchor">The Structural Difference</a></h2>
+<p>Rust enums are a <strong>closed set</strong>. When you define <code>enum Message</code>, you&#39;re saying these are ALL the possible variants, period. The compiler can verify you&#39;ve handled every case in your pattern match. If you forget a variant, compilation fails.</p>
+<p><strong>What does &quot;closed set&quot; mean?</strong> It just means &quot;fixed and complete at definition time.&quot; When you write the enum, you declare all possible variants upfront:</p>
+<pre><code class="language-rust">enum IpAddr &#123;
+    V4&#40;u8, u8, u8, u8&#41;,
+    V6&#40;String&#41;,
+&#125;</code></pre>
+<p>That&#39;s it. Those are the only two possibilities. You can&#39;t add a <code>V7</code> variant later. The set is <strong>closed</strong>—locked in, finite, no extensions allowed.</p>
+<p>Julia&#39;s approach is <strong>open</strong>. You can define new types and add methods for <code>route&#40;&#41;</code> anytime, anywhere:</p>
+<pre><code class="language-julia">abstract type IpAddr end
+
+struct IPv4 &lt;: IpAddr
+    octets::NTuple&#123;4, UInt8&#125;
+end
+
+struct IPv6 &lt;: IpAddr
+    addr::String
+end
+
+# Later, somewhere else in your code...
+struct IPv7 &lt;: IpAddr  # Sure, why not&#33;
+    future_stuff::Vector&#123;UInt8&#125;
+end</code></pre>
+<p>The set of subtypes of <code>IpAddr</code> is <strong>open</strong>—you can extend it anytime.</p>
+<p><strong>Why it matters:</strong> With a closed set, the compiler can ask: &quot;Did you handle V4? Did you handle V6? Yes to both? Great, you&#39;ve covered everything.&quot; With an open set, the compiler can&#39;t make that guarantee because someone might define a new type tomorrow. If you call <code>route&#40;x&#41;</code> on a type with no matching method, you get a runtime <code>MethodError</code>, not a compile-time guarantee.</p>
+<h2 id="the_rust_advantage_data_bundling"><a href="#the_rust_advantage_data_bundling" class="header-anchor">The Rust Advantage: Data Bundling</a></h2>
+<p>Rust&#39;s clever trick is that each enum variant can carry <strong>different shaped data</strong>:</p>
+<pre><code class="language-rust">enum Message &#123;
+    Quit,                           // no data
+    Move &#123; x: i32, y: i32 &#125;,       // named fields
+    Write&#40;String&#41;,                  // single value
+    ChangeColor&#40;i32, i32, i32&#41;,    // tuple
+&#125;</code></pre>
+<p>Each variant has its own data structure, yet they&#39;re all unified under one type: <code>Message</code>. A function accepting <code>Message</code> can handle all variants through pattern matching.</p>
+<p>In Julia, you&#39;d need a union type or abstract type hierarchy:</p>
+<pre><code class="language-julia">abstract type Message end
+struct Quit &lt;: Message end
+struct Move &lt;: Message
+    x::Int32
+    y::Int32
+end</code></pre>
+<p>But Julia&#39;s version is <strong>open</strong> &#40;you can add more subtypes later&#41;, while Rust&#39;s enum is <strong>closed</strong> &#40;the set of variants is fixed&#41;. The tradeoff: Rust gives compile-time exhaustiveness, Julia gives runtime extensibility.</p>
+<h2 id="the_option_example"><a href="#the_option_example" class="header-anchor">The Option Example</a></h2>
+<p>Now here&#39;s where Rust&#39;s enum philosophy really shines in practice. Remember how enums let you represent &quot;one of several possibilities&quot;? Rust applies this idea to solve one of programming&#39;s most common problems: <strong>representing the absence of a value</strong>.</p>
+<p>Instead of having <code>null</code> &#40;which can sneak into any type&#41;, Rust has an enum called <code>Option&lt;T&gt;</code> that explicitly says &quot;this might be nothing&quot;:</p>
+<pre><code class="language-rust">let maybe_number: Option&lt;i32&gt; &#61; Some&#40;5&#41;;
+// or
+let nothing: Option&lt;i32&gt; &#61; None;</code></pre>
+<p><code>Option&lt;T&gt;</code> is either <code>Some&#40;value&#41;</code> or <code>None</code>. The key insight: <code>Option&lt;T&gt;</code> and <code>T</code> are <strong>different types</strong>. You <strong>cannot</strong> use an <code>Option&lt;i32&gt;</code> where an <code>i32</code> is expected. You must explicitly unwrap or pattern match to handle both cases:</p>
+<pre><code class="language-rust">match maybe_number &#123;
+    Some&#40;n&#41; &#61;&gt; println&#33;&#40;&quot;Got &#123;&#125;&quot;, n&#41;,
+    None &#61;&gt; println&#33;&#40;&quot;Got nothing&quot;&#41;,
+&#125;</code></pre>
+<p>This prevents the billion-dollar mistake: in languages with <code>null</code>, any reference might secretly be null, but the type system doesn&#39;t warn you. You can&#39;t tell if a function returns a value or might return null, leading to null pointer exceptions.</p>
+<p>Julia would use <code>Union&#123;T, Nothing&#125;</code> and rely on <code>isnothing&#40;&#41;</code> checks. The difference? Julia&#39;s approach is <strong>voluntary</strong> &#40;you can forget the check&#41;, while Rust <strong>forces</strong> you to handle the <code>None</code> case through pattern matching, preventing null errors at compile time.</p>
+<h2 id="bottom_line"><a href="#bottom_line" class="header-anchor">Bottom Line</a></h2>
+<p>Rust enums &#43; pattern matching ≈ Julia&#39;s multiple dispatch, but Rust gives you:</p>
+<ul>
+<li><p>Compile-time exhaustiveness checking</p>
+</li>
+<li><p>A single type that encompasses multiple data shapes</p>
+</li>
+<li><p>Forced null-safety through <code>Option&lt;T&gt;</code></p>
+</li>
+</ul>
+<p>Julia gives you:</p>
+<ul>
+<li><p>More flexibility &#40;open extension&#41;</p>
+</li>
+<li><p>Less ceremony</p>
+</li>
+<li><p>Runtime dynamism</p>
+</li>
+</ul>
+<p>Both are powerful tools for &quot;different data, different code.&quot; Rust just makes you declare all possibilities upfront, while Julia lets you add cases as you go.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

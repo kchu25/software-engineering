@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Understanding Rust's Match (and why the weird terminology)</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="understanding_rusts_match_and_why_the_weird_terminology"><a href="#understanding_rusts_match_and_why_the_weird_terminology" class="header-anchor">Understanding Rust&#39;s Match &#40;and why the weird terminology&#41;</a></h1>
+<h2 id="why_is_it_called_arms_youre_right_it_is_weird"><a href="#why_is_it_called_arms_youre_right_it_is_weird" class="header-anchor">Why is it called &quot;arms&quot;? &#40;You&#39;re right, it IS weird&#41;</a></h2>
+<p>Honestly, &quot;arms&quot; is just programming jargon that stuck. It comes from formal computer science terminology for pattern matching constructs. You could call them &quot;branches,&quot; &quot;cases,&quot; &quot;options,&quot; or &quot;clauses&quot; and it would make just as much sense—probably more sense&#33;</p>
+<p>The term probably comes from visualizing the control flow like a tree with branches, or &quot;arms&quot; extending out. But yeah, when you first encounter it, it feels like arbitrary vocabulary.</p>
+<p>Each arm is just:</p>
+<pre><code class="language-rust">pattern &#61;&gt; code_to_run</code></pre>
+<p><strong>Better mental model</strong>: Think of them as &quot;branches&quot; in a decision tree, or just &quot;cases&quot; like in a switch statement.</p>
+<h2 id="why_does_match_have_to_do_with_enums"><a href="#why_does_match_have_to_do_with_enums" class="header-anchor">Why does match have to do with enums?</a></h2>
+<p>It doesn&#39;t <em>have</em> to—but enums are where match really shines. Here&#39;s why they&#39;re taught together:</p>
+<h3 id="the_problem_enums_solve"><a href="#the_problem_enums_solve" class="header-anchor">The problem enums solve</a></h3>
+<p>An enum says: &quot;this value is ONE of these specific possibilities, nothing else.&quot;</p>
+<pre><code class="language-rust">enum Coin &#123;
+    Penny,
+    Nickel,
+    Dime,
+    Quarter,
+&#125;</code></pre>
+<p>A <code>Coin</code> can ONLY be one of those four things. Not a String, not a number, not some other random variant.</p>
+<h3 id="why_match_is_perfect_for_enums"><a href="#why_match_is_perfect_for_enums" class="header-anchor">Why match is perfect for enums</a></h3>
+<p><strong>Match forces you to handle every possibility.</strong> The compiler literally won&#39;t let you forget a case:</p>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+    // ❌ Compiler error: you forgot Dime and Quarter&#33;
+&#125;</code></pre>
+<p>This is HUGE for safety. With enums &#43; match, you can&#39;t accidentally forget to handle a case. No runtime surprises.</p>
+<h3 id="the_comparison_happens_automatically"><a href="#the_comparison_happens_automatically" class="header-anchor">The comparison happens automatically</a></h3>
+<pre><code class="language-rust">match coin &#123;                    // ← The value you&#39;re checking
+    Coin::Penny &#61;&gt; 1,          // Rust checks: is coin a Penny?
+    Coin::Nickel &#61;&gt; 5,         // If not, is it a Nickel?
+    Coin::Dime &#61;&gt; 10,          // If not, is it a Dime?
+    Coin::Quarter &#61;&gt; 25,       // If not, is it a Quarter?
+&#125;</code></pre>
+<p>Rust checks each pattern from top to bottom. First match wins, runs its code, done.</p>
+<h2 id="match_executes_only_one_arm_no_fall-through"><a href="#match_executes_only_one_arm_no_fall-through" class="header-anchor">Match executes ONLY ONE arm &#40;no fall-through&#33;&#41;</a></h2>
+<p><strong>Critical point</strong>: Unlike <code>switch</code> in C/C&#43;&#43;/JavaScript, Rust&#39;s <code>match</code> executes <strong>only the first matching arm</strong> and then exits immediately. There is no &quot;fall-through&quot; behavior.</p>
+<pre><code class="language-rust">let x &#61; 1;
+
+match x &#123;
+    1 &#61;&gt; println&#33;&#40;&quot;one&quot;&#41;,      // ✅ This runs
+    1 &#61;&gt; println&#33;&#40;&quot;also one&quot;&#41;, // ❌ This NEVER runs &#40;and Rust warns: unreachable pattern&#41;
+    _ &#61;&gt; println&#33;&#40;&quot;other&quot;&#41;,
+&#125;
+// Output: &quot;one&quot; &#40;just once&#33;&#41;</code></pre>
+<h3 id="comparison_with_cs_switch_which_does_fall_through"><a href="#comparison_with_cs_switch_which_does_fall_through" class="header-anchor">Comparison with C&#39;s switch &#40;which DOES fall through&#41;</a></h3>
+<pre><code class="language-c">// C code - has fall-through&#33;
+switch &#40;x&#41; &#123;
+    case 1: printf&#40;&quot;one\n&quot;&#41;;    // runs
+    case 2: printf&#40;&quot;two\n&quot;&#41;;    // ALSO runs&#33; &#40;fall-through&#41;
+    case 3: printf&#40;&quot;three\n&quot;&#41;;  // ALSO runs&#33;
+    default: printf&#40;&quot;other\n&quot;&#41;; // ALSO runs&#33;
+&#125;
+// Without &#96;break&#96;, C executes ALL cases after the first match&#33;</code></pre>
+<h3 id="rusts_match_is_safer_by_design"><a href="#rusts_match_is_safer_by_design" class="header-anchor">Rust&#39;s match is safer by design</a></h3>
+<pre><code class="language-rust">let x &#61; 1;
+
+match x &#123;
+    1 &#61;&gt; &#123;
+        println&#33;&#40;&quot;one&quot;&#41;;
+        println&#33;&#40;&quot;still in the same arm&quot;&#41;;
+    &#125;
+    2 &#61;&gt; println&#33;&#40;&quot;two&quot;&#41;,   // Never reached when x&#61;1
+    _ &#61;&gt; println&#33;&#40;&quot;other&quot;&#41;, // Never reached when x&#61;1
+&#125;
+// Output:
+// one
+// still in the same arm
+// &#40;then match exits - no fall-through to other arms&#41;</code></pre>
+<p><strong>Why this matters</strong>: You never need to remember to add <code>break</code> statements. Each arm is isolated. When one arm matches and runs, the <code>match</code> is done.</p>
+<h3 id="what_if_you_want_multiple_patterns_to_run_the_same_code"><a href="#what_if_you_want_multiple_patterns_to_run_the_same_code" class="header-anchor">What if you want multiple patterns to run the same code?</a></h3>
+<p>Use the <code>|</code> &#40;or&#41; operator to combine patterns into a single arm:</p>
+<pre><code class="language-rust">let x &#61; 1;
+
+match x &#123;
+    1 | 2 | 3 &#61;&gt; println&#33;&#40;&quot;one, two, or three&quot;&#41;, // Matches 1, 2, OR 3
+    4..&#61;10 &#61;&gt; println&#33;&#40;&quot;four through ten&quot;&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;something else&quot;&#41;,
+&#125;</code></pre>
+<p>This isn&#39;t fall-through—it&#39;s one arm with multiple patterns.</p>
+<h2 id="but_you_can_use_match_on_other_things_too"><a href="#but_you_can_use_match_on_other_things_too" class="header-anchor">But you can use match on other things too&#33;</a></h2>
+<p>Match isn&#39;t just for enums—it works on regular types like numbers, strings, whatever:</p>
+<pre><code class="language-rust">let dice_roll &#61; 9;  // Just a regular integer
+
+match dice_roll &#123;
+    1 &#61;&gt; println&#33;&#40;&quot;one&quot;&#41;,
+    2 &#61;&gt; println&#33;&#40;&quot;two&quot;&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;something else&quot;&#41;,  // _ means &quot;anything else&quot;
+&#125;
+// This prints: &quot;something else&quot;</code></pre>
+<p>Since <code>dice_roll</code> is 9, it doesn&#39;t match 1 or 2, so it falls through to the <code>_</code> catch-all pattern.</p>
+<h3 id="more_examples_with_different_types"><a href="#more_examples_with_different_types" class="header-anchor">More examples with different types:</a></h3>
+<pre><code class="language-rust">// Match on a string
+let text &#61; &quot;hello&quot;;
+match text &#123;
+    &quot;hello&quot; &#61;&gt; println&#33;&#40;&quot;hi there&#33;&quot;&#41;,
+    &quot;bye&quot; &#61;&gt; println&#33;&#40;&quot;goodbye&#33;&quot;&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;huh?&quot;&#41;,
+&#125;
+
+// Match on ranges
+let age &#61; 25;
+match age &#123;
+    0..&#61;12 &#61;&gt; println&#33;&#40;&quot;child&quot;&#41;,
+    13..&#61;19 &#61;&gt; println&#33;&#40;&quot;teen&quot;&#41;,
+    20..&#61;64 &#61;&gt; println&#33;&#40;&quot;adult&quot;&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;senior&quot;&#41;,
+&#125;</code></pre>
+<p>The Rust book teaches match with enums because that&#39;s where it&#39;s most powerful—the compiler ensures you&#39;ve covered all cases. But match is a general-purpose tool&#33;</p>
+<h2 id="the_real_insight"><a href="#the_real_insight" class="header-anchor">The real insight</a></h2>
+<p>Enums define a closed set of possibilities. Match ensures you handle all of them. Together they prevent a whole class of bugs where you forget to handle a case. That&#39;s why they&#39;re taught together—they&#39;re a power couple.</p>
+<h2 id="match_must_handle_all_enum_cases_exhaustiveness"><a href="#match_must_handle_all_enum_cases_exhaustiveness" class="header-anchor">Match MUST handle all enum cases &#40;exhaustiveness&#41;</a></h2>
+<p><strong>When you match on an enum, you MUST handle every variant.</strong> The compiler enforces this:</p>
+<pre><code class="language-rust">enum Coin &#123;
+    Penny,
+    Nickel,
+    Dime,
+    Quarter,
+&#125;
+
+// ❌ This won&#39;t compile - missing Dime and Quarter&#33;
+match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+&#125;
+// Compiler error: &quot;non-exhaustive patterns: &#96;Coin::Dime&#96; and &#96;Coin::Quarter&#96; not covered&quot;</code></pre>
+<p>You have two ways to satisfy the compiler:</p>
+<h3 id="option_1_list_every_variant_explicitly"><a href="#option_1_list_every_variant_explicitly" class="header-anchor">Option 1: List every variant explicitly</a></h3>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+    Coin::Dime &#61;&gt; 10,
+    Coin::Quarter &#61;&gt; 25,
+&#125;</code></pre>
+<h3 id="option_2_use_a_catch-all_for_the_rest"><a href="#option_2_use_a_catch-all_for_the_rest" class="header-anchor">Option 2: Use a catch-all for the rest</a></h3>
+<pre><code class="language-rust">match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    _ &#61;&gt; 0,  // Handles Nickel, Dime, Quarter - anything that&#39;s not Penny
+&#125;</code></pre>
+<p><strong>Important</strong>: For regular types &#40;like numbers or strings&#41;, you don&#39;t need all cases—you can just use <code>_</code> to catch everything else. But for enums, the compiler forces exhaustiveness because it knows exactly what all the possibilities are.</p>
+<p>That&#39;s the safety feature: you can&#39;t accidentally forget to handle a case&#33;</p>
+<hr />
+<h2 id="match_returns_a_value_its_an_expression"><a href="#match_returns_a_value_its_an_expression" class="header-anchor">Match returns a value &#40;it&#39;s an expression&#33;&#41;</a></h2>
+<p>Unlike <code>switch</code> in many languages, Rust&#39;s <code>match</code> is an <strong>expression</strong>—it returns a value. This is incredibly useful:</p>
+<pre><code class="language-rust">let coin &#61; Coin::Dime;
+
+let value &#61; match coin &#123;
+    Coin::Penny &#61;&gt; 1,
+    Coin::Nickel &#61;&gt; 5,
+    Coin::Dime &#61;&gt; 10,
+    Coin::Quarter &#61;&gt; 25,
+&#125;;
+
+println&#33;&#40;&quot;Value: &#123;&#125; cents&quot;, value&#41;; // Value: 10 cents</code></pre>
+<p>You can use <code>match</code> directly in assignments, function returns, or anywhere you need a value:</p>
+<pre><code class="language-rust">fn describe_number&#40;n: i32&#41; -&gt; &amp;&#39;static str &#123;
+    match n &#123;
+        0 &#61;&gt; &quot;zero&quot;,
+        1..&#61;9 &#61;&gt; &quot;single digit&quot;,
+        10..&#61;99 &#61;&gt; &quot;double digit&quot;,
+        _ &#61;&gt; &quot;big number&quot;,
+    &#125;
+    // No semicolon after match &#61; it&#39;s the return value&#33;
+&#125;</code></pre>
+<p><strong>Important</strong>: All arms must return the same type&#33;</p>
+<pre><code class="language-rust">// ❌ This won&#39;t compile - mismatched types
+let result &#61; match x &#123;
+    1 &#61;&gt; &quot;one&quot;,      // &amp;str
+    2 &#61;&gt; 2,          // i32 - different type&#33;
+    _ &#61;&gt; &quot;other&quot;,
+&#125;;</code></pre>
+<hr />
+<h2 id="destructuring_pulling_data_out_of_enums"><a href="#destructuring_pulling_data_out_of_enums" class="header-anchor">Destructuring: Pulling data out of enums</a></h2>
+<p>Enums can hold data inside their variants. <code>match</code> lets you <strong>destructure</strong> &#40;extract&#41; that data:</p>
+<h3 id="what_is_destructuring"><a href="#what_is_destructuring" class="header-anchor">What is destructuring?</a></h3>
+<p><strong>Destructuring</strong> means breaking apart a composite data structure to access its individual pieces. Think of it like unpacking a box—you take out each item and give it a name.</p>
+<p>It&#39;s the opposite of <em>constructing</em>:</p>
+<pre><code class="language-rust">// Constructing: putting pieces together
+let point &#61; &#40;3, 5&#41;;           // Build a tuple from two values
+let user &#61; User &#123; name, age &#125;; // Build a struct from fields
+
+// Destructuring: taking pieces apart
+let &#40;x, y&#41; &#61; point;           // Extract values from tuple
+let User &#123; name, age &#125; &#61; user; // Extract fields from struct</code></pre>
+<p><strong>Destructuring works on:</strong></p>
+<ul>
+<li><p>Tuples</p>
+</li>
+<li><p>Structs</p>
+</li>
+<li><p>Enums</p>
+</li>
+<li><p>Arrays and slices</p>
+</li>
+<li><p>Nested combinations of all the above</p>
+</li>
+</ul>
+<h3 id="destructuring_in_match_enums"><a href="#destructuring_in_match_enums" class="header-anchor">Destructuring in <code>match</code> &#40;enums&#41;</a></h3>
+<pre><code class="language-rust">enum Message &#123;
+    Quit,                       // No data
+    Move &#123; x: i32, y: i32 &#125;,   // Named fields &#40;like a struct&#41;
+    Write&#40;String&#41;,              // Single value &#40;tuple-like&#41;
+    ChangeColor&#40;i32, i32, i32&#41;, // Multiple values
+&#125;
+
+let msg &#61; Message::Move &#123; x: 10, y: 20 &#125;;
+
+match msg &#123;
+    Message::Quit &#61;&gt; println&#33;&#40;&quot;Quit&quot;&#41;,
+    Message::Move &#123; x, y &#125; &#61;&gt; println&#33;&#40;&quot;Move to &#40;&#123;&#125;, &#123;&#125;&#41;&quot;, x, y&#41;, // Extract x and y&#33;
+    Message::Write&#40;text&#41; &#61;&gt; println&#33;&#40;&quot;Text: &#123;&#125;&quot;, text&#41;,           // Extract the String&#33;
+    Message::ChangeColor&#40;r, g, b&#41; &#61;&gt; println&#33;&#40;&quot;RGB: &#123;&#125;, &#123;&#125;, &#123;&#125;&quot;, r, g, b&#41;,
+&#125;
+// Output: Move to &#40;10, 20&#41;</code></pre>
+<h3 id="the_classic_example_optiont"><a href="#the_classic_example_optiont" class="header-anchor">The classic example: Option&lt;T&gt;</a></h3>
+<p><code>Option</code> is just an enum with two variants:</p>
+<pre><code class="language-rust">enum Option&lt;T&gt; &#123;
+    Some&#40;T&#41;,  // Contains a value of type T
+    None,     // Contains nothing
+&#125;</code></pre>
+<p>Destructuring lets you safely extract the value:</p>
+<pre><code class="language-rust">let maybe_number: Option&lt;i32&gt; &#61; Some&#40;42&#41;;
+
+match maybe_number &#123;
+    Some&#40;n&#41; &#61;&gt; println&#33;&#40;&quot;Got a number: &#123;&#125;&quot;, n&#41;, // n is now 42
+    None &#61;&gt; println&#33;&#40;&quot;Got nothing&quot;&#41;,
+&#125;</code></pre>
+<h3 id="resultt_e_works_the_same_way"><a href="#resultt_e_works_the_same_way" class="header-anchor">Result&lt;T, E&gt; works the same way</a></h3>
+<pre><code class="language-rust">let result: Result&lt;i32, &amp;str&gt; &#61; Ok&#40;100&#41;;
+
+match result &#123;
+    Ok&#40;value&#41; &#61;&gt; println&#33;&#40;&quot;Success: &#123;&#125;&quot;, value&#41;,
+    Err&#40;e&#41; &#61;&gt; println&#33;&#40;&quot;Error: &#123;&#125;&quot;, e&#41;,
+&#125;</code></pre>
+<h3 id="destructuring_beyond_match_its_everywhere_in_rust"><a href="#destructuring_beyond_match_its_everywhere_in_rust" class="header-anchor">Destructuring beyond match &#40;it&#39;s everywhere in Rust&#33;&#41;</a></h3>
+<p>Destructuring isn&#39;t just for <code>match</code>—you can use it in <code>let</code> statements, function parameters, and more:</p>
+<pre><code class="language-rust">// Destructuring tuples in let
+let point &#61; &#40;10, 20, 30&#41;;
+let &#40;x, y, z&#41; &#61; point;  // x&#61;10, y&#61;20, z&#61;30
+
+// Destructuring structs in let
+struct User &#123; name: String, age: u32 &#125;
+let user &#61; User &#123; name: String::from&#40;&quot;Alice&quot;&#41;, age: 30 &#125;;
+let User &#123; name, age &#125; &#61; user;  // name&#61;&quot;Alice&quot;, age&#61;30
+
+// Destructuring in function parameters
+fn print_point&#40;&#40;x, y&#41;: &#40;i32, i32&#41;&#41; &#123;
+    println&#33;&#40;&quot;x&#61;&#123;&#125;, y&#61;&#123;&#125;&quot;, x, y&#41;;
+&#125;
+print_point&#40;&#40;5, 10&#41;&#41;;
+
+// Destructuring in for loops
+let points &#61; vec&#33;&#91;&#40;1, 2&#41;, &#40;3, 4&#41;, &#40;5, 6&#41;&#93;;
+for &#40;x, y&#41; in points &#123;
+    println&#33;&#40;&quot;&#40;&#123;&#125;, &#123;&#125;&#41;&quot;, x, y&#41;;
+&#125;
+
+// Nested destructuring
+let nested &#61; &#40;&#40;1, 2&#41;, &#40;3, 4&#41;&#41;;
+let &#40;&#40;a, b&#41;, &#40;c, d&#41;&#41; &#61; nested;  // a&#61;1, b&#61;2, c&#61;3, d&#61;4</code></pre>
+<p><strong>The pattern syntax is the same everywhere</strong>—whether in <code>match</code>, <code>let</code>, <code>if let</code>, function parameters, or <code>for</code> loops. Once you learn it, you can use it anywhere&#33;</p>
+<hr />
+<h2 id="match_guards_adding_extra_conditions_with_if"><a href="#match_guards_adding_extra_conditions_with_if" class="header-anchor">Match guards: Adding extra conditions with <code>if</code></a></h2>
+<p>Sometimes patterns aren&#39;t enough. <strong>Match guards</strong> let you add an <code>if</code> condition:</p>
+<pre><code class="language-rust">let num &#61; Some&#40;4&#41;;
+
+match num &#123;
+    Some&#40;x&#41; if x &lt; 5 &#61;&gt; println&#33;&#40;&quot;less than five: &#123;&#125;&quot;, x&#41;,
+    Some&#40;x&#41; &#61;&gt; println&#33;&#40;&quot;five or more: &#123;&#125;&quot;, x&#41;,
+    None &#61;&gt; println&#33;&#40;&quot;nothing&quot;&#41;,
+&#125;
+// Output: less than five: 4</code></pre>
+<p>The guard <code>if x &lt; 5</code> only lets the arm match if the condition is true.</p>
+<h3 id="more_guard_examples"><a href="#more_guard_examples" class="header-anchor">More guard examples:</a></h3>
+<pre><code class="language-rust">let pair &#61; &#40;2, -2&#41;;
+
+match pair &#123;
+    &#40;x, y&#41; if x &#61;&#61; y &#61;&gt; println&#33;&#40;&quot;equal&quot;&#41;,
+    &#40;x, y&#41; if x &#43; y &#61;&#61; 0 &#61;&gt; println&#33;&#40;&quot;opposites&quot;&#41;, // This matches&#33;
+    &#40;x, _&#41; if x &#37; 2 &#61;&#61; 0 &#61;&gt; println&#33;&#40;&quot;first is even&quot;&#41;,
+    _ &#61;&gt; println&#33;&#40;&quot;no match&quot;&#41;,
+&#125;
+// Output: opposites</code></pre>
+<p><strong>Note</strong>: Guards are checked after the pattern matches, so order matters&#33;</p>
+<hr />
+<h2 id="binding_with_name_and_test_at_the_same_time"><a href="#binding_with_name_and_test_at_the_same_time" class="header-anchor">Binding with <code>@</code>: Name and test at the same time</a></h2>
+<p>The <code>@</code> operator lets you bind a value to a name while also testing it against a pattern:</p>
+<pre><code class="language-rust">enum Message &#123;
+    Hello &#123; id: i32 &#125;,
+&#125;
+
+let msg &#61; Message::Hello &#123; id: 5 &#125;;
+
+match msg &#123;
+    Message::Hello &#123; id: id_variable @ 3..&#61;7 &#125; &#61;&gt; &#123;
+        println&#33;&#40;&quot;Found id in range: &#123;&#125;&quot;, id_variable&#41;
+    &#125;
+    Message::Hello &#123; id: 10..&#61;12 &#125; &#61;&gt; &#123;
+        println&#33;&#40;&quot;Found id in another range&quot;&#41;
+        // Can&#39;t use &#96;id&#96; here - we didn&#39;t bind it&#33;
+    &#125;
+    Message::Hello &#123; id &#125; &#61;&gt; &#123;
+        println&#33;&#40;&quot;Found some other id: &#123;&#125;&quot;, id&#41;
+    &#125;
+&#125;
+// Output: Found id in range: 5</code></pre>
+<p>Without <code>@</code>, you&#39;d have to either:</p>
+<ul>
+<li><p>Test the range &#40;but not have access to the value&#41;, or</p>
+</li>
+<li><p>Bind the value &#40;but not test the range in the pattern&#41;</p>
+</li>
+</ul>
+<p><code>@</code> gives you both&#33;</p>
+<hr />
+<h2 id="matching_on_references"><a href="#matching_on_references" class="header-anchor">Matching on references</a></h2>
+<p>When matching on references, you might need <code>ref</code> or <code>&amp;</code>:</p>
+<h3 id="using_in_the_pattern"><a href="#using_in_the_pattern" class="header-anchor">Using <code>&amp;</code> in the pattern</a></h3>
+<pre><code class="language-rust">let reference &#61; &amp;4;
+
+match reference &#123;
+    &amp;val &#61;&gt; println&#33;&#40;&quot;Got value: &#123;&#125;&quot;, val&#41;, // val is i32, not &amp;i32
+&#125;</code></pre>
+<h3 id="using_ref_to_create_a_reference"><a href="#using_ref_to_create_a_reference" class="header-anchor">Using <code>ref</code> to create a reference</a></h3>
+<pre><code class="language-rust">let value &#61; 5;
+
+match value &#123;
+    ref r &#61;&gt; println&#33;&#40;&quot;Got a reference: &#123;:?&#125;&quot;, r&#41;, // r is &amp;i32
+&#125;</code></pre>
+<h3 id="with_ref_mut_for_mutable_references"><a href="#with_ref_mut_for_mutable_references" class="header-anchor">With <code>ref mut</code> for mutable references</a></h3>
+<pre><code class="language-rust">let mut value &#61; 5;
+
+match value &#123;
+    ref mut m &#61;&gt; &#123;
+        *m &#43;&#61; 10;
+        println&#33;&#40;&quot;Modified to: &#123;&#125;&quot;, m&#41;;
+    &#125;
+&#125;
+// value is now 15</code></pre>
+<hr />
+<h2 id="ignoring_values_with__and"><a href="#ignoring_values_with__and" class="header-anchor">Ignoring values with <code>_</code> and <code>..</code></a></h2>
+<h3 id="_ignores_a_single_value"><a href="#_ignores_a_single_value" class="header-anchor"><code>_</code> ignores a single value</a></h3>
+<pre><code class="language-rust">let point &#61; &#40;3, 5, 8&#41;;
+
+match point &#123;
+    &#40;x, _, z&#41; &#61;&gt; println&#33;&#40;&quot;x&#61;&#123;&#125;, z&#61;&#123;&#125;&quot;, x, z&#41;, // Ignore y
+&#125;</code></pre>
+<h3 id="ignores_multiple_values"><a href="#ignores_multiple_values" class="header-anchor"><code>..</code> ignores multiple values</a></h3>
+<pre><code class="language-rust">let numbers &#61; &#40;1, 2, 3, 4, 5&#41;;
+
+match numbers &#123;
+    &#40;first, .., last&#41; &#61;&gt; println&#33;&#40;&quot;first&#61;&#123;&#125;, last&#61;&#123;&#125;&quot;, first, last&#41;,
+&#125;
+// Output: first&#61;1, last&#61;5</code></pre>
+<h3 id="ignoring_remaining_struct_fields"><a href="#ignoring_remaining_struct_fields" class="header-anchor">Ignoring remaining struct fields</a></h3>
+<pre><code class="language-rust">struct Point &#123; x: i32, y: i32, z: i32 &#125;
+
+let origin &#61; Point &#123; x: 0, y: 0, z: 0 &#125;;
+
+match origin &#123;
+    Point &#123; x, .. &#125; &#61;&gt; println&#33;&#40;&quot;x is &#123;&#125;&quot;, x&#41;, // Ignore y and z
+&#125;</code></pre>
+<hr />
+<h2 id="if_let_when_you_only_care_about_one_pattern"><a href="#if_let_when_you_only_care_about_one_pattern" class="header-anchor"><code>if let</code>: When you only care about one pattern</a></h2>
+<p>If you only care about one case, <code>if let</code> is cleaner than a full <code>match</code>:</p>
+<pre><code class="language-rust">let some_value &#61; Some&#40;3&#41;;
+
+// Full match - verbose for just one case
+match some_value &#123;
+    Some&#40;3&#41; &#61;&gt; println&#33;&#40;&quot;three&#33;&quot;&#41;,
+    _ &#61;&gt; &#40;&#41;, // Do nothing - annoying boilerplate
+&#125;
+
+// if let - much cleaner&#33;
+if let Some&#40;3&#41; &#61; some_value &#123;
+    println&#33;&#40;&quot;three&#33;&quot;&#41;;
+&#125;</code></pre>
+<h3 id="with_an_else_clause"><a href="#with_an_else_clause" class="header-anchor">With an else clause</a></h3>
+<pre><code class="language-rust">let coin &#61; Coin::Quarter;
+
+if let Coin::Quarter &#61; coin &#123;
+    println&#33;&#40;&quot;It&#39;s a quarter&#33;&quot;&#41;;
+&#125; else &#123;
+    println&#33;&#40;&quot;Not a quarter&quot;&#41;;
+&#125;</code></pre>
+<h3 id="destructuring_works_too"><a href="#destructuring_works_too" class="header-anchor">Destructuring works too</a></h3>
+<pre><code class="language-rust">if let Some&#40;value&#41; &#61; some_option &#123;
+    println&#33;&#40;&quot;Got: &#123;&#125;&quot;, value&#41;;
+&#125;</code></pre>
+<hr />
+<h2 id="while_let_loop_while_a_pattern_matches"><a href="#while_let_loop_while_a_pattern_matches" class="header-anchor"><code>while let</code>: Loop while a pattern matches</a></h2>
+<p>Great for iterators or channels:</p>
+<pre><code class="language-rust">let mut stack &#61; vec&#33;&#91;1, 2, 3&#93;;
+
+while let Some&#40;top&#41; &#61; stack.pop&#40;&#41; &#123;
+    println&#33;&#40;&quot;&#123;&#125;&quot;, top&#41;;
+&#125;
+// Output: 3, 2, 1 &#40;then loop ends when pop&#40;&#41; returns None&#41;</code></pre>
+<hr />
+<h2 id="let_else_handle_the_non-matching_case"><a href="#let_else_handle_the_non-matching_case" class="header-anchor"><code>let else</code>: Handle the non-matching case</a></h2>
+<p>Rust 1.65&#43; introduced <code>let else</code> for when you want to handle the failure case:</p>
+<pre><code class="language-rust">fn get_count&#40;s: &amp;str&#41; -&gt; i32 &#123;
+    let Some&#40;count&#41; &#61; s.parse::&lt;i32&gt;&#40;&#41;.ok&#40;&#41; else &#123;
+        return -1; // Must diverge &#40;return, break, panic, etc.&#41;
+    &#125;;
+    count
+&#125;</code></pre>
+<p>This is particularly useful for early returns:</p>
+<pre><code class="language-rust">fn process_user&#40;user: Option&lt;User&gt;&#41; &#123;
+    let Some&#40;user&#41; &#61; user else &#123;
+        println&#33;&#40;&quot;No user provided&quot;&#41;;
+        return;
+    &#125;;
+    
+    // Now &#96;user&#96; is definitely a User, not Option&lt;User&gt;
+    println&#33;&#40;&quot;Processing &#123;&#125;&quot;, user.name&#41;;
+&#125;</code></pre>
+<hr />
+<h2 id="quick_reference_match_patterns_cheat_sheet"><a href="#quick_reference_match_patterns_cheat_sheet" class="header-anchor">Quick reference: Match patterns cheat sheet</a></h2>
+<table><tr><th align="right">Pattern</th><th align="right">Example</th><th align="right">What it matches</th></tr><tr><td align="right">Literal</td><td align="right"><code>5</code></td><td align="right">Exactly 5</td></tr><tr><td align="right">Variable</td><td align="right"><code>x</code></td><td align="right">Anything, binds to x</td></tr><tr><td align="right">Wildcard</td><td align="right"><code>_</code></td><td align="right">Anything, discards it</td></tr><tr><td align="right">Range</td><td align="right"><code>1..&#61;5</code></td><td align="right">1, 2, 3, 4, or 5</td></tr><tr><td align="right">Or</td><td align="right"><code>1 \| 2 \| 3</code></td><td align="right">1, 2, or 3</td></tr><tr><td align="right">Tuple</td><td align="right"><code>&#40;x, y, _&#41;</code></td><td align="right">3-element tuple</td></tr><tr><td align="right">Struct</td><td align="right"><code>Point &#123; x, y &#125;</code></td><td align="right">Point, binds fields</td></tr><tr><td align="right">Enum</td><td align="right"><code>Some&#40;x&#41;</code></td><td align="right">Some variant, binds inner</td></tr><tr><td align="right">Reference</td><td align="right"><code>&amp;val</code></td><td align="right">Reference, binds inner</td></tr><tr><td align="right">Guard</td><td align="right"><code>x if x &gt; 0</code></td><td align="right">Pattern &#43; condition</td></tr><tr><td align="right">Binding</td><td align="right"><code>id @ 1..&#61;5</code></td><td align="right">Range, also binds to id</td></tr><tr><td align="right">Rest</td><td align="right"><code>&#91;first, ..&#93;</code></td><td align="right">Slice, binds first element</td></tr></table>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

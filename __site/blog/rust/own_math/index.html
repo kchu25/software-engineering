@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Ownership & Borrowing: A Mathematical View</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_ownership_borrowing_a_mathematical_view"><a href="#rust_ownership_borrowing_a_mathematical_view" class="header-anchor">Rust Ownership &amp; Borrowing: A Mathematical View</a></h1>
+<p>Let me formalize what&#39;s actually happening in Rust&#39;s ownership system, because the tutorials often make it sound more mysterious than it is.</p>
+<h2 id="the_core_idea"><a href="#the_core_idea" class="header-anchor">The Core Idea</a></h2>
+<p>Think of memory locations as a set \(M\), values as a set \(V\), and time steps as a set \(T\) &#40;e.g., discrete program points&#41;. At any point in time \(t \in T\), we have two functions:</p>
+\[\text{contents}: M \times T \rightarrow V\]
+\[\text{owner}: M \times T \rightarrow \text{Variables} \cup \{\perp\}\]
+<p>where \(\perp\) means &quot;no owner&quot; &#40;the memory is freed&#41;. The \(\text{contents}\) function tells us what value is stored at each memory location.</p>
+<p><strong>The fundamental rule</strong>: For any memory location \(m\) at any time \(t\), there exists <strong>at most one</strong> variable that owns it.</p>
+\[|\{v \in \text{Variables} \mid \text{owner}(m, t) = v\}| \leq 1\]
+<p>That&#39;s it. One owner per piece of memory. When that owner goes out of scope, the memory is freed and both functions become undefined for that location.</p>
+<h2 id="moves_transfer_of_ownership"><a href="#moves_transfer_of_ownership" class="header-anchor">Moves &#40;Transfer of Ownership&#41;</a></h2>
+<p>When you write <code>let b &#61; a;</code> for a non-Copy type, you&#39;re doing:</p>
+\[\text{owner}(m, t+1) = b \text{ and } \text{owner}(m, t) = \perp\]
+<p>where \(m\) is the memory that \(a\) used to own. Importantly, \(\text{contents}(m, t) = \text{contents}(m, t+1)\)—the <strong>same value</strong> is still there, just owned by a different variable. The ownership <strong>transfers</strong>—it&#39;s not copied. After the move, \(a\) is invalidated.</p>
+<pre><code class="language-rust">let s1 &#61; String::from&#40;&quot;hello&quot;&#41;;
+let s2 &#61; s1;  // s1 moves into s2
+// println&#33;&#40;&quot;&#123;&#125;&quot;, s1&#41;;  // ❌ Error&#33; s1 is no longer valid
+println&#33;&#40;&quot;&#123;&#125;&quot;, s2&#41;;  // ✅ Works fine</code></pre>
+<h3 id="the_copy_trait_exception"><a href="#the_copy_trait_exception" class="header-anchor">The Copy Trait Exception</a></h3>
+<p>For types implementing <code>Copy</code> &#40;like integers&#41;, the operation is different:</p>
+\[\text{Let } m_a, m_b \text{ be distinct memory locations}\]
+\[\text{contents}(m_b, t+1) = \text{contents}(m_a, t)\]
+\[\text{owner}(m_a, t+1) = a, \quad \text{owner}(m_b, t+1) = b\]
+<p>The value \(v \in V\) is <strong>duplicated</strong> to a new location. Both variables remain valid because they own different memory containing the same value.</p>
+<pre><code class="language-rust">let x &#61; 5;
+let y &#61; x;  // x is copied, not moved
+println&#33;&#40;&quot;&#123;&#125;, &#123;&#125;&quot;, x, y&#41;;  // ✅ Both still valid&#33;</code></pre>
+<blockquote>
+<p><strong>When are moves actually useful?</strong></p>
+<p>Moves shine when you&#39;re dealing with expensive or unique resources. Imagine you have a massive vector with a million elements, or a file handle, or a network connection. You don&#39;t want to accidentally duplicate these things—that would be slow &#40;copying a million elements&#41; or nonsensical &#40;you can&#39;t have two &quot;owners&quot; of the same file handle&#41;.</p>
+<p>With moves, you can pass these resources around your program efficiently. When you return a big data structure from a function, it just transfers ownership—no copying happens. When you push a value into a vector, it moves in and the vector becomes the new owner.</p>
+<p>The real win is that Rust <strong>forces</strong> you to be explicit about what happens to your data. You can&#39;t accidentally have two parts of your code thinking they both own the same file handle. If you need shared access, you have to be deliberate about it &#40;that&#39;s where borrowing comes in&#41;.</p>
+<p><strong>Where did this idea come from?</strong></p>
+<p>Actually, other languages <em>have</em> adopted similar ideas&#33; C&#43;&#43; has move semantics &#40;since C&#43;&#43;11&#41;, and languages like Swift use similar ownership concepts. The insight came from decades of dealing with memory bugs in C and C&#43;&#43;.</p>
+<p>The problem: C lets you do anything &#40;leading to crashes&#41;, while languages like Java/Python use garbage collection &#40;which adds runtime overhead and unpredictable pauses&#41;. Rust asked: &quot;What if we could get C-level performance <em>and</em> memory safety by checking everything at compile time?&quot;</p>
+<p>The key innovation wasn&#39;t moves themselves—it was making the ownership rules <strong>mandatory and checked by the compiler</strong>. C&#43;&#43; lets you opt into move semantics, but you can still shoot yourself in the foot. Rust says &quot;no, <em>everything</em> follows these rules, no exceptions.&quot; It&#39;s stricter, but that strictness is what enables the compiler to guarantee safety without runtime costs.</p>
+</blockquote>
+<h2 id="borrowing_the_plot_twist"><a href="#borrowing_the_plot_twist" class="header-anchor">Borrowing: The Plot Twist</a></h2>
+<p>Borrowing lets you temporarily access data without taking ownership. We can model this with a new function:</p>
+\[\text{borrows}: M \times T \rightarrow \mathcal{P}(\text{References})\]
+<p>where \(\mathcal{P}\) is the power set &#40;set of all subsets&#41;.</p>
+<h3 id="immutable_borrowing_shared_references_t"><a href="#immutable_borrowing_shared_references_t" class="header-anchor">Immutable Borrowing &#40;Shared References <code>&amp;T</code>&#41;</a></h3>
+<p>You can have <strong>multiple</strong> immutable borrows at once:</p>
+\[|\text{borrows}(m, t)| \geq 0\]
+<p>But here&#39;s the constraint: while immutable borrows exist, the owner <strong>cannot mutate</strong> \(m\):</p>
+\[|\text{borrows}(m, t)| > 0 \implies \text{write}(m, t) = \text{false}\]
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r1 &#61; &amp;s;  // First immutable borrow
+let r2 &#61; &amp;s;  // Second immutable borrow - fine&#33;
+println&#33;&#40;&quot;&#123;&#125; and &#123;&#125;&quot;, r1, r2&#41;;  // ✅ Multiple readers OK
+// s.push_str&#40;&quot;world&quot;&#41;;  // ❌ Can&#39;t mutate while borrowed</code></pre>
+<h3 id="mutable_borrowing_exclusive_reference_mut_t"><a href="#mutable_borrowing_exclusive_reference_mut_t" class="header-anchor">Mutable Borrowing &#40;Exclusive Reference <code>&amp;mut T</code>&#41;</a></h3>
+<p>You can have <strong>exactly one</strong> mutable borrow, and <strong>no</strong> immutable borrows:</p>
+\[|\text{mut\_borrows}(m, t)| \leq 1\]
+\[|\text{mut\_borrows}(m, t)| = 1 \implies |\text{borrows}(m, t)| = 0\]
+<p>When a mutable borrow exists, even the owner can&#39;t access the data—total exclusivity.</p>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r &#61; &amp;mut s;  // Mutable borrow
+r.push_str&#40;&quot; world&quot;&#41;;  // ✅ Can mutate through r
+// println&#33;&#40;&quot;&#123;&#125;&quot;, s&#41;;  // ❌ Owner can&#39;t access while mutably borrowed
+// let r2 &#61; &amp;mut s;  // ❌ Can&#39;t have two mutable borrows
+println&#33;&#40;&quot;&#123;&#125;&quot;, r&#41;;  // ✅ Works fine</code></pre>
+<h2 id="the_lifetime_constraint"><a href="#the_lifetime_constraint" class="header-anchor">The Lifetime Constraint</a></h2>
+<p>For any reference \(r\) that borrows memory \(m\) at time \(t\):</p>
+\[\text{valid}(r, t) \implies \text{owner}(m, t) \neq \perp\]
+<p>Translation: references cannot outlive the data they point to. Rust&#39;s borrow checker enforces that the lifetime of every reference is a <strong>subset</strong> of the lifetime of what it&#39;s borrowing:</p>
+\[\text{lifetime}(r) \subseteq \text{lifetime}(\text{owner}(m))\]
+<h2 id="example_why_this_prevents_dangling_pointers"><a href="#example_why_this_prevents_dangling_pointers" class="header-anchor">Example: Why This Prevents Dangling Pointers</a></h2>
+<pre><code class="language-rust">let r;
+&#123;
+    let x &#61; 5;
+    r &#61; &amp;x;  // ❌ Compiler error&#33;
+&#125;
+// x is dropped here, so r would be dangling</code></pre>
+<p>Mathematically: \(\text{lifetime}(r) \not\subseteq \text{lifetime}(x)\) because \(r\) lives longer than \(x\). Rejected&#33;</p>
+<pre><code class="language-rust">let x &#61; 5;
+let r;
+&#123;
+    r &#61; &amp;x;  // ✅ Works&#33; x outlives r
+    println&#33;&#40;&quot;&#123;&#125;&quot;, r&#41;;
+&#125;
+// x is still alive here</code></pre>
+<h2 id="the_invariant_that_makes_it_work"><a href="#the_invariant_that_makes_it_work" class="header-anchor">The Invariant That Makes It Work</a></h2>
+<p>At <strong>compile time</strong>, Rust proves:</p>
+\[\forall m \in M, \forall t \in T: \Big(|\text{mut\_borrows}(m, t)| = 1 \implies |\text{borrows}(m, t)| = 0\Big)\]
+\[\land \Big(|\text{mut\_borrows}(m, t)| + |\text{borrows}(m, t)| > 0 \implies \text{owner}(m, t) \neq \perp\Big)\]
+<p>This invariant <strong>guarantees</strong> no data races and no use-after-free errors at runtime. It&#39;s provably safe&#33;</p>
+<blockquote>
+<p><strong>Is this the infamous &quot;fighting the borrow checker&quot;?</strong></p>
+<p>Yes, absolutely. This is exactly what people complain about when learning Rust. The borrow checker is enforcing all those mathematical rules we wrote above—at compile time, on every line of code you write.</p>
+<p>The pain comes from a few sources:</p>
+<ol>
+<li><p><strong>It catches bugs you didn&#39;t know you had.</strong> In other languages, you&#39;ve probably written code with subtle lifetime issues or potential data races that just happened to work most of the time. Rust says &quot;nope, prove to me this is safe.&quot;</p>
+</li>
+<li><p><strong>Valid designs that are hard to express.</strong> Sometimes you&#39;re doing something totally safe &#40;you know the references won&#39;t overlap in practice&#41;, but the borrow checker can&#39;t prove it statically. Classic example: splitting a mutable reference into multiple non-overlapping parts.</p>
+</li>
+<li><p><strong>Different mental model.</strong> If you&#39;re coming from garbage-collected languages, you&#39;re used to &quot;create whatever references you want, the runtime will sort it out.&quot; Rust makes you think about ownership upfront.</p>
+</li>
+</ol>
+<p>The good news? After a few weeks, these rules become intuitive. You start designing your code differently—in ways that happen to align with what the borrow checker wants. And then you realize your code has fewer bugs than it used to in other languages. The pain is the learning curve, not a permanent state.</p>
+</blockquote>
+<h2 id="summary"><a href="#summary" class="header-anchor">Summary</a></h2>
+<ul>
+<li><p><strong>Ownership</strong>: A bijection &#40;at most&#41; between memory and variables</p>
+</li>
+<li><p><strong>Moving</strong>: Transferring that bijection</p>
+</li>
+<li><p><strong>Borrowing</strong>: Temporary, restricted access that maintains the invariants</p>
+</li>
+<li><p><strong>Lifetimes</strong>: Ensuring references don&#39;t outlive their referents</p>
+</li>
+</ul>
+<p>The &quot;magic&quot; is that Rust checks all of this at compile time through lifetime analysis, so you get memory safety with zero runtime cost.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

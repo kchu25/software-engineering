@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Do Reference Expressions Return the Object in Rust?</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="do_reference_expressions_return_the_object_in_rust"><a href="#do_reference_expressions_return_the_object_in_rust" class="header-anchor">Do Reference Expressions Return the Object in Rust?</a></h1>
+<p><strong>Short answer: No.</strong> A reference expression returns a <em>reference</em> to the object, not the object itself.</p>
+<h2 id="whats_a_method_anyway"><a href="#whats_a_method_anyway" class="header-anchor">What&#39;s a method anyway?</a></h2>
+<p>Quick terminology: <strong>A method is just a function defined in an <code>impl</code> block that has <code>self</code> as its first parameter.</strong></p>
+<pre><code class="language-rust">struct Point &#123; x: i32, y: i32 &#125;
+
+impl Point &#123;
+    // This is a method &#40;has self parameter&#41;
+    fn distance&#40;&amp;self, other: &amp;Point&#41; -&gt; f64 &#123; ... &#125;
+    
+    // This is an associated function, not a method &#40;no self&#41;
+    fn new&#40;x: i32, y: i32&#41; -&gt; Point &#123; ... &#125;
+&#125;
+
+// Called like this:
+let p &#61; Point::new&#40;0, 0&#41;;  // Associated function - use ::
+p.distance&#40;&amp;other&#41;;         // Method - use .</code></pre>
+<p><strong>Why have methods at all?</strong> The automatic dereferencing is nice, but it&#39;s not the main reason. The real benefits are:</p>
+<ol>
+<li><p><strong>Organization</strong> - Keep related functions with their data type</p>
+</li>
+<li><p><strong>Clear ownership semantics</strong> - The <code>self</code> parameter makes it obvious what happens to the value</p>
+</li>
+<li><p><strong>Namespacing</strong> - Multiple types can have a <code>len&#40;&#41;</code> method without conflicts</p>
+</li>
+<li><p><strong>Ergonomics</strong> - <code>point.distance&#40;&amp;other&#41;</code> is clearer than <code>distance&#40;&amp;point, &amp;other&#41;</code></p>
+</li>
+</ol>
+<p>The automatic dereferencing is just icing on the cake&#33;</p>
+<h2 id="whats_the_difference"><a href="#whats_the_difference" class="header-anchor">What&#39;s the difference?</a></h2>
+<p>Think of it like this:</p>
+<pre><code class="language-rust">let book &#61; String::from&#40;&quot;The Rust Book&quot;&#41;;
+let book_ref &#61; &amp;book;  // This is a reference - like a pointer to where the book lives</code></pre>
+<p>Here, <code>book_ref</code> doesn&#39;t get a copy of the book. It gets the <em>address</em> of where <code>book</code> lives in memory. It&#39;s like having directions to a library instead of carrying the actual library around with you.</p>
+<h2 id="why_does_this_matter"><a href="#why_does_this_matter" class="header-anchor">Why does this matter?</a></h2>
+<p><strong>Ownership stays put:</strong></p>
+<pre><code class="language-rust">let data &#61; vec&#33;&#91;1, 2, 3&#93;;
+let reference &#61; &amp;data;  // data still owns the vector
+// reference is just borrowing it</code></pre>
+<p>The original owner &#40;<code>data</code>&#41; keeps ownership. The reference just borrows it temporarily.</p>
+<p><strong>You can&#39;t move through a reference:</strong></p>
+<pre><code class="language-rust">let x &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r &#61; &amp;x;
+// You can&#39;t move x through r
+// r.clone&#40;&#41; gives you a clone of the String, not ownership of x</code></pre>
+<h2 id="wait_but_you_can_call_methods_on_references_just_like_the_object"><a href="#wait_but_you_can_call_methods_on_references_just_like_the_object" class="header-anchor">Wait, but you can call methods on references just like the object?</a></h2>
+<p><strong>Yes&#33; And that&#39;s because of Rust&#39;s automatic dereferencing.</strong></p>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+let r &#61; &amp;s;
+
+// These both work the same way:
+r.len&#40;&#41;;  // works&#33;
+s.len&#40;&#41;;  // works&#33;</code></pre>
+<p>When you call a method on a reference, Rust automatically &quot;follows the pointer&quot; for you. It&#39;s smart enough to know: &quot;Oh, you want to call <code>.len&#40;&#41;</code> on the String that this reference points to.&quot;</p>
+<p>Behind the scenes, Rust is doing <code>&#40;*r&#41;.len&#40;&#41;</code>, but you don&#39;t have to write that. It just works.</p>
+<p><strong>This is purely syntactic sugar.</strong> The reference is still just a pointer—Rust just makes it ergonomic to use.</p>
+<h2 id="wheres_the_-_operator_for_cc_folks"><a href="#wheres_the_-_operator_for_cc_folks" class="header-anchor">Where&#39;s the <code>-&gt;</code> operator? &#40;For C/C&#43;&#43; folks&#41;</a></h2>
+<p>If you&#39;re coming from C or C&#43;&#43;, you might be wondering why there&#39;s no <code>-&gt;</code> operator in Rust.</p>
+<p><strong>In C/C&#43;&#43;, you have two operators:</strong></p>
+<ul>
+<li><p><code>.</code> for calling methods on objects directly</p>
+</li>
+<li><p><code>-&gt;</code> for calling methods on pointers &#40;which does <code>&#40;*ptr&#41;.method&#40;&#41;</code> for you&#41;</p>
+</li>
+</ul>
+<pre><code class="language-cpp">// C&#43;&#43; example
+object.method&#40;&#41;;   // calling on object
+ptr-&gt;method&#40;&#41;;     // calling on pointer &#40;equivalent to &#40;*ptr&#41;.method&#40;&#41;&#41;</code></pre>
+<p><strong>Rust just uses <code>.</code> for everything:</strong></p>
+<pre><code class="language-rust">let p1 &#61; Point &#123; x: 0, y: 0 &#125;;
+let p2 &#61; Point &#123; x: 3, y: 4 &#125;;
+
+// All of these work:
+p1.distance&#40;&amp;p2&#41;;        // calling on the value directly
+&#40;&amp;p1&#41;.distance&#40;&amp;p2&#41;;     // calling on a reference</code></pre>
+<h2 id="how_does_this_magic_work"><a href="#how_does_this_magic_work" class="header-anchor">How does this magic work?</a></h2>
+<p>First, let&#39;s understand what methods actually look like when they&#39;re defined.</p>
+<p><strong>A method signature is just the &quot;header&quot; of a method</strong>—it shows the method&#39;s name, what parameters it takes, and what it returns:</p>
+<pre><code class="language-rust">impl String &#123;
+    // Signature: fn len&#40;&amp;self&#41; -&gt; usize
+    // Translation: &quot;len takes a reference to self, returns a usize&quot;
+    fn len&#40;&amp;self&#41; -&gt; usize &#123; ... &#125;
+    
+    // Signature: fn push_str&#40;&amp;mut self, string: &amp;str&#41;
+    // Translation: &quot;push_str takes a mutable reference to self and a string slice&quot;
+    fn push_str&#40;&amp;mut self, string: &amp;str&#41; &#123; ... &#125;
+    
+    // Signature: fn into_bytes&#40;self&#41; -&gt; Vec&lt;u8&gt;
+    // Translation: &quot;into_bytes takes ownership of self, returns a Vec&quot;
+    fn into_bytes&#40;self&#41; -&gt; Vec&lt;u8&gt; &#123; ... &#125;
+&#125;</code></pre>
+<p>The signature is like a contract: &quot;Here&#39;s what I need, here&#39;s what I&#39;ll give you back.&quot;</p>
+<p>That first parameter—<code>self</code>, <code>&amp;self</code>, or <code>&amp;mut self</code>—is the key. It tells Rust what the method needs to receive.</p>
+<p><strong>Now here&#39;s the magic:</strong> When you call <code>object.method&#40;&#41;</code>, Rust looks at the method&#39;s signature and automatically adjusts <code>object</code> to match:</p>
+<pre><code class="language-rust">let mut s &#61; String::from&#40;&quot;hello&quot;&#41;;
+
+// len&#40;&#41; is defined as: fn len&#40;&amp;self&#41;
+// So Rust automatically does: &#40;&amp;s&#41;.len&#40;&#41;
+s.len&#40;&#41;;
+
+// push_str&#40;&#41; is defined as: fn push_str&#40;&amp;mut self, ...&#41;
+// So Rust automatically does: &#40;&amp;mut s&#41;.push_str&#40;&quot; world&quot;&#41;
+s.push_str&#40;&quot; world&quot;&#41;;</code></pre>
+<p><strong>You can even call these methods on references directly:</strong></p>
+<pre><code class="language-rust">let r &#61; &amp;s;
+r.len&#40;&#41;;  // r is already &amp;s, method needs &amp;self, perfect match&#33;
+
+let r &#61; &amp;mut s;
+r.push_str&#40;&quot;&#33;&quot;&#41;;  // r is already &amp;mut s, method needs &amp;mut self, perfect match&#33;</code></pre>
+<p>Rust figures this out because methods <strong>declare exactly what they need</strong> in their signature. Since the requirement is crystal clear, Rust can automatically add <code>&amp;</code>, <code>&amp;mut</code>, or <code>*</code> to make it work.</p>
+<p><strong>Why this matters:</strong> You don&#39;t have to think about whether you have a value or a reference when calling methods. Just use <code>.</code> and Rust handles it. This makes ownership much more ergonomic in practice.</p>
+<h2 id="why_did_rusts_designers_make_this_choice"><a href="#why_did_rusts_designers_make_this_choice" class="header-anchor">Why did Rust&#39;s designers make this choice?</a></h2>
+<p>This isn&#39;t just convenient syntax—it&#39;s a carefully designed solution to a fundamental tension in Rust&#39;s philosophy.</p>
+<p><strong>The problem Rust faced:</strong></p>
+<p>Rust wants you to be explicit about ownership and borrowing. That&#39;s the whole point—you should know whether you&#39;re moving, borrowing, or mutating. But if Rust forced you to write <code>&#40;&amp;object&#41;.method&#40;&#41;</code> or <code>&#40;&amp;mut object&#41;.method&#40;&#41;</code> everywhere, the code would be cluttered and frustrating:</p>
+<pre><code class="language-rust">// Imagine if you had to write this:
+&#40;&amp;s&#41;.len&#40;&#41;
+&#40;&amp;mut s&#41;.push_str&#40;&quot; world&quot;&#41;
+&#40;&amp;&#40;&amp;s&#41;&#41;.chars&#40;&#41;</code></pre>
+<p>Yuck&#33; This would make Rust painful to use, even though ownership tracking is valuable.</p>
+<p><strong>Rust&#39;s solution: Make the common case ergonomic</strong></p>
+<p>The designers realized something clever: <strong>When calling methods, the ownership requirement is unambiguous.</strong> The method signature explicitly says what it needs &#40;<code>self</code>, <code>&amp;self</code>, or <code>&amp;mut self</code>&#41;, so there&#39;s no guessing involved.</p>
+<p>Since there&#39;s no ambiguity, why make you write it out? Let the compiler figure it out&#33;</p>
+<p><strong>In other words:</strong> You already declared what the method needs when you wrote the <code>impl</code> block. Why force you to repeat that information every time you call it?</p>
+<pre><code class="language-rust">// You wrote this once in the impl block:
+impl String &#123;
+    fn len&#40;&amp;self&#41; -&gt; usize &#123; ... &#125;  // ← You said it needs &amp;self here
+&#125;
+
+// So at the call site, Rust already knows what to do:
+let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+s.len&#40;&#41;;  // Rust sees &quot;len needs &amp;self&quot; and automatically does &#40;&amp;s&#41;.len&#40;&#41;
+
+// You don&#39;t need to repeat yourself:
+&#40;&amp;s&#41;.len&#40;&#41;;  // This works but is redundant - you already said len needs &amp;self&#33;</code></pre>
+<p>The information is <strong>already there</strong> in the method definition. Making you write <code>&#40;&amp;s&#41;.len&#40;&#41;</code> would be forcing you to repeat what you already declared.</p>
+<p><strong>Wait, is &quot;making the common case ergonomic&quot; just about methods?</strong></p>
+<p>Not quite&#33; It&#39;s a broader philosophy. The &quot;common case&quot; here is: <strong>most of the time, you want to borrow things, not move them.</strong> When you call a method, you usually want to use the object temporarily, not consume it.</p>
+<pre><code class="language-rust">let s &#61; String::from&#40;&quot;hello&quot;&#41;;
+s.len&#40;&#41;;           // Common case: just checking the length &#40;borrow&#41;
+s.push_str&#40;&quot;&#33;&quot;&#41;;   // Common case: modifying temporarily &#40;mutable borrow&#41;
+// s is still usable here&#33;
+
+s.into_bytes&#40;&#41;;    // Uncommon case: consuming the string &#40;move&#41;
+// s is gone now</code></pre>
+<p>If Rust made you write <code>&#40;&amp;s&#41;.len&#40;&#41;</code> every single time, you&#39;d be fighting the language constantly for the most common operations. Methods in <code>impl</code> blocks get this automatic referencing because:</p>
+<ol>
+<li><p>They&#39;re the organized, structured way to work with types &#40;good design&#33;&#41;</p>
+</li>
+<li><p>The signature makes the borrowing unambiguous &#40;safe to infer&#33;&#41;</p>
+</li>
+<li><p>Borrowing is what you want 90&#37; of the time &#40;ergonomic default&#33;&#41;</p>
+</li>
+</ol>
+<p>So yes, it&#39;s about making organized code &#40;impl blocks&#41; more ergonomic, but the deeper insight is: <strong>make borrowing easy since that&#39;s what people do most.</strong></p>
+<p><strong>This preserves Rust&#39;s philosophy:</strong></p>
+<ul>
+<li><p>✅ You&#39;re still being explicit about ownership &#40;the method signature tells you&#41;</p>
+</li>
+<li><p>✅ The borrow checker still validates everything</p>
+</li>
+<li><p>✅ But you get clean, readable code like <code>s.len&#40;&#41;</code> instead of <code>&#40;&amp;s&#41;.len&#40;&#41;</code></p>
+</li>
+</ul>
+<p><strong>The wisdom:</strong> Rust makes you explicit where it matters &#40;function arguments, return values, variable bindings&#41; but saves you from repetitive ceremony where the compiler can safely infer your intent. This is why Rust can enforce strict ownership rules without feeling like you&#39;re fighting the language constantly.</p>
+<p>It&#39;s not magic—it&#39;s thoughtful language design that makes correctness ergonomic.</p>
+<h2 id="the_practical_takeaway"><a href="#the_practical_takeaway" class="header-anchor">The practical takeaway</a></h2>
+<p>When you write <code>&amp;something</code>, you&#39;re creating a reference that <em>points to</em> <code>something</code>. You&#39;re not duplicating it or transferring ownership—you&#39;re just creating a lightweight way to access it.</p>
+<p>And thanks to automatic dereferencing, you can use references almost like you&#39;d use the original object. Rust handles the pointer-following for you, making references feel natural to work with.</p>
+<p>This is actually Rust&#39;s superpower: you can pass references around cheaply without copying data or giving up ownership&#33;</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
