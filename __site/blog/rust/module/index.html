@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Rust Modules: Organizing Your Code</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="rust_modules_organizing_your_code"><a href="#rust_modules_organizing_your_code" class="header-anchor">Rust Modules: Organizing Your Code</a></h1>
+<p>Modules are how you organize code <strong>within</strong> a crate. Think of them like folders for your code—they group related things together and control what&#39;s visible to the outside world.</p>
+<hr />
+<h2 id="the_quick_version"><a href="#the_quick_version" class="header-anchor">The Quick Version</a></h2>
+<table><tr><th align="right">Concept</th><th align="right">What it does</th></tr><tr><td align="right"><code>mod foo</code></td><td align="right">Declares a module named <code>foo</code></td></tr><tr><td align="right"><code>pub</code></td><td align="right">Makes something public &#40;visible outside its module&#41;</td></tr><tr><td align="right"><code>use</code></td><td align="right">Creates a shortcut to avoid typing long paths</td></tr><tr><td align="right"><code>crate::</code></td><td align="right">Path starting from the crate root</td></tr><tr><td align="right"><code>self::</code></td><td align="right">Path starting from current module</td></tr><tr><td align="right"><code>super::</code></td><td align="right">Path starting from parent module</td></tr></table>
+<hr />
+<h2 id="why_does_rust_require_mod_declarations"><a href="#why_does_rust_require_mod_declarations" class="header-anchor">Why Does Rust Require <code>mod</code> Declarations?</a></h2>
+<p>In many languages, files are automatically modules—if a file exists, you can import it. Rust is different: <strong>you must explicitly declare every module</strong>.</p>
+<p>Why this design?</p>
+<ol>
+<li><p><strong>Explicit is better than implicit.</strong> The crate root &#40;<code>lib.rs</code> or <code>main.rs</code>&#41; is a table of contents. You can see exactly what modules exist without scanning the filesystem.</p>
+</li>
+<li><p><strong>Files aren&#39;t automatically code.</strong> You might have <code>.rs</code> files that are templates, build artifacts, or temporarily disabled. Rust won&#39;t accidentally compile them.</p>
+</li>
+<li><p><strong>The module tree is independent of the file tree.</strong> You can reorganize files without changing your public API &#40;using <code>pub use</code> to re-export&#41;.</p>
+</li>
+<li><p><strong>Conditional compilation.</strong> You can do <code>#&#91;cfg&#40;feature &#61; &quot;foo&quot;&#41;&#93; mod foo;</code> to include modules only when certain features are enabled.</p>
+</li>
+</ol>
+<pre><code class="language-rust">// src/lib.rs — This is your table of contents
+mod database;      // ✅ Compiled
+mod api;           // ✅ Compiled
+// mod experiments; // Commented out &#61; not compiled, even if file exists</code></pre>
+<blockquote>
+<p><strong>Coming from Python/JavaScript?</strong></p>
+<p>In Python, <code>import foo</code> automatically finds <code>foo.py</code>. In JS, <code>import</code> finds the file.</p>
+<p>In Rust, it&#39;s two steps:</p>
+<ol>
+<li><p><code>mod foo;</code> — &quot;This module exists, load it from <code>foo.rs</code>&quot;</p>
+</li>
+<li><p><code>use foo::bar;</code> — &quot;Bring <code>bar</code> into scope&quot;</p>
+</li>
+</ol>
+<p>The <code>mod</code> is the declaration; <code>use</code> is just a convenience shortcut.</p>
+</blockquote>
+<hr />
+<h2 id="how_modules_work_the_rules"><a href="#how_modules_work_the_rules" class="header-anchor">How Modules Work: The Rules</a></h2>
+<h3 id="rule_1_everything_starts_at_the_crate_root"><a href="#rule_1_everything_starts_at_the_crate_root" class="header-anchor">Rule 1: Everything Starts at the Crate Root</a></h3>
+<p>The compiler starts at:</p>
+<ul>
+<li><p><code>src/main.rs</code> for binary crates</p>
+</li>
+<li><p><code>src/lib.rs</code> for library crates</p>
+</li>
+</ul>
+<p>This file is the <strong>crate root</strong>, and it implicitly creates a module called <code>crate</code>.</p>
+<h3 id="rule_2_declare_modules_with_mod"><a href="#rule_2_declare_modules_with_mod" class="header-anchor">Rule 2: Declare Modules with <code>mod</code></a></h3>
+<p>In the crate root, you declare modules:</p>
+<pre><code class="language-rust">// src/lib.rs or src/main.rs
+mod garden;  // Declares a module named &quot;garden&quot;</code></pre>
+<p>The compiler then looks for the module&#39;s code in this order:</p>
+<ol>
+<li><p><strong>Inline</strong> — code inside curly braces: <code>mod garden &#123; ... &#125;</code></p>
+</li>
+<li><p><strong>File</strong> — <code>src/garden.rs</code></p>
+</li>
+<li><p><strong>Folder</strong> — <code>src/garden/mod.rs</code> &#40;older style&#41;</p>
+</li>
+</ol>
+<blockquote>
+<p><strong>Semicolon vs Curly Braces: Where&#39;s the Code?</strong></p>
+<p>The punctuation after <code>mod garden</code> tells Rust where to find the module&#39;s code:</p>
+<table><tr><th align="right">Syntax</th><th align="right">Meaning</th></tr><tr><td align="right"><code>mod garden;</code></td><td align="right">&quot;Go find code in <code>src/garden.rs</code>&quot;</td></tr><tr><td align="right"><code>mod garden &#123; ... &#125;</code></td><td align="right">&quot;The code is right here, inline&quot;</td></tr></table>
+</blockquote>
+<pre><code class="language-rust">&gt; // Semicolon &#61; external file
+&gt; mod garden;  // Rust looks for src/garden.rs
+&gt;
+&gt; // Curly braces &#61; inline
+&gt; mod garden &#123;
+&gt;     pub fn grow&#40;&#41; &#123; &#125;  // Code lives right here
+&gt; &#125;
+&gt;</code></pre>
+<blockquote>
+<p>You can&#39;t do both—it&#39;s one or the other.</p>
+</blockquote>
+<h3 id="rule_3_submodules_work_the_same_way"><a href="#rule_3_submodules_work_the_same_way" class="header-anchor">Rule 3: Submodules Work the Same Way</a></h3>
+<p>Inside <code>src/garden.rs</code>, you can declare submodules:</p>
+<pre><code class="language-rust">// src/garden.rs
+mod vegetables;  // Declares a submodule</code></pre>
+<p>The compiler looks for:</p>
+<ol>
+<li><p><strong>Inline</strong> — <code>mod vegetables &#123; ... &#125;</code></p>
+</li>
+<li><p><strong>File</strong> — <code>src/garden/vegetables.rs</code></p>
+</li>
+<li><p><strong>Folder</strong> — <code>src/garden/vegetables/mod.rs</code></p>
+</li>
+</ol>
+<blockquote>
+<p><strong>Module vs Submodule: It&#39;s About Where You Declare It</strong></p>
+<p>There&#39;s no special syntax for submodules—it&#39;s always just <code>mod foo;</code>. The term &quot;submodule&quot; simply means &quot;a module declared inside another module.&quot;</p>
+</blockquote>
+<pre><code class="language-rust">&gt; // src/lib.rs &#40;crate root&#41;
+&gt; mod garden;     // garden is a MODULE &#40;child of crate&#41;
+&gt;
+&gt; // src/garden.rs
+&gt; mod vegetables; // vegetables is a SUBMODULE &#40;child of garden&#41;
+&gt;
+&gt; // src/garden/vegetables.rs
+&gt; mod tomato;     // tomato is a SUBMODULE of vegetables
+&gt;</code></pre>
+<blockquote>
+<p>This creates a tree:</p>
+</blockquote>
+<pre><code class="language-julia">&gt; crate              ← root
+&gt; └── garden         ← module &#40;declared in lib.rs&#41;
+&gt;     └── vegetables ← submodule &#40;declared in garden.rs&#41;
+&gt;         └── tomato ← sub-submodule &#40;declared in vegetables.rs&#41;
+&gt;</code></pre>
+<blockquote>
+<p>The <strong>nesting</strong> determines the relationship—a module declared inside another module becomes its child.</p>
+</blockquote>
+<h3 id="rule_4_everything_is_private_by_default"><a href="#rule_4_everything_is_private_by_default" class="header-anchor">Rule 4: Everything is Private by Default</a></h3>
+<p>Code in a module is <strong>private</strong> to its parent. To expose it, use <code>pub</code>:</p>
+<pre><code class="language-rust">pub mod garden;        // Public module
+pub fn grow&#40;&#41; &#123; &#125;      // Public function
+pub struct Plant &#123; &#125;   // Public struct</code></pre>
+<hr />
+<h2 id="a_complete_example"><a href="#a_complete_example" class="header-anchor">A Complete Example</a></h2>
+<p>Let&#39;s build a project called <code>backyard</code>:</p>
+<pre><code class="language-julia">backyard/
+├── Cargo.toml
+└── src/
+    ├── main.rs              ← Crate root
+    ├── garden.rs            ← garden module
+    └── garden/
+        └── vegetables.rs    ← garden::vegetables submodule</code></pre>
+<h3 id="the_code"><a href="#the_code" class="header-anchor">The Code</a></h3>
+<pre><code class="language-rust">// src/main.rs &#40;crate root&#41;
+use crate::garden::vegetables::Asparagus;
+
+pub mod garden;  // &quot;Include the garden module&quot;
+
+fn main&#40;&#41; &#123;
+    let plant &#61; Asparagus &#123;&#125;;
+    println&#33;&#40;&quot;Growing &#123;:?&#125;&quot;, plant&#41;;
+&#125;</code></pre>
+<pre><code class="language-rust">// src/garden.rs
+pub mod vegetables;  // &quot;Include the vegetables submodule&quot;</code></pre>
+<pre><code class="language-rust">// src/garden/vegetables.rs
+#&#91;derive&#40;Debug&#41;&#93;
+pub struct Asparagus &#123;&#125;</code></pre>
+<h3 id="the_module_tree"><a href="#the_module_tree" class="header-anchor">The Module Tree</a></h3>
+<p>This creates the following structure:</p>
+<pre><code class="language-julia">crate                         &#40;src/main.rs&#41;
+└── garden                    &#40;src/garden.rs&#41;
+    └── vegetables            &#40;src/garden/vegetables.rs&#41;
+        └── Asparagus         &#40;the struct&#41;</code></pre>
+<p>The full path to <code>Asparagus</code> is: <code>crate::garden::vegetables::Asparagus</code></p>
+<hr />
+<h2 id="inline_modules_all_in_one_file"><a href="#inline_modules_all_in_one_file" class="header-anchor">Inline Modules &#40;All in One File&#41;</a></h2>
+<p>You don&#39;t <em>need</em> separate files. For smaller projects, inline modules work fine:</p>
+<pre><code class="language-rust">// src/lib.rs - everything in one file
+mod front_of_house &#123;
+    pub mod hosting &#123;
+        pub fn add_to_waitlist&#40;&#41; &#123;&#125;
+        pub fn seat_at_table&#40;&#41; &#123;&#125;
+    &#125;
+
+    mod serving &#123;  // Private module
+        fn take_order&#40;&#41; &#123;&#125;
+        fn serve_order&#40;&#41; &#123;&#125;
+    &#125;
+&#125;
+
+pub fn eat_at_restaurant&#40;&#41; &#123;
+    // Use absolute path
+    crate::front_of_house::hosting::add_to_waitlist&#40;&#41;;
+    
+    // Or relative path
+    front_of_house::hosting::seat_at_table&#40;&#41;;
+&#125;</code></pre>
+<p>This creates:</p>
+<pre><code class="language-julia">crate
+└── front_of_house
+    ├── hosting
+    │   ├── add_to_waitlist  &#40;pub&#41;
+    │   └── seat_at_table    &#40;pub&#41;
+    └── serving              &#40;private&#33;&#41;
+        ├── take_order
+        └── serve_order</code></pre>
+<hr />
+<h2 id="file_organization_two_styles"><a href="#file_organization_two_styles" class="header-anchor">File Organization: Two Styles</a></h2>
+<p>Rust supports two ways to organize module files:</p>
+<h3 id="modern_style_recommended"><a href="#modern_style_recommended" class="header-anchor">Modern Style &#40;Recommended&#41;</a></h3>
+<pre><code class="language-julia">src/
+├── lib.rs
+├── garden.rs           ← mod garden
+└── garden/
+    └── vegetables.rs   ← mod garden::vegetables</code></pre>
+<h3 id="older_style_still_works"><a href="#older_style_still_works" class="header-anchor">Older Style &#40;Still Works&#41;</a></h3>
+<pre><code class="language-julia">src/
+├── lib.rs
+└── garden/
+    ├── mod.rs          ← mod garden &#40;note: mod.rs, not garden.rs&#41;
+    └── vegetables.rs   ← mod garden::vegetables</code></pre>
+<blockquote>
+<p><strong>Which should I use?</strong></p>
+<p>Use the modern style &#40;<code>garden.rs</code> &#43; <code>garden/</code> folder&#41;. The older <code>mod.rs</code> style clutters your editor with many files named <code>mod.rs</code>, making it hard to tell them apart.</p>
+</blockquote>
+<hr />
+<h2 id="privacy_what_can_see_what"><a href="#privacy_what_can_see_what" class="header-anchor">Privacy: What Can See What?</a></h2>
+<h3 id="the_default_private"><a href="#the_default_private" class="header-anchor">The Default: Private</a></h3>
+<pre><code class="language-rust">mod outer &#123;
+    fn private_fn&#40;&#41; &#123;&#125;      // Only visible inside &#96;outer&#96;
+    
+    mod inner &#123;
+        fn also_private&#40;&#41; &#123;&#125;  // Only visible inside &#96;inner&#96;
+    &#125;
+&#125;
+
+// private_fn&#40;&#41;;  // ❌ Error&#33; Can&#39;t access from outside</code></pre>
+<h3 id="making_things_public"><a href="#making_things_public" class="header-anchor">Making Things Public</a></h3>
+<pre><code class="language-rust">mod outer &#123;
+    pub fn public_fn&#40;&#41; &#123;&#125;   // Visible to parent and beyond
+    
+    pub mod inner &#123;         // Module itself is public
+        pub fn inner_public&#40;&#41; &#123;&#125;  // Function is also public
+    &#125;
+&#125;
+
+outer::public_fn&#40;&#41;;           // ✅ Works
+outer::inner::inner_public&#40;&#41;; // ✅ Works</code></pre>
+<h3 id="the_gotcha_pub_mod_isnt_enough"><a href="#the_gotcha_pub_mod_isnt_enough" class="header-anchor">The Gotcha: <code>pub mod</code> Isn&#39;t Enough</a></h3>
+<p>Making a module public doesn&#39;t make its contents public:</p>
+<pre><code class="language-rust">pub mod kitchen &#123;
+    fn secret_recipe&#40;&#41; &#123;&#125;     // Still private&#33;
+    pub fn menu&#40;&#41; &#123;&#125;          // This one is public
+&#125;
+
+kitchen::menu&#40;&#41;;           // ✅ Works
+// kitchen::secret_recipe&#40;&#41;;  // ❌ Still private&#33;</code></pre>
+<p>You need <code>pub</code> on <strong>both</strong> the module and the items inside.</p>
+<hr />
+<h2 id="the_use_keyword_creating_shortcuts"><a href="#the_use_keyword_creating_shortcuts" class="header-anchor">The <code>use</code> Keyword: Creating Shortcuts</a></h2>
+<p>Typing full paths gets tedious:</p>
+<pre><code class="language-rust">fn main&#40;&#41; &#123;
+    crate::garden::vegetables::Asparagus::new&#40;&#41;;
+    crate::garden::vegetables::Asparagus::grow&#40;&#41;;
+    crate::garden::vegetables::Asparagus::harvest&#40;&#41;;
+&#125;</code></pre>
+<p>Use <code>use</code> to create shortcuts:</p>
+<pre><code class="language-rust">use crate::garden::vegetables::Asparagus;
+
+fn main&#40;&#41; &#123;
+    Asparagus::new&#40;&#41;;
+    Asparagus::grow&#40;&#41;;
+    Asparagus::harvest&#40;&#41;;
+&#125;</code></pre>
+<h3 id="common_use_patterns"><a href="#common_use_patterns" class="header-anchor">Common <code>use</code> Patterns</a></h3>
+<pre><code class="language-rust">// Bring in a specific item
+use std::collections::HashMap;
+
+// Bring in multiple items from same module
+use std::collections::&#123;HashMap, HashSet, BTreeMap&#125;;
+
+// Bring in everything &#40;use sparingly&#33;&#41;
+use std::collections::*;
+
+// Rename to avoid conflicts
+use std::fmt::Result;
+use std::io::Result as IoResult;</code></pre>
+<h3 id="idiomatic_use_conventions"><a href="#idiomatic_use_conventions" class="header-anchor">Idiomatic <code>use</code> Conventions</a></h3>
+<p><strong>For functions</strong>: bring in the parent module, not the function itself</p>
+<pre><code class="language-rust">// ✅ Idiomatic - clear where &#96;add_to_waitlist&#96; comes from
+use crate::front_of_house::hosting;
+hosting::add_to_waitlist&#40;&#41;;
+
+// ❌ Less clear - where does this function come from?
+use crate::front_of_house::hosting::add_to_waitlist;
+add_to_waitlist&#40;&#41;;</code></pre>
+<p><strong>For structs and enums</strong>: bring in the full path</p>
+<pre><code class="language-rust">// ✅ Idiomatic
+use std::collections::HashMap;
+let map &#61; HashMap::new&#40;&#41;;</code></pre>
+<hr />
+<h2 id="path_types_crate_self_super"><a href="#path_types_crate_self_super" class="header-anchor">Path Types: <code>crate</code>, <code>self</code>, <code>super</code></a></h2>
+<h3 id="crate_absolute_path_from_root"><a href="#crate_absolute_path_from_root" class="header-anchor"><code>crate::</code> — Absolute Path from Root</a></h3>
+<pre><code class="language-rust">// Always starts from the crate root
+crate::garden::vegetables::Asparagus</code></pre>
+<p>Like an absolute file path: <code>/home/user/documents/file.txt</code></p>
+<h3 id="self_relative_to_current_module"><a href="#self_relative_to_current_module" class="header-anchor"><code>self::</code> — Relative to Current Module</a></h3>
+<pre><code class="language-rust">mod foo &#123;
+    pub fn bar&#40;&#41; &#123;&#125;
+    
+    pub fn baz&#40;&#41; &#123;
+        self::bar&#40;&#41;;  // Same as just &#96;bar&#40;&#41;&#96;
+    &#125;
+&#125;</code></pre>
+<p>Like <code>./</code> in file paths.</p>
+<h3 id="super_go_up_to_parent_module"><a href="#super_go_up_to_parent_module" class="header-anchor"><code>super::</code> — Go Up to Parent Module</a></h3>
+<pre><code class="language-rust">mod parent &#123;
+    pub fn parent_fn&#40;&#41; &#123;&#125;
+    
+    mod child &#123;
+        pub fn child_fn&#40;&#41; &#123;
+            super::parent_fn&#40;&#41;;  // Call function in parent module
+        &#125;
+    &#125;
+&#125;</code></pre>
+<p>Like <code>../</code> in file paths.</p>
+<hr />
+<h2 id="re-exporting_with_pub_use"><a href="#re-exporting_with_pub_use" class="header-anchor">Re-exporting with <code>pub use</code></a></h2>
+<p>Sometimes you want to expose an item at a different path:</p>
+<pre><code class="language-rust">// src/lib.rs
+mod garden &#123;
+    pub mod vegetables &#123;
+        pub struct Asparagus &#123;&#125;
+    &#125;
+&#125;
+
+// Re-export at the crate root
+pub use garden::vegetables::Asparagus;
+
+// Now users can do:
+//   use my_crate::Asparagus;
+// Instead of:
+//   use my_crate::garden::vegetables::Asparagus;</code></pre>
+<p>This is how libraries provide clean public APIs while keeping complex internal structure.</p>
+<hr />
+<h2 id="quick_reference"><a href="#quick_reference" class="header-anchor">Quick Reference</a></h2>
+<table><tr><th align="right">Syntax</th><th align="right">Meaning</th></tr><tr><td align="right"><code>mod foo;</code></td><td align="right">Declare module, look for <code>foo.rs</code> or <code>foo/mod.rs</code></td></tr><tr><td align="right"><code>mod foo &#123; &#125;</code></td><td align="right">Declare inline module</td></tr><tr><td align="right"><code>pub mod foo;</code></td><td align="right">Declare public module</td></tr><tr><td align="right"><code>pub fn bar&#40;&#41;</code></td><td align="right">Public function</td></tr><tr><td align="right"><code>use path::to::Item;</code></td><td align="right">Import <code>Item</code> into scope</td></tr><tr><td align="right"><code>pub use path::to::Item;</code></td><td align="right">Import AND re-export</td></tr><tr><td align="right"><code>crate::path</code></td><td align="right">Absolute path from crate root</td></tr><tr><td align="right"><code>self::path</code></td><td align="right">Relative path from current module</td></tr><tr><td align="right"><code>super::path</code></td><td align="right">Relative path from parent module</td></tr></table>
+<hr />
+<h2 id="mental_model_modules_are_like_folders"><a href="#mental_model_modules_are_like_folders" class="header-anchor">Mental Model: Modules are Like Folders</a></h2>
+<pre><code class="language-julia">File System                    Rust Modules
+-----------                    ------------
+/                              crate
+├── garden/                    mod garden
+│   └── vegetables/            mod vegetables  
+│       └── asparagus.txt      pub struct Asparagus
+└── tools/                     mod tools
+    └── shovel.txt             pub struct Shovel
+
+Path: /garden/vegetables/      Path: crate::garden::vegetables::</code></pre>
+<p>The key differences:</p>
+<ul>
+<li><p><strong>Privacy</strong>: Files are usually readable; modules are private by default</p>
+</li>
+<li><p><strong>Declaration</strong>: You must declare modules with <code>mod</code>; folders just exist</p>
+</li>
+<li><p><strong>The root is <code>crate</code></strong>, not <code>/</code></p>
+</li>
+</ul>
+<hr />
+<h2 id="common_mistakes"><a href="#common_mistakes" class="header-anchor">Common Mistakes</a></h2>
+<h3 id="mistake_1_forgetting_to_declare_the_module"><a href="#mistake_1_forgetting_to_declare_the_module" class="header-anchor">Mistake 1: Forgetting to Declare the Module</a></h3>
+<pre><code class="language-rust">// src/lib.rs
+use crate::garden::Tomato;  // ❌ Error&#33;
+
+// You forgot:
+mod garden;  // Must declare the module first&#33;</code></pre>
+<h3 id="mistake_2_public_module_private_contents"><a href="#mistake_2_public_module_private_contents" class="header-anchor">Mistake 2: Public Module, Private Contents</a></h3>
+<pre><code class="language-rust">pub mod kitchen &#123;
+    struct Oven &#123;&#125;  // Still private&#33;
+&#125;
+
+// kitchen::Oven  // ❌ Error&#33; Oven isn&#39;t pub</code></pre>
+<h3 id="mistake_3_wrong_file_location"><a href="#mistake_3_wrong_file_location" class="header-anchor">Mistake 3: Wrong File Location</a></h3>
+<pre><code class="language-rust">// src/lib.rs
+mod garden;
+mod garden::vegetables;  // ❌ Wrong&#33; This isn&#39;t valid syntax</code></pre>
+<p>Submodules are declared inside their parent:</p>
+<pre><code class="language-rust">// src/lib.rs
+mod garden;
+
+// src/garden.rs
+pub mod vegetables;  // ✅ Declare submodule here</code></pre>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: January 30, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
