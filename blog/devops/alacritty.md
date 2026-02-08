@@ -1,5 +1,5 @@
 @def title = "Alacritty: Quick Start & Comprehensive Guide"
-@def published = "6 February 2026"
+@def published = "7 February 2026"
 @def tags = ["devops"]
 
 # Alacritty: Quick Start & Comprehensive Guide
