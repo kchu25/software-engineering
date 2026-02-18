@@ -21,4 +21,6 @@
 - [sql](tag/sql)
 - [python](tag/python)
 - [rust](tag/rust)
+- [ubuntu](tag/ubuntu)
+- [it](tag/it)
 
