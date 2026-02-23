@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Toy Test: Periodic Deduplication in a Loop</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="toy_test_periodic_deduplication_in_a_loop"><a href="#toy_test_periodic_deduplication_in_a_loop" class="header-anchor">Toy Test: Periodic Deduplication in a Loop</a></h1>
+<p>A self-contained playground that mimics the motif-collection pattern — generating fake &quot;motifs&quot; across samples, appending to a growing DataFrame, and deduplicating periodically to keep memory bounded.</p>
+<hr />
+<h2 id="setup"><a href="#setup" class="header-anchor">Setup</a></h2>
+<pre><code class="language-julia">using DataFrames</code></pre>
+<p>No extra packages needed — just DataFrames.</p>
+<hr />
+<h2 id="toy_data_generator"><a href="#toy_data_generator" class="header-anchor">Toy Data Generator</a></h2>
+<p>This stands in for your <code>extract_motifs_from_sample</code>. It produces a small DataFrame of fake motifs, with <strong>intentional overlaps across samples</strong> so dedup actually has work to do.</p>
+<pre><code class="language-julia">&quot;&quot;&quot;
+Simulates extracting motifs from one sample.
+- &#96;sample_id&#96;  : which iteration we&#39;re on &#40;used to control overlap&#41;
+- &#96;n_motifs&#96;   : how many rows this sample produces
+- &#96;n_unique&#96;   : size of the &quot;universe&quot; of possible motifs &#40;controls overlap rate&#41;
+&quot;&quot;&quot;
+function fake_extract_motifs&#40;sample_id::Int; n_motifs&#61;20, n_unique&#61;30&#41;
+    rng &#61; &#40;sample_id * 1337&#41;  # deterministic but varied per sample
+
+    # motif identity columns &#40;what you&#39;d dedup on&#41;
+    motif_a &#61; &#91;string&#40;&quot;node_&quot;, rand&#40;1:n_unique&#41;&#41; for _ in 1:n_motifs&#93;
+    motif_b &#61; &#91;string&#40;&quot;node_&quot;, rand&#40;1:n_unique&#41;&#41; for _ in 1:n_motifs&#93;
+    pattern &#61; &#91;rand&#40;&#91;&quot;AND&quot;, &quot;OR&quot;, &quot;XOR&quot;&#93;&#41;        for _ in 1:n_motifs&#93;
+
+    # a &quot;contribution&quot; column — varies per sample, NOT part of dedup key
+    contribution &#61; rand&#40;n_motifs&#41; .* sample_id
+
+    return DataFrame&#40;; motif_a, motif_b, pattern, contribution&#41;
+end</code></pre>
+<hr />
+<h2 id="the_main_loop"><a href="#the_main_loop" class="header-anchor">The Main Loop</a></h2>
+<pre><code class="language-julia"># ---- config ----
+num_samples  &#61; 12      # total iterations &#40;like ec.num_contrib_samples&#41;
+dedup_every  &#61; 3       # deduplicate every N iterations
+dedup_cols   &#61; Not&#40;:contribution&#41;   # dedup key: everything except :contribution
+
+# ---- state ----
+df_motifs &#61; DataFrame&#40;&#41;
+n_before  &#61; 0          # total rows seen before any dedup
+
+for offset in 0:&#40;num_samples - 1&#41;
+    @info &quot;Sample &#36;&#40;offset &#43; 1&#41; / &#36;num_samples&quot;
+
+    # --- simulate your pipeline ---
+    df &#61; fake_extract_motifs&#40;offset &#43; 1; n_motifs&#61;20, n_unique&#61;30&#41;
+    n_before &#43;&#61; nrow&#40;df&#41;
+    append&#33;&#40;df_motifs, df&#41;
+
+    # --- periodic dedup ---
+    if &#40;offset &#43; 1&#41; &#37; dedup_every &#61;&#61; 0 || offset &#61;&#61; num_samples - 1
+        n_before_dedup &#61; nrow&#40;df_motifs&#41;
+        unique&#33;&#40;df_motifs, dedup_cols&#41;
+        n_after_dedup  &#61; nrow&#40;df_motifs&#41;
+        GC.gc&#40;&#41;
+        @info &quot;  → Dedup pass: &#36;n_before_dedup rows → &#36;n_after_dedup rows &#40;removed &#36;&#40;n_before_dedup - n_after_dedup&#41;&#41;&quot;
+    end
+end
+
+# final dedup &#40;safety net — periodic passes may have missed cross-boundary dupes&#41;
+unique&#33;&#40;df_motifs, dedup_cols&#41;
+
+println&#40;&quot;\nDone.&quot;&#41;
+println&#40;&quot;  Total rows seen &#40;pre-dedup&#41;: &#36;n_before&quot;&#41;
+println&#40;&quot;  Unique rows kept:            &#36;&#40;nrow&#40;df_motifs&#41;&#41;&quot;&#41;</code></pre>
+<hr />
+<h2 id="what_to_expect"><a href="#what_to_expect" class="header-anchor">What to Expect</a></h2>
+<p>Because <code>n_unique&#61;30</code> but each sample draws <code>n_motifs&#61;20</code> rows, there&#39;s heavy overlap between samples. You should see the dedup passes cut row counts significantly, which is exactly the point — <strong>memory stays bounded</strong> even if <code>num_samples</code> grows large.</p>
+<p>Sample output:</p>
+<pre><code class="language-julia">&#91; Info: Sample 3 / 12
+&#91; Info:   → Dedup pass: 60 rows → 28 rows &#40;removed 32&#41;
+&#91; Info: Sample 6 / 12
+&#91; Info:   → Dedup pass: 56 rows → 30 rows &#40;removed 26&#41;
+...
+Done.
+  Total rows seen &#40;pre-dedup&#41;: 240
+  Unique rows kept:            30</code></pre>
+<hr />
+<h2 id="variants_to_try"><a href="#variants_to_try" class="header-anchor">Variants to Try</a></h2>
+<p><strong>1. Crank up overlap</strong> &#40;more dedup benefit&#41;:</p>
+<pre><code class="language-julia">df &#61; fake_extract_motifs&#40;offset &#43; 1; n_motifs&#61;20, n_unique&#61;15&#41;
+# n_unique &lt; n_motifs → lots of within-sample dupes too</code></pre>
+<p><strong>2. Reduce overlap</strong> &#40;stress test — fewer dupes, memory grows more&#41;:</p>
+<pre><code class="language-julia">df &#61; fake_extract_motifs&#40;offset &#43; 1; n_motifs&#61;20, n_unique&#61;500&#41;</code></pre>
+<p><strong>3. Dedup on specific columns only</strong> &#40;not <code>Not&#40;:contribution&#41;</code>&#41;:</p>
+<pre><code class="language-julia">dedup_cols &#61; &#91;:motif_a, :motif_b&#93;   # ignore :pattern too</code></pre>
+<p><strong>4. Track memory directly</strong>:</p>
+<pre><code class="language-julia"># wrap the loop body with:
+@info &quot;  Memory: &#36;&#40;Base.gc_live_bytes&#40;&#41; / 1e6&#41; MB&quot;</code></pre>
+<p><strong>5. Swap <code>append&#33;</code> for Arrow streaming</strong> &#40;the memory-safe upgrade&#41;:</p>
+<pre><code class="language-julia">using Arrow
+open&#40;&quot;motifs.arrow&quot;, &quot;w&quot;&#41; do io
+    writer &#61; Arrow.Writer&#40;io&#41;
+    for offset in 0:&#40;num_samples - 1&#41;
+        df &#61; fake_extract_motifs&#40;offset &#43; 1&#41;
+        Arrow.write&#40;writer, df&#41;
+    end
+    close&#40;writer&#41;
+end
+df_motifs &#61; DataFrame&#40;Arrow.Table&#40;&quot;motifs.arrow&quot;&#41;&#41;
+unique&#33;&#40;df_motifs, dedup_cols&#41;</code></pre>
+<hr />
+<h2 id="key_insight"><a href="#key_insight" class="header-anchor">Key Insight</a></h2>
+<p>The periodic dedup is a <strong>memory pressure valve</strong>: each pass converts accumulated rows into a much smaller deduplicated set, so the DataFrame never grows proportionally to <code>num_samples × rows_per_sample</code>. The final <code>unique&#33;</code> outside the loop is a safety net for cross-boundary duplicates that straddled two dedup windows.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: February 23, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

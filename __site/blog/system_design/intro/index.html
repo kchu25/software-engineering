@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>System Design: A Comprehensive Introduction</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="system_design_a_comprehensive_introduction"><a href="#system_design_a_comprehensive_introduction" class="header-anchor">System Design: A Comprehensive Introduction</a></h1>
+<p>With AI automating more and more coding, the real skill is shifting: <strong>thinking in systems</strong>. Writing a function matters less when Copilot can do it. Knowing <em>which</em> function to write, <em>where</em> it runs, <em>how</em> it scales, and <em>what happens when it fails</em>—that&#39;s what matters.</p>
+<p>But if you&#39;ve ever tried to learn system design, you&#39;ve probably hit a wall. Interview prep books jump into &quot;design Twitter&quot; without explaining the building blocks. Blog posts assume you already know what a load balancer is. Textbooks are 800 pages long.</p>
+<p>This post is the overview I wish I&#39;d had. No interview tricks. Just: <strong>what is system design, what are the pieces, and how do they fit together?</strong></p>
+<hr />
+<h2 id="what_is_system_design"><a href="#what_is_system_design" class="header-anchor">What Is System Design?</a></h2>
+<p>System design is the process of defining the <strong>architecture, components, and interactions</strong> of a system to satisfy a set of requirements.</p>
+<p>That sounds abstract. Let&#39;s make it concrete.</p>
+<p>When you write a script that processes a CSV file, you don&#39;t need system design. One machine, one process, done.</p>
+<p>But what if:</p>
+<ul>
+<li><p>10,000 users hit your app at the same time?</p>
+</li>
+<li><p>Your database has 500 million rows?</p>
+</li>
+<li><p>A server crashes at 3 AM and nobody&#39;s awake?</p>
+</li>
+<li><p>Users in Tokyo need sub-100ms response times?</p>
+</li>
+<li><p>You need to deploy a new feature without downtime?</p>
+</li>
+</ul>
+<p><strong>System design is how you answer these questions.</strong> It&#39;s the discipline of building software that works reliably at scale, under real-world constraints.</p>
+<hr />
+<h2 id="the_two_questions_that_drive_everything"><a href="#the_two_questions_that_drive_everything" class="header-anchor">The Two Questions That Drive Everything</a></h2>
+<p>Every system design decision boils down to:</p>
+<ol>
+<li><p><strong>What are the requirements?</strong> &#40;What must this system do?&#41;</p>
+</li>
+<li><p><strong>What are the constraints?</strong> &#40;What are the limits we operate within?&#41;</p>
+</li>
+</ol>
+<h3 id="functional_requirements"><a href="#functional_requirements" class="header-anchor">Functional Requirements</a></h3>
+<p>What the system <em>does</em>:</p>
+<ul>
+<li><p>&quot;Users can upload photos&quot;</p>
+</li>
+<li><p>&quot;The system sends a notification when an order ships&quot;</p>
+</li>
+<li><p>&quot;Users can search for products by keyword&quot;</p>
+</li>
+</ul>
+<h3 id="non-functional_requirements"><a href="#non-functional_requirements" class="header-anchor">Non-Functional Requirements</a></h3>
+<p>How the system <em>behaves</em>:</p>
+<ul>
+<li><p><strong>Availability</strong> — Is it up when users need it? &#40;99.9&#37;? 99.99&#37;?&#41;</p>
+</li>
+<li><p><strong>Latency</strong> — How fast does it respond? &#40;50ms? 500ms?&#41;</p>
+</li>
+<li><p><strong>Throughput</strong> — How many requests per second can it handle?</p>
+</li>
+<li><p><strong>Consistency</strong> — Does every user see the same data at the same time?</p>
+</li>
+<li><p><strong>Durability</strong> — If the power goes out, is the data still there?</p>
+</li>
+<li><p><strong>Scalability</strong> — Can it handle 10x more users next year?</p>
+</li>
+</ul>
+<p>These non-functional requirements are where system design lives. Anyone can build an app that works for 1 user. Making it work for 1 million is the hard part.</p>
+<hr />
+<h2 id="the_building_blocks"><a href="#the_building_blocks" class="header-anchor">The Building Blocks</a></h2>
+<p>Here are the core components that appear in almost every system. Think of them like LEGO bricks—you combine them to build what you need.</p>
+<h3 id="client_and_server"><a href="#client_and_server" class="header-anchor"><ol>
+<li><p>Client and Server</p>
+</li>
+</ol>
+</a></h3>
+<p>The most basic split: something <strong>requests</strong> &#40;client&#41; and something <strong>responds</strong> &#40;server&#41;.</p>
+<pre><code class="language-julia">User&#39;s Browser &#40;Client&#41; → HTTP Request → Your Server → HTTP Response → Browser</code></pre>
+<p>This is the foundation. Everything else is about making this flow fast, reliable, and scalable.</p>
+<h3 id="ol_start2_dns_domain_name_system"><a href="#ol_start2_dns_domain_name_system" class="header-anchor"><ol start="2">
+<li><p>DNS &#40;Domain Name System&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p>DNS translates human-readable names &#40;<code>google.com</code>&#41; to IP addresses &#40;<code>142.250.80.46</code>&#41;. It&#39;s the internet&#39;s phone book.</p>
+<pre><code class="language-julia">User types &quot;myapp.com&quot;
+  → DNS lookup: &quot;myapp.com&quot; → 203.0.113.42
+  → Browser connects to 203.0.113.42</code></pre>
+<p>You usually don&#39;t build DNS yourself, but you configure it. DNS is also used for load balancing &#40;pointing a domain to multiple IPs&#41;.</p>
+<h3 id="ol_start3_load_balancer"><a href="#ol_start3_load_balancer" class="header-anchor"><ol start="3">
+<li><p>Load Balancer</p>
+</li>
+</ol>
+</a></h3>
+<p>When one server isn&#39;t enough, you run multiple servers. A <strong>load balancer</strong> distributes incoming requests across them.</p>
+<pre><code class="language-julia">┌─→ Server 1
+User → Load Balancer├─→ Server 2
+                    └─→ Server 3</code></pre>
+<p><strong>Common strategies:</strong></p>
+<ul>
+<li><p><strong>Round Robin</strong> — Rotate through servers in order</p>
+</li>
+<li><p><strong>Least Connections</strong> — Send to the server with fewest active connections</p>
+</li>
+<li><p><strong>IP Hash</strong> — Same user always goes to same server &#40;useful for sessions&#41;</p>
+</li>
+<li><p><strong>Weighted</strong> — Send more traffic to beefier servers</p>
+</li>
+</ul>
+<p><strong>Why it matters:</strong> Without a load balancer, one server handles everything. If it dies, your app dies. With a load balancer &#43; multiple servers, one can crash and users don&#39;t notice.</p>
+<h3 id="ol_start4_databases"><a href="#ol_start4_databases" class="header-anchor"><ol start="4">
+<li><p>Databases</p>
+</li>
+</ol>
+</a></h3>
+<p>Where your data lives permanently. Two main families:</p>
+<h4 id="relational_databases_sql"><a href="#relational_databases_sql" class="header-anchor">Relational Databases &#40;SQL&#41;</a></h4>
+<p>Structured data in tables with relationships. PostgreSQL, MySQL, SQLite.</p>
+<pre><code class="language-julia">Users table:
+| id | name    | email           |
+|----|---------|-----------------|
+| 1  | Alice   | alice@mail.com  |
+| 2  | Bob     | bob@mail.com    |
+
+Orders table:
+| id | user_id | product    | total  |
+|----|---------|------------|--------|
+| 1  | 1       | Widget     | 29.99  |
+| 2  | 1       | Gadget     | 49.99  |</code></pre>
+<p><strong>Strengths:</strong> ACID transactions &#40;data is always consistent&#41;, complex queries with JOINs, well-understood, mature.</p>
+<p><strong>Use when:</strong> Your data has clear structure and relationships. Most applications start here.</p>
+<h4 id="non-relational_databases_nosql"><a href="#non-relational_databases_nosql" class="header-anchor">Non-Relational Databases &#40;NoSQL&#41;</a></h4>
+<p>Flexible data without strict schemas. Several sub-types:</p>
+<table><tr><th align="right">Type</th><th align="right">Examples</th><th align="right">Good for</th></tr><tr><td align="right"><strong>Document</strong></td><td align="right">MongoDB, CouchDB</td><td align="right">JSON-like objects, flexible schemas</td></tr><tr><td align="right"><strong>Key-Value</strong></td><td align="right">Redis, DynamoDB</td><td align="right">Simple lookups, caching, sessions</td></tr><tr><td align="right"><strong>Wide-Column</strong></td><td align="right">Cassandra, HBase</td><td align="right">Time-series, IoT, massive write volumes</td></tr><tr><td align="right"><strong>Graph</strong></td><td align="right">Neo4j, Amazon Neptune</td><td align="right">Social networks, recommendation engines</td></tr></table>
+<p><strong>Use when:</strong> Your data doesn&#39;t fit neatly into tables, or you need extreme scale/performance for specific access patterns.</p>
+<blockquote>
+<p><strong>SQL vs NoSQL isn&#39;t a war—it&#39;s a choice.</strong> Many real systems use both. User accounts in PostgreSQL, shopping cart in Redis, activity log in Cassandra. Pick the right tool for each job.</p>
+</blockquote>
+<h3 id="ol_start5_cache"><a href="#ol_start5_cache" class="header-anchor"><ol start="5">
+<li><p>Cache</p>
+</li>
+</ol>
+</a></h3>
+<p>A cache stores frequently accessed data in memory so you don&#39;t have to hit the database every time.</p>
+<pre><code class="language-julia">Request → Check Cache → Hit? Return cached data &#40;fast&#33;&#41;
+                      → Miss? Query database, store in cache, return data</code></pre>
+<p><strong>Common tools:</strong> Redis, Memcached</p>
+<p><strong>Why it matters:</strong> A database query might take 10-100ms. A cache lookup takes &lt;1ms. For data that&#39;s read often but changes rarely &#40;user profiles, product listings&#41;, caching is a massive win.</p>
+<p><strong>Cache strategies:</strong></p>
+<ul>
+<li><p><strong>Cache-aside &#40;Lazy&#41;</strong> — App checks cache first, loads from DB on miss</p>
+</li>
+<li><p><strong>Write-through</strong> — Every write goes to cache AND database</p>
+</li>
+<li><p><strong>Write-behind</strong> — Write to cache immediately, sync to database later &#40;faster but riskier&#41;</p>
+</li>
+<li><p><strong>TTL &#40;Time to Live&#41;</strong> — Data expires after N seconds, forcing a fresh fetch</p>
+</li>
+</ul>
+<p><strong>The hard problem:</strong> Cache invalidation. When the underlying data changes, the cache has stale data. This is famously one of the hardest problems in computer science.</p>
+<h3 id="ol_start6_cdn_content_delivery_network"><a href="#ol_start6_cdn_content_delivery_network" class="header-anchor"><ol start="6">
+<li><p>CDN &#40;Content Delivery Network&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p>A CDN is a global network of servers that serves static content &#40;images, CSS, JS, videos&#41; from locations geographically close to users.</p>
+<pre><code class="language-julia">User in Tokyo → CDN edge server in Tokyo &#40;fast&#33;&#41;
+  instead of
+User in Tokyo → Your server in Virginia &#40;slow&#41;</code></pre>
+<p><strong>Common CDNs:</strong> Cloudflare, AWS CloudFront, Akamai, Fastly</p>
+<p><strong>Use for:</strong> Images, videos, static files, any content that doesn&#39;t change per-user.</p>
+<h3 id="ol_start7_message_queue"><a href="#ol_start7_message_queue" class="header-anchor"><ol start="7">
+<li><p>Message Queue</p>
+</li>
+</ol>
+</a></h3>
+<p>A queue decouples components that produce work from components that process work.</p>
+<pre><code class="language-julia">Producer → &#91;Message Queue&#93; → Consumer
+
+Example:
+User uploads photo → Queue: &quot;resize this photo&quot; → Worker resizes photo</code></pre>
+<p><strong>Common tools:</strong> RabbitMQ, Apache Kafka, Amazon SQS, Redis Streams</p>
+<p><strong>Why it matters:</strong></p>
+<ul>
+<li><p><strong>Decoupling</strong> — The uploader doesn&#39;t wait for the resize to finish</p>
+</li>
+<li><p><strong>Buffering</strong> — If 1000 photos are uploaded simultaneously, they queue up instead of crashing the resize service</p>
+</li>
+<li><p><strong>Retry</strong> — If a worker fails, the message stays in the queue for another worker</p>
+</li>
+</ul>
+<h3 id="ol_start8_api_gateway"><a href="#ol_start8_api_gateway" class="header-anchor"><ol start="8">
+<li><p>API Gateway</p>
+</li>
+</ol>
+</a></h3>
+<p>A single entry point that sits in front of your services. It handles routing, authentication, rate limiting, and more.</p>
+<pre><code class="language-julia">Client → API Gateway → Routes to correct service
+                     → Checks authentication
+                     → Applies rate limiting
+                     → Logs the request</code></pre>
+<p>Instead of your client knowing about 10 different services, it talks to one gateway.</p>
+<hr />
+<h2 id="key_concepts"><a href="#key_concepts" class="header-anchor">Key Concepts</a></h2>
+<h3 id="vertical_vs_horizontal_scaling"><a href="#vertical_vs_horizontal_scaling" class="header-anchor">Vertical vs Horizontal Scaling</a></h3>
+<p><strong>Vertical scaling &#40;scale up&#41;:</strong> Get a bigger machine. More RAM, more CPU.</p>
+<ul>
+<li><p>Simple, but there&#39;s a ceiling—you can&#39;t buy an infinitely big server.</p>
+</li>
+</ul>
+<p><strong>Horizontal scaling &#40;scale out&#41;:</strong> Add more machines.</p>
+<ul>
+<li><p>More complex &#40;need load balancers, distributed state&#41;, but no ceiling.</p>
+</li>
+</ul>
+<pre><code class="language-julia">Vertical:   1 big server          → eventually maxes out
+Horizontal: 10 small servers      → add more as needed</code></pre>
+<p>Most real systems use horizontal scaling because it&#39;s the only way to handle truly large scale.</p>
+<h3 id="stateless_vs_stateful_services"><a href="#stateless_vs_stateful_services" class="header-anchor">Stateless vs Stateful Services</a></h3>
+<p><strong>Stateless:</strong> The server doesn&#39;t remember anything between requests. Every request contains all the info needed to process it.</p>
+<pre><code class="language-julia">Request 1: &quot;I&#39;m user Alice, show my profile&quot;
+Request 2: &quot;I&#39;m user Alice, show my orders&quot;
+// Each request is self-contained</code></pre>
+<p><strong>Stateful:</strong> The server remembers things &#40;like sessions, connections, or cached data&#41;.</p>
+<p><strong>Why it matters:</strong> Stateless services are easy to scale horizontally—any server can handle any request. Stateful services are harder because you need to route users to the right server or share state.</p>
+<p><strong>Rule of thumb:</strong> Make services stateless whenever possible. Push state into databases, caches, or external stores.</p>
+<h3 id="replication"><a href="#replication" class="header-anchor">Replication</a></h3>
+<p>Keeping copies of your data on multiple machines.</p>
+<pre><code class="language-julia">Primary Database ──writes──→ Replica 1 &#40;read-only&#41;
+                           → Replica 2 &#40;read-only&#41;
+                           → Replica 3 &#40;read-only&#41;</code></pre>
+<p><strong>Why:</strong> If the primary dies, a replica takes over. Plus, reads can be spread across replicas for better performance.</p>
+<p><strong>Types:</strong></p>
+<ul>
+<li><p><strong>Leader-Follower</strong> — One primary handles writes, replicas handle reads</p>
+</li>
+<li><p><strong>Leader-Leader</strong> — Multiple primaries can accept writes &#40;more complex, risk of conflicts&#41;</p>
+</li>
+</ul>
+<h3 id="partitioning_sharding"><a href="#partitioning_sharding" class="header-anchor">Partitioning &#40;Sharding&#41;</a></h3>
+<p>Splitting your data across multiple databases, each holding a subset.</p>
+<pre><code class="language-julia">Users A-M → Database 1
+Users N-Z → Database 2</code></pre>
+<p><strong>Why:</strong> When one database can&#39;t hold all your data or handle all your traffic, you split it up.</p>
+<p><strong>Common strategies:</strong></p>
+<ul>
+<li><p><strong>Range-based</strong> — Shard by ranges &#40;A-M, N-Z&#41;</p>
+</li>
+<li><p><strong>Hash-based</strong> — Hash the key to determine which shard &#40;more even distribution&#41;</p>
+</li>
+</ul>
+<p><strong>The trade-off:</strong> Queries that span multiple shards are expensive. You lose easy JOINs across the full dataset.</p>
+<h3 id="cap_theorem"><a href="#cap_theorem" class="header-anchor">CAP Theorem</a></h3>
+<p>A distributed system can provide at most <strong>two out of three</strong> guarantees:</p>
+<ul>
+<li><p><strong>C</strong>onsistency — Every read returns the most recent write</p>
+</li>
+<li><p><strong>A</strong>vailability — Every request gets a response &#40;even if it&#39;s stale&#41;</p>
+</li>
+<li><p><strong>P</strong>artition tolerance — The system works even when network links between nodes fail</p>
+</li>
+</ul>
+<p>Since network partitions <em>will</em> happen in distributed systems, you&#39;re really choosing between:</p>
+<ul>
+<li><p><strong>CP</strong> — Consistent but might be unavailable during partitions &#40;e.g., banks choosing accuracy over speed&#41;</p>
+</li>
+<li><p><strong>AP</strong> — Available but might return stale data during partitions &#40;e.g., social media showing a slightly old like count&#41;</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>This isn&#39;t a one-time choice.</strong> Different parts of your system can make different trade-offs. Your payment system should be CP &#40;never show wrong balances&#41;. Your news feed can be AP &#40;showing a post 2 seconds late is fine&#41;.</p>
+</blockquote>
+<h3 id="consistency_models"><a href="#consistency_models" class="header-anchor">Consistency Models</a></h3>
+<p>How &quot;up-to-date&quot; is the data you read?</p>
+<table><tr><th align="right">Model</th><th align="right">Meaning</th><th align="right">Example</th></tr><tr><td align="right"><strong>Strong consistency</strong></td><td align="right">Always read the latest write</td><td align="right">Bank balance</td></tr><tr><td align="right"><strong>Eventual consistency</strong></td><td align="right">Will catch up eventually, might be stale now</td><td align="right">Social media likes</td></tr><tr><td align="right"><strong>Causal consistency</strong></td><td align="right">Respects cause-and-effect ordering</td><td align="right">Chat messages</td></tr></table>
+<p><strong>Strong consistency</strong> is simplest to reason about but hardest to scale. <strong>Eventual consistency</strong> scales well but requires your app to handle stale reads gracefully.</p>
+<hr />
+<h2 id="common_patterns"><a href="#common_patterns" class="header-anchor">Common Patterns</a></h2>
+<h3 id="rate_limiting"><a href="#rate_limiting" class="header-anchor">Rate Limiting</a></h3>
+<p>Protect your system from being overwhelmed &#40;malicious or accidental&#41;.</p>
+<p><strong>Algorithms:</strong></p>
+<ul>
+<li><p><strong>Token Bucket</strong> — Tokens accumulate over time; each request costs a token</p>
+</li>
+<li><p><strong>Sliding Window</strong> — Count requests in the last N seconds</p>
+</li>
+<li><p><strong>Fixed Window</strong> — Count requests per time window &#40;e.g., 100 per minute&#41;</p>
+</li>
+</ul>
+<h3 id="circuit_breaker"><a href="#circuit_breaker" class="header-anchor">Circuit Breaker</a></h3>
+<p>When a service you depend on starts failing, stop calling it temporarily instead of piling up errors.</p>
+<pre><code class="language-julia">Closed &#40;normal&#41; → Failures exceed threshold → Open &#40;reject all calls&#41;
+                                               ↓ after timeout
+                                            Half-Open &#40;try one call&#41;
+                                               ↓ success? → Closed
+                                               ↓ fail?    → Open</code></pre>
+<p>Prevents a failing dependency from taking down your entire system.</p>
+<h3 id="idempotency"><a href="#idempotency" class="header-anchor">Idempotency</a></h3>
+<p>An operation is <strong>idempotent</strong> if doing it multiple times produces the same result as doing it once.</p>
+<pre><code class="language-julia">Idempotent:     &quot;Set balance to &#36;100&quot;   &#40;safe to retry&#41;
+Not idempotent: &quot;Add &#36;10 to balance&quot;    &#40;retrying doubles the addition&#33;&#41;</code></pre>
+<p><strong>Why it matters:</strong> In distributed systems, messages can be delivered more than once. If your operations are idempotent, retries are safe.</p>
+<h3 id="heartbeat_health_checks"><a href="#heartbeat_health_checks" class="header-anchor">Heartbeat / Health Checks</a></h3>
+<p>Services periodically signal &quot;I&#39;m alive&quot; to a monitor. If signals stop, the system knows something is wrong and can route traffic elsewhere.</p>
+<h3 id="event-driven_architecture"><a href="#event-driven_architecture" class="header-anchor">Event-Driven Architecture</a></h3>
+<p>Instead of services calling each other directly, they communicate through events:</p>
+<pre><code class="language-julia">Traditional:  Order Service → calls → Inventory Service → calls → Notification Service
+Event-driven: Order Service → publishes &quot;OrderCreated&quot; event
+              Inventory Service subscribes → updates stock
+              Notification Service subscribes → sends email</code></pre>
+<p><strong>Benefits:</strong> Services are decoupled, can evolve independently, and new consumers can be added without changing the producer.</p>
+<hr />
+<h2 id="putting_it_all_together_a_real_system"><a href="#putting_it_all_together_a_real_system" class="header-anchor">Putting It All Together: A Real System</a></h2>
+<p>Let&#39;s walk through a simplified e-commerce platform:</p>
+<pre><code class="language-julia">┌─────────────┐
+                              ┌────→│ Product API  │──→ Product DB
+                              │     └─────────────┘
+┌──────┐    ┌───────────┐     │     ┌─────────────┐
+│ User │───→│   CDN      │    ├────→│ Order API    │──→ Order DB
+│      │    │&#40;static files&#41;   │     └──────┬──────┘
+│      │───→│           │     │            │
+└──────┘    └───────────┘     │            ▼
+       │                      │     ┌─────────────┐
+       │    ┌───────────┐     │     │Message Queue │
+       └───→│API Gateway│─────┤     └──────┬──────┘
+            │&#43; Auth     │     │            │
+            │&#43; Rate Limit│    │     ┌──────┴──────┐
+            └───────────┘     │     │   Workers    │
+                              │     │&#40;email, resize│
+                              │     │ inventory&#41;   │
+                              │     └─────────────┘
+                              │     ┌─────────────┐
+                              └────→│ User API     │──→ User DB
+                                    └─────────────┘
+                                           ↑
+                                    ┌─────────────┐
+                                    │   Cache      │
+                                    │  &#40;Redis&#41;     │
+                                    └─────────────┘</code></pre>
+<p><strong>What&#39;s happening:</strong></p>
+<ol>
+<li><p><strong>CDN</strong> serves static assets &#40;images, CSS, JS&#41;</p>
+</li>
+<li><p><strong>API Gateway</strong> handles auth, rate limiting, routes to services</p>
+</li>
+<li><p><strong>Product/Order/User APIs</strong> are separate services &#40;microservices&#41;</p>
+</li>
+<li><p><strong>Each has its own database</strong> &#40;can scale independently&#41;</p>
+</li>
+<li><p><strong>Cache &#40;Redis&#41;</strong> stores hot data &#40;product listings, user sessions&#41;</p>
+</li>
+<li><p><strong>Message Queue</strong> decouples order processing from notifications, inventory updates</p>
+</li>
+<li><p><strong>Workers</strong> consume queue messages asynchronously</p>
+</li>
+</ol>
+<p>This isn&#39;t how you&#39;d build day one. You&#39;d start with a monolith and evolve. But this is what a mature system looks like.</p>
+<hr />
+<h2 id="how_systems_evolve"><a href="#how_systems_evolve" class="header-anchor">How Systems Evolve</a></h2>
+<p>Real systems don&#39;t start complex. They grow:</p>
+<h3 id="stage_1_monolith"><a href="#stage_1_monolith" class="header-anchor">Stage 1: Monolith</a></h3>
+<pre><code class="language-julia">Browser → Single Server &#40;app &#43; database on same machine&#41;</code></pre>
+<p>Good for: MVPs, prototypes, small teams. <strong>Start here.</strong></p>
+<h3 id="stage_2_separate_database"><a href="#stage_2_separate_database" class="header-anchor">Stage 2: Separate Database</a></h3>
+<pre><code class="language-julia">Browser → App Server → Database Server</code></pre>
+<p>App and database on different machines. Each can be scaled independently.</p>
+<h3 id="stage_3_add_caching"><a href="#stage_3_add_caching" class="header-anchor">Stage 3: Add Caching</a></h3>
+<pre><code class="language-julia">Browser → App Server → Cache → Database</code></pre>
+<p>Redis in front of the database. 10x read performance.</p>
+<h3 id="stage_4_load_balancer_multiple_servers"><a href="#stage_4_load_balancer_multiple_servers" class="header-anchor">Stage 4: Load Balancer &#43; Multiple Servers</a></h3>
+<pre><code class="language-julia">Browser → Load Balancer → App Server 1, 2, 3 → Cache → Database</code></pre>
+<p>Handle more traffic. Survive server failures.</p>
+<h3 id="stage_5_read_replicas"><a href="#stage_5_read_replicas" class="header-anchor">Stage 5: Read Replicas</a></h3>
+<pre><code class="language-julia">Browser → LB → App Servers → Cache → Primary DB
+                                    → Read Replica 1
+                                    → Read Replica 2</code></pre>
+<p>Distribute read load across replicas.</p>
+<h3 id="stage_6_cdn_message_queues"><a href="#stage_6_cdn_message_queues" class="header-anchor">Stage 6: CDN &#43; Message Queues</a></h3>
+<pre><code class="language-julia">Browser → CDN &#40;static&#41; &#43; LB → App Servers → Cache → DB &#40;with replicas&#41;
+                                           → Message Queue → Workers</code></pre>
+<p>Offload static content and async processing.</p>
+<h3 id="stage_7_microservices_sharding"><a href="#stage_7_microservices_sharding" class="header-anchor">Stage 7: Microservices &#43; Sharding</a></h3>
+<p>When the monolith gets too big, split into services. When the database gets too big, shard it.</p>
+<p><strong>The lesson:</strong> Don&#39;t design for Stage 7 on day one. Each stage adds complexity. Only move forward when the current stage can&#39;t handle your needs.</p>
+<hr />
+<h2 id="back-of-the-envelope_numbers"><a href="#back-of-the-envelope_numbers" class="header-anchor">Back-of-the-Envelope Numbers</a></h2>
+<p>Good system designers have intuition for rough numbers. Here are some useful ones:</p>
+<h3 id="latency"><a href="#latency" class="header-anchor">Latency</a></h3>
+<table><tr><th align="right">Operation</th><th align="right">Time</th></tr><tr><td align="right">L1 cache read</td><td align="right">~1 ns</td></tr><tr><td align="right">L2 cache read</td><td align="right">~4 ns</td></tr><tr><td align="right">RAM read</td><td align="right">~100 ns</td></tr><tr><td align="right">SSD random read</td><td align="right">~100 μs</td></tr><tr><td align="right">HDD random read</td><td align="right">~10 ms</td></tr><tr><td align="right">Network round trip &#40;same datacenter&#41;</td><td align="right">~500 μs</td></tr><tr><td align="right">Network round trip &#40;cross-continent&#41;</td><td align="right">~150 ms</td></tr></table>
+<h3 id="throughput"><a href="#throughput" class="header-anchor">Throughput</a></h3>
+<table><tr><th align="right">System</th><th align="right">Rough capacity</th></tr><tr><td align="right">Single web server</td><td align="right">1,000-10,000 requests/sec</td></tr><tr><td align="right">Single database</td><td align="right">5,000-10,000 queries/sec</td></tr><tr><td align="right">Redis</td><td align="right">100,000&#43; operations/sec</td></tr><tr><td align="right">Kafka</td><td align="right">1,000,000&#43; messages/sec</td></tr></table>
+<h3 id="storage"><a href="#storage" class="header-anchor">Storage</a></h3>
+<table><tr><th align="right">Data</th><th align="right">Rough size</th></tr><tr><td align="right">1 character &#40;UTF-8&#41;</td><td align="right">1-4 bytes</td></tr><tr><td align="right">1 tweet &#40;280 chars &#43; metadata&#41;</td><td align="right">~1 KB</td></tr><tr><td align="right">1 photo &#40;compressed&#41;</td><td align="right">~200 KB - 2 MB</td></tr><tr><td align="right">1 minute of video &#40;HD&#41;</td><td align="right">~100-150 MB</td></tr><tr><td align="right">1 million users × 1 KB profile</td><td align="right">~1 GB</td></tr></table>
+<p>These help you estimate: &quot;Can one database handle this?&quot; or &quot;How much storage do we need?&quot;</p>
+<hr />
+<h2 id="common_mistakes"><a href="#common_mistakes" class="header-anchor">Common Mistakes</a></h2>
+<ol>
+<li><p><strong>Over-engineering from day one.</strong> Microservices for a team of 2? Sharding a database with 10,000 rows? Don&#39;t.</p>
+</li>
+<li><p><strong>Ignoring failure modes.</strong> Every component will fail. What happens when the cache is down? When a database replica lags? Design for failure.</p>
+</li>
+<li><p><strong>Treating consistency as free.</strong> Strong consistency across distributed systems is expensive. Choose wisely.</p>
+</li>
+<li><p><strong>Neglecting monitoring and observability.</strong> A system you can&#39;t observe is a system you can&#39;t fix. Logging, metrics, tracing, alerting—build these in from the start.</p>
+</li>
+<li><p><strong>Forgetting the human element.</strong> Can your team operate this system? Can someone debug it at 3 AM? Complexity has a human cost.</p>
+</li>
+</ol>
+<hr />
+<h2 id="where_to_go_from_here"><a href="#where_to_go_from_here" class="header-anchor">Where To Go From Here</a></h2>
+<p>This post covered the <strong>vocabulary and mental models</strong> of system design. To go deeper:</p>
+<p><strong>Concepts to explore next:</strong></p>
+<ul>
+<li><p>Consistent hashing &#40;for distributed caching/sharding&#41;</p>
+</li>
+<li><p>Consensus algorithms &#40;Raft, Paxos&#41;</p>
+</li>
+<li><p>Bloom filters &#40;probabilistic data structures&#41;</p>
+</li>
+<li><p>Database indexing &#40;B-trees, LSM trees&#41;</p>
+</li>
+<li><p>API design &#40;REST, gRPC, GraphQL&#41;</p>
+</li>
+<li><p>Observability &#40;distributed tracing, metrics, logging&#41;</p>
+</li>
+<li><p>Container orchestration &#40;Docker, Kubernetes&#41;</p>
+</li>
+</ul>
+<p><strong>The meta-skill:</strong> System design is about <strong>trade-offs</strong>. There&#39;s never a &quot;correct&quot; answer—only trade-offs that fit your constraints. The more systems you study, the better your intuition for these trade-offs becomes.</p>
+<blockquote>
+<p><strong>The AI angle:</strong> AI can write your code, but it can&#39;t decide your architecture—because architecture depends on business requirements, team capabilities, budget, timeline, and risk tolerance. These are judgment calls. System design is where human judgment remains irreplaceable.</p>
+</blockquote>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: February 18, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

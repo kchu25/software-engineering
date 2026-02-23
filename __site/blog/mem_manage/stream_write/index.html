@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="stylesheet" href="/libs/katex/katex.min.css">
+     
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Avoiding Memory Explosion in Julia For Loops</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="avoiding_memory_explosion_in_julia_for_loops"><a href="#avoiding_memory_explosion_in_julia_for_loops" class="header-anchor">Avoiding Memory Explosion in Julia For Loops</a></h1>
+<p>The core mental model is simple: <strong>every chunk you append to a collection stays alive in RAM until the program ends</strong> &#40;or until nothing references it&#41;. If chunks are big, that adds up fast. The fix is usually to ask: <em>do I actually need all chunks at once?</em> Usually the answer is no.</p>
+<hr />
+<h2 id="pre-allocate_instead_of_growing"><a href="#pre-allocate_instead_of_growing" class="header-anchor"><ol>
+<li><p>Pre-allocate Instead of Growing</p>
+</li>
+</ol>
+</a></h2>
+<p>When you <code>push&#33;</code> in a loop, Julia may have to copy the entire collection repeatedly as it resizes. If you know the final size upfront, just fill by index:</p>
+<pre><code class="language-julia">result &#61; Vector&#123;Float64&#125;&#40;undef, n&#41;
+for i in 1:n
+    result&#91;i&#93; &#61; compute&#40;i&#41;
+end</code></pre>
+<p>The memory cost is paid <strong>once</strong>, not on every iteration.</p>
+<hr />
+<h2 id="ol_start2_reduce_as_you_go_dont_accumulate"><a href="#ol_start2_reduce_as_you_go_dont_accumulate" class="header-anchor"><ol start="2">
+<li><p>Reduce As You Go &#40;Don&#39;t Accumulate&#41;</p>
+</li>
+</ol>
+</a></h2>
+<p>Ask yourself: are you collecting chunks to compute something at the end? Then just compute it inline and throw the chunk away:</p>
+<pre><code class="language-julia">total &#61; 0.0
+for chunk in chunks
+    total &#43;&#61; sum&#40;chunk.value&#41;
+    # chunk goes out of scope here — GC can reclaim it
+end</code></pre>
+<p>The &quot;collection&quot; you actually needed was just a single <code>Float64</code>.</p>
+<hr />
+<h2 id="ol_start3_write_chunks_to_disk_as_you_go_the_big_one"><a href="#ol_start3_write_chunks_to_disk_as_you_go_the_big_one" class="header-anchor"><ol start="3">
+<li><p>🗂️ Write Chunks to Disk As You Go <em>&#40;The Big One&#41;</em></p>
+</li>
+</ol>
+</a></h2>
+<p>This is the most impactful strategy when chunks are genuinely large DataFrames. Instead of building a massive in-memory structure, flush each chunk to disk immediately and let it go.</p>
+<h3 id="csv_simplest_slowest"><a href="#csv_simplest_slowest" class="header-anchor">CSV &#40;simplest, slowest&#41;</a></h3>
+<pre><code class="language-julia">using CSV, DataFrames
+
+for &#40;i, chunk&#41; in enumerate&#40;chunks&#41;
+    CSV.write&#40;&quot;output.csv&quot;, chunk, append &#61; i &gt; 1&#41;
+end</code></pre>
+<p>Easy, but CSV is slow to read/write and bloated on disk. Fine for small-ish data.</p>
+<hr />
+<h3 id="arrow_sweet_spot_for_most_use_cases"><a href="#arrow_sweet_spot_for_most_use_cases" class="header-anchor">Arrow &#40;sweet spot for most use cases&#41;</a></h3>
+<p>Arrow is a <strong>columnar binary format</strong> — think of it like a DataFrame frozen in the exact memory layout Julia already uses. Reading it back is essentially zero-copy.</p>
+<h4 id="writing_chunks_during_the_loop"><a href="#writing_chunks_during_the_loop" class="header-anchor">Writing chunks during the loop</a></h4>
+<p>The cleanest pattern is a <strong>streaming writer</strong> — one file, one chunk written per iteration, nothing accumulates in RAM:</p>
+<pre><code class="language-julia">using Arrow, DataFrames
+
+open&#40;&quot;output.arrow&quot;, &quot;w&quot;&#41; do io
+    writer &#61; Arrow.Writer&#40;io&#41;
+    for chunk in chunks          # chunk is a DataFrame
+        Arrow.write&#40;writer, chunk&#41;
+    end
+    close&#40;writer&#41;
+end</code></pre>
+<p>Each <code>chunk</code> is flushed to disk and can be GC&#39;d. The file grows on disk, not in RAM.</p>
+<h4 id="combining_after_the_loop"><a href="#combining_after_the_loop" class="header-anchor">Combining after the loop</a></h4>
+<p>When you&#39;re done and ready to work with the full dataset, read it back as one DataFrame:</p>
+<pre><code class="language-julia">df &#61; DataFrame&#40;Arrow.Table&#40;&quot;output.arrow&quot;&#41;&#41;</code></pre>
+<p><code>Arrow.Table</code> reads all batches and presents them as a single table. Wrapping in <code>DataFrame&#40;...&#41;</code> materializes it. If the file is truly massive and you only need to process it in passes, iterate lazily instead:</p>
+<pre><code class="language-julia">for batch in Arrow.Stream&#40;&quot;output.arrow&quot;&#41;
+    df_batch &#61; DataFrame&#40;batch&#41;
+    process&#40;df_batch&#41;
+end</code></pre>
+<h4 id="deduplicating_identical_rows"><a href="#deduplicating_identical_rows" class="header-anchor">Deduplicating identical rows</a></h4>
+<p>Once you have your combined DataFrame, <code>unique</code> drops exact duplicate rows:</p>
+<pre><code class="language-julia">df_deduped &#61; unique&#40;df&#41;</code></pre>
+<p>If you only care about duplicates across <em>specific columns</em> &#40;e.g. a natural key&#41;, pass them explicitly:</p>
+<pre><code class="language-julia">df_deduped &#61; unique&#40;df, &#91;:col_a, :col_b&#93;&#41;  # keep first occurrence of each unique combo</code></pre>
+<p>For very large DataFrames where you want to avoid a full copy, <code>unique&#33;</code> deduplicates in-place:</p>
+<pre><code class="language-julia">unique&#33;&#40;df&#41;   # mutates df, no copy made</code></pre>
+<blockquote>
+<p><strong>Why not dedup per chunk during the loop?</strong> You can — <code>unique&#33;&#40;chunk&#41;</code> before writing is free and reduces file size. But you&#39;ll still need a final <code>unique&#33;</code> after combining, since the <em>same row can appear in two different chunks</em>. Do both if chunks are huge.</p>
+</blockquote>
+<blockquote>
+<p><strong>Why Arrow?</strong> Read/write is \(\sim 10\text{–}100\times\) faster than CSV, the file is compact, and the format is interoperable with Python &#40;pandas, polars&#41;, R, and Spark.</p>
+</blockquote>
+<hr />
+<h3 id="parquet_best_for_long-term_storage_analytics"><a href="#parquet_best_for_long-term_storage_analytics" class="header-anchor">Parquet &#40;best for long-term storage / analytics&#41;</a></h3>
+<p>Parquet is a <strong>compressed columnar format</strong> designed for big data pipelines &#40;think S3 &#43; Spark&#41;. It&#39;s the standard in data engineering.</p>
+<pre><code class="language-julia">using Parquet2, DataFrames
+
+Parquet2.writefile&#40;&quot;output.parquet&quot;, df&#41;
+
+# Read back
+df2 &#61; DataFrame&#40;Parquet2.Dataset&#40;&quot;output.parquet&quot;&#41;&#41;</code></pre>
+<p>Parquet supports <strong>row groups</strong> natively — each chunk you write becomes a row group, and downstream tools can skip row groups entirely when filtering. This is called <em>predicate pushdown</em> and is a big deal for query performance.</p>
+<table><tr><th align="right">Format</th><th align="right">Speed</th><th align="right">File size</th><th align="right">Interop</th><th align="right">Best for</th></tr><tr><td align="right">CSV</td><td align="right">🐢 Slow</td><td align="right">❌ Large</td><td align="right">✅ Universal</td><td align="right">Quick exports, small data</td></tr><tr><td align="right">Arrow</td><td align="right">⚡ Fast</td><td align="right">✅ Small</td><td align="right">✅ Great</td><td align="right">In-memory pipelines, IPC</td></tr><tr><td align="right">Parquet</td><td align="right">✅ Fast</td><td align="right">✅✅ Smallest</td><td align="right">✅ Great</td><td align="right">Long-term storage, analytics</td></tr></table>
+<hr />
+<h2 id="ol_start4_lazy_iteration_with_generators"><a href="#ol_start4_lazy_iteration_with_generators" class="header-anchor"><ol start="4">
+<li><p>Lazy Iteration with Generators</p>
+</li>
+</ol>
+</a></h2>
+<p>If <em>you</em> are producing the chunks, don&#39;t materialize them all first. Use a <code>Channel</code> to yield one at a time:</p>
+<pre><code class="language-julia">function lazy_chunks&#40;data, step&#41;
+    Channel&#40;&#41; do ch
+        for i in 1:step:length&#40;data&#41;
+            put&#33;&#40;ch, data&#91;i:min&#40;i&#43;step-1, end&#41;&#93;&#41;
+        end
+    end
+end
+
+for chunk in lazy_chunks&#40;big_data, 10_000&#41;
+    process&#40;chunk&#41;  # only one chunk in memory at a time
+end</code></pre>
+<hr />
+<h2 id="ol_start5_nudge_the_gc"><a href="#ol_start5_nudge_the_gc" class="header-anchor"><ol start="5">
+<li><p>Nudge the GC</p>
+</li>
+</ol>
+</a></h2>
+<p>Julia&#39;s garbage collector is lazy — it doesn&#39;t collect until it feels pressure. If you know a big object is done, you can hint:</p>
+<pre><code class="language-julia">for chunk in chunks
+    process&#40;chunk&#41;
+    GC.gc&#40;&#41;
+end</code></pre>
+<p>This is a band-aid, not a solution. Use it alongside the strategies above, not instead of them.</p>
+<hr />
+<h2 id="ol_start6_memory-map_large_arrays"><a href="#ol_start6_memory-map_large_arrays" class="header-anchor"><ol start="6">
+<li><p>Memory-Map Large Arrays</p>
+</li>
+</ol>
+</a></h2>
+<p>If you need random access to data that&#39;s too large to fit in RAM, <code>Mmap</code> lets you treat a file on disk as if it were an array:</p>
+<pre><code class="language-julia">using Mmap
+A &#61; Mmap.mmap&#40;&quot;bigfile.bin&quot;, Matrix&#123;Float64&#125;, &#40;nrows, ncols&#41;&#41;</code></pre>
+<p>The OS handles paging in only the pages you actually touch. Reads are fast; you never load the whole thing.</p>
+<hr />
+<h2 id="the_one-line_heuristic"><a href="#the_one-line_heuristic" class="header-anchor">The One-Line Heuristic</a></h2>
+<blockquote>
+<p><strong>If chunks are big, stream and write — don&#39;t accumulate.</strong> After each iteration, ask: <em>&quot;does anything still hold a reference to this chunk?&quot;</em> If yes, that chunk is stuck in RAM.</p>
+</blockquote>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: February 23, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+        <script src="/libs/katex/katex.min.js"></script>
+<script src="/libs/katex/contrib/auto-render.min.js"></script>
+<script>renderMathInElement(document.body)</script>
+
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>NTFS Drive Rescue Cheatsheet</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><p>Here is a concise cheatsheet for managing your <strong>18TB WD Elements</strong> NTFS drive on Linux. Since we&#39;ve dealt with &quot;dirty&quot; flags and mounting hurdles, keep this handy for the next time it acts up.</p>
+<hr />
+<h2 id="ntfs_drive_rescue_cheatsheet"><a href="#ntfs_drive_rescue_cheatsheet" class="header-anchor">🛠 NTFS Drive Rescue Cheatsheet</a></h2>
+<h3 id="the_why_wont_it_mount_check"><a href="#the_why_wont_it_mount_check" class="header-anchor"><ol>
+<li><p>The &quot;Why Won&#39;t It Mount?&quot; Check</p>
+</li>
+</ol>
+</a></h3>
+<p>If the drive doesn&#39;t show up, check the kernel logs to see if it&#39;s &quot;dirty&quot; &#40;locked by Windows or unplugged safely&#41;.</p>
+<pre><code class="language-bash">sudo dmesg | tail -n 20</code></pre>
+<p>*Look for: <code>volume is dirty and &quot;force&quot; flag is not set&#33;*</code></p>
+<hr />
+<h3 id="ol_start2_mounting_the_drive"><a href="#ol_start2_mounting_the_drive" class="header-anchor"><ol start="2">
+<li><p>Mounting the Drive</p>
+</li>
+</ol>
+</a></h3>
+<p>You must create a folder &#40;mount point&#41; first, then attach the hardware to it.</p>
+<p><strong>Create the folder &#40;Only do this once&#41;:</strong></p>
+<pre><code class="language-bash">sudo mkdir -p /mnt/usb_drive</code></pre>
+<p><strong>The &quot;Force&quot; Mount &#40;Best for your 18TB drive&#41;:</strong> This command forces the mount despite errors and gives <strong>shane</strong> &#40;uid 1000&#41; full permissions.</p>
+<pre><code class="language-bash">sudo mount -t ntfs3 -o force,uid&#61;1000,gid&#61;1000 /dev/sda1 /mnt/usb_drive</code></pre>
+<hr />
+<h3 id="ol_start3_accessing_your_files"><a href="#ol_start3_accessing_your_files" class="header-anchor"><ol start="3">
+<li><p>Accessing Your Files</p>
+</li>
+</ol>
+</a></h3>
+<p>Once mounted, the drive &quot;lives&quot; in that folder.</p>
+<ul>
+<li><p><strong>Via Terminal:</strong> <code>cd /mnt/usb_drive</code></p>
+</li>
+<li><p><strong>Via File Manager:</strong> Navigate to <code>/mnt/usb_drive</code> &#40;Press <code>Ctrl&#43;L</code> in most file managers to type the path&#41;.</p>
+</li>
+</ul>
+<hr />
+<h3 id="ol_start4_safe_unmounting_the_most_important_part"><a href="#ol_start4_safe_unmounting_the_most_important_part" class="header-anchor"><ol start="4">
+<li><p>Safe Unmounting &#40;The most important part&#41;</p>
+</li>
+</ol>
+</a></h3>
+<p>To prevent the &quot;dirty bit&quot; from coming back, always unmount before pulling the plug.</p>
+<p><strong>Standard Unmount:</strong></p>
+<pre><code class="language-bash">sudo umount /mnt/usb_drive</code></pre>
+<p><strong>If it says &quot;Device is Busy&quot;:</strong></p>
+<ol>
+<li><p>Close any folders or terminals open to the drive.</p>
+</li>
+<li><p>Use the &quot;Lazy&quot; unmount if it&#39;s still stuck:</p>
+</li>
+</ol>
+<pre><code class="language-bash">sudo umount -l /mnt/usb_drive</code></pre>
+<hr />
+<h3 id="ol_start5_quick_reference_table"><a href="#ol_start5_quick_reference_table" class="header-anchor"><ol start="5">
+<li><p>Quick Reference Table</p>
+</li>
+</ol>
+</a></h3>
+<table><tr><th align="right">Task</th><th align="right">Command</th></tr><tr><td align="right"><strong>Check Device Name</strong></td><td align="right"><code>lsblk -f</code></td></tr><tr><td align="right"><strong>Quick Repair</strong></td><td align="right"><code>sudo ntfsfix /dev/sda1</code></td></tr><tr><td align="right"><strong>Check Errors</strong></td><td align="right"><code>sudo dmesg | tail -n 20</code></td></tr><tr><td align="right"><strong>Manual Mount</strong></td><td align="right"><code>sudo mount -t ntfs3 -o force /dev/sda1 /mnt/usb_drive</code></td></tr><tr><td align="right"><strong>Unmount</strong></td><td align="right"><code>sudo umount /dev/sda1</code></td></tr></table>
+<hr />
+<h3 id="pro-tips_for_your_18tb_beast"><a href="#pro-tips_for_your_18tb_beast" class="header-anchor">💡 Pro-Tips for your 18TB Beast</a></h3>
+<ul>
+<li><p><strong>The &quot;Sync&quot; Habit:</strong> Type <code>sync</code> in your terminal before unplugging. It ensures every last byte is written to the physical platters.</p>
+</li>
+<li><p><strong>Windows &quot;Restart&quot;:</strong> If the drive is totally locked, plug it into Windows and select <strong>Restart</strong> &#40;not Shut Down&#41;. This clears the Fast Startup hibernation lock.</p>
+</li>
+<li><p><strong>Power Matters:</strong> 18TB drives are power-hungry. If it &quot;disappears&quot; during a transfer, make sure it’s plugged into a wall outlet, not just a laptop USB port.</p>
+</li>
+</ul>
+<p><strong>Would you like me to help you add this to your <code>.bashrc</code> as a shortcut &#40;alias&#41; so you can just type <code>mount-wd</code> next time?</strong></p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: February 23, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>

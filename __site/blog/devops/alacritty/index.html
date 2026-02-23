@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+   <link rel="stylesheet" href="/libs/highlight/styles/github.min.css">
+   
+  <link rel="stylesheet" href="/css/franklin.css">
+<link rel="stylesheet" href="/css/hypertext.css">
+<link rel="icon" href="/assets/favicon.png">
+
+   <title>Alacritty: Quick Start & Comprehensive Guide</title>  
+</head>
+<body>
+<header>
+  <h1 style="color:#283747">software engineering</h1>
+  <nav>
+    <a href="/" class="current">Tags</a>
+  | <a href="/blog/" >Notes</a>
+  <hr/>
+  </nav>
+</header>
+
+
+<!-- Content appended here -->
+<div class="franklin-content"><h1 id="alacritty_quick_start_comprehensive_guide"><a href="#alacritty_quick_start_comprehensive_guide" class="header-anchor">Alacritty: Quick Start &amp; Comprehensive Guide</a></h1>
+<p><a href="https://alacritty.org/">Alacritty</a> is a GPU-accelerated terminal emulator. It&#39;s fast, minimal, and configured entirely through a single TOML file—no menus, no tabs, no splits, just a blazing-fast terminal.</p>
+<p><strong>Why Alacritty?</strong> If your terminal feels sluggish when scrolling through long <code>cargo build</code> output or <code>cat</code>-ing large files, Alacritty fixes that. It uses your GPU to render text, making it noticeably snappier than most terminals.</p>
+<hr />
+<h2 id="why_use_alacritty"><a href="#why_use_alacritty" class="header-anchor">Why Use Alacritty?</a></h2>
+<table><tr><th align="right">Feature</th><th align="right">Why it matters</th></tr><tr><td align="right"><strong>GPU-accelerated rendering</strong></td><td align="right">Scrolling through compiler output is instant</td></tr><tr><td align="right"><strong>Minimal by design</strong></td><td align="right">No built-in tabs or splits—pair it with Zellij/tmux</td></tr><tr><td align="right"><strong>TOML config</strong></td><td align="right">Version-control your entire terminal setup</td></tr><tr><td align="right"><strong>Live config reload</strong></td><td align="right">Change fonts/colors and see results immediately</td></tr><tr><td align="right"><strong>Vi mode</strong></td><td align="right">Navigate and select text with Vim keybindings</td></tr><tr><td align="right"><strong>Cross-platform</strong></td><td align="right">Linux, macOS, Windows, BSD</td></tr><tr><td align="right"><strong>Low latency</strong></td><td align="right">Noticeable when typing fast in Vim</td></tr></table>
+<blockquote>
+<p><strong>&quot;No tabs? No splits?&quot;</strong></p>
+<p>That&#39;s intentional. Alacritty does ONE thing—render a terminal—and does it extremely well. For tabs and splits, use a terminal multiplexer like <a href="/blog/devops/zellij/">Zellij</a> or tmux. This is the Unix philosophy: each tool does one thing well, and you compose them together.</p>
+</blockquote>
+<hr />
+<h2 id="installation"><a href="#installation" class="header-anchor">Installation</a></h2>
+<h3 id="ubuntudebian"><a href="#ubuntudebian" class="header-anchor">Ubuntu/Debian</a></h3>
+<pre><code class="language-bash"># Install dependencies
+sudo apt install cmake g&#43;&#43; pkg-config libfontconfig1-dev \
+    libxcb-xfixes0-dev libxkbcommon-dev python3
+
+# Install via Cargo
+cargo install alacritty</code></pre>
+<h3 id="arch_linux"><a href="#arch_linux" class="header-anchor">Arch Linux</a></h3>
+<pre><code class="language-bash">sudo pacman -S alacritty</code></pre>
+<h3 id="fedora"><a href="#fedora" class="header-anchor">Fedora</a></h3>
+<pre><code class="language-bash">sudo dnf install alacritty</code></pre>
+<h3 id="macos"><a href="#macos" class="header-anchor">macOS</a></h3>
+<p>Download the <code>.dmg</code> from <a href="https://github.com/alacritty/alacritty/releases">the releases page</a>, or:</p>
+<pre><code class="language-bash">brew install --cask alacritty</code></pre>
+<h3 id="from_cargo_any_platform"><a href="#from_cargo_any_platform" class="header-anchor">From Cargo &#40;any platform&#41;</a></h3>
+<pre><code class="language-bash">cargo install alacritty
+
+# Or faster with binstall &#40;just downloads the binary&#41;
+cargo binstall alacritty</code></pre>
+<h3 id="post-install_terminfo"><a href="#post-install_terminfo" class="header-anchor">Post-Install: Terminfo</a></h3>
+<p>Make sure the terminfo entry is installed &#40;fixes potential display issues&#41;:</p>
+<pre><code class="language-bash"># Check if it&#39;s already installed
+infocmp alacritty
+
+# If not, install it &#40;from the cloned repo&#41;
+sudo tic -xe alacritty,alacritty-direct extra/alacritty.info</code></pre>
+<hr />
+<h2 id="setting_alacritty_as_default_terminal"><a href="#setting_alacritty_as_default_terminal" class="header-anchor">Setting Alacritty as Default Terminal</a></h2>
+<h3 id="on_linux_gnomeubuntu"><a href="#on_linux_gnomeubuntu" class="header-anchor">On Linux &#40;GNOME/Ubuntu&#41;</a></h3>
+<pre><code class="language-bash"># Set as default terminal application
+sudo update-alternatives --install /usr/bin/x-terminal-emulator \
+    x-terminal-emulator /usr/local/bin/alacritty 50
+
+# Choose it as default
+sudo update-alternatives --config x-terminal-emulator
+# Select the number for alacritty
+
+# Also set it for GNOME specifically
+gsettings set org.gnome.desktop.default-applications.terminal exec &#39;alacritty&#39;</code></pre>
+<p><strong>To switch back:</strong></p>
+<pre><code class="language-bash"># Choose a different terminal
+sudo update-alternatives --config x-terminal-emulator
+# Select gnome-terminal or your previous default
+
+# Reset GNOME setting
+gsettings set org.gnome.desktop.default-applications.terminal exec &#39;gnome-terminal&#39;</code></pre>
+<h3 id="on_linux_kde_plasma"><a href="#on_linux_kde_plasma" class="header-anchor">On Linux &#40;KDE Plasma&#41;</a></h3>
+<p>System Settings → Applications → Default Applications → Terminal Emulator → set to <code>alacritty</code>.</p>
+<p>To switch back: same path, choose <code>konsole</code>.</p>
+<h3 id="on_linux_i3swayother_wms"><a href="#on_linux_i3swayother_wms" class="header-anchor">On Linux &#40;i3/Sway/Other WMs&#41;</a></h3>
+<p>In your window manager config, change the terminal binding:</p>
+<pre><code class="language-bash"># i3 config &#40;~/.config/i3/config&#41;
+bindsym &#36;mod&#43;Return exec alacritty
+
+# To switch back:
+# bindsym &#36;mod&#43;Return exec gnome-terminal</code></pre>
+<h3 id="on_macos"><a href="#on_macos" class="header-anchor">On macOS</a></h3>
+<p>macOS doesn&#39;t have a system-wide &quot;default terminal&quot; setting. Instead:</p>
+<ul>
+<li><p>Use Spotlight &#40;<code>Cmd &#43; Space</code>&#41; and type &quot;Alacritty&quot;</p>
+</li>
+<li><p>Or add it to your Dock</p>
+</li>
+<li><p>To switch back, just launch Terminal.app or iTerm2 instead</p>
+</li>
+</ul>
+<h3 id="verify_its_working"><a href="#verify_its_working" class="header-anchor">Verify It&#39;s Working</a></h3>
+<pre><code class="language-bash">echo &#36;TERM
+# Should output: alacritty</code></pre>
+<hr />
+<h2 id="configuration"><a href="#configuration" class="header-anchor">Configuration</a></h2>
+<p>Alacritty uses a single TOML file. <strong>It doesn&#39;t create one by default</strong>—you need to make it yourself.</p>
+<h3 id="config_file_location"><a href="#config_file_location" class="header-anchor">Config File Location</a></h3>
+<pre><code class="language-bash"># Create the config directory and file
+mkdir -p ~/.config/alacritty
+touch ~/.config/alacritty/alacritty.toml</code></pre>
+<p>Alacritty looks for the config in this order:</p>
+<ol>
+<li><p><code>&#36;XDG_CONFIG_HOME/alacritty/alacritty.toml</code></p>
+</li>
+<li><p><code>~/.config/alacritty/alacritty.toml</code></p>
+</li>
+<li><p><code>~/.alacritty.toml</code></p>
+</li>
+</ol>
+<h3 id="live_reload"><a href="#live_reload" class="header-anchor">Live Reload</a></h3>
+<p>Alacritty watches your config file and <strong>reloads changes instantly</strong>. No need to restart—just save and see.</p>
+<hr />
+<h2 id="essential_configuration"><a href="#essential_configuration" class="header-anchor">Essential Configuration</a></h2>
+<h3 id="font"><a href="#font" class="header-anchor">Font</a></h3>
+<pre><code class="language-toml">&#91;font&#93;
+size &#61; 13.0
+
+&#91;font.normal&#93;
+family &#61; &quot;JetBrains Mono&quot;
+style &#61; &quot;Regular&quot;
+
+&#91;font.bold&#93;
+style &#61; &quot;Bold&quot;
+
+&#91;font.italic&#93;
+style &#61; &quot;Italic&quot;
+
+# Adjust line spacing &#40;positive &#61; more space&#41;
+&#91;font.offset&#93;
+x &#61; 0
+y &#61; 2</code></pre>
+<blockquote>
+<p><strong>Recommended fonts for coding:</strong></p>
+<ul>
+<li><p><a href="https://www.jetbrains.com/lp/mono/">JetBrains Mono</a></p>
+</li>
+<li><p><a href="https://github.com/tonsky/FiraCode">Fira Code</a></p>
+</li>
+<li><p><a href="https://sourcefoundry.org/hack/">Hack</a></p>
+</li>
+<li><p>Any <a href="https://www.nerdfonts.com/">Nerd Font</a> variant &#40;needed for icons in tools like starship, lsd, etc.&#41;</p>
+</li>
+</ul>
+</blockquote>
+<h3 id="window"><a href="#window" class="header-anchor">Window</a></h3>
+<pre><code class="language-toml">&#91;window&#93;
+# Padding around the terminal content &#40;in pixels&#41;
+padding &#61; &#123; x &#61; 8, y &#61; 8 &#125;
+dynamic_padding &#61; true
+
+# Transparency &#40;0.0 &#61; fully transparent, 1.0 &#61; opaque&#41;
+opacity &#61; 0.95
+
+# Start maximized
+startup_mode &#61; &quot;Maximized&quot;
+
+# Window decorations
+decorations &#61; &quot;Full&quot;  # &quot;Full&quot; | &quot;None&quot; | &quot;Transparent&quot; &#40;macOS&#41; | &quot;Buttonless&quot; &#40;macOS&#41;</code></pre>
+<h3 id="scrollback"><a href="#scrollback" class="header-anchor">Scrollback</a></h3>
+<pre><code class="language-toml">&#91;scrolling&#93;
+# How many lines to keep in scrollback buffer &#40;max 100000&#41;
+history &#61; 50000
+
+# Lines scrolled per scroll wheel tick
+multiplier &#61; 3</code></pre>
+<h3 id="shell"><a href="#shell" class="header-anchor">Shell</a></h3>
+<pre><code class="language-toml">&#91;terminal&#93;
+shell &#61; &#123; program &#61; &quot;/bin/zsh&quot;, args &#61; &#91;&quot;-l&quot;&#93; &#125;</code></pre>
+<h3 id="cursor"><a href="#cursor" class="header-anchor">Cursor</a></h3>
+<pre><code class="language-toml">&#91;cursor.style&#93;
+shape &#61; &quot;Block&quot;       # &quot;Block&quot; | &quot;Underline&quot; | &quot;Beam&quot;
+blinking &#61; &quot;On&quot;       # &quot;Never&quot; | &quot;Off&quot; | &quot;On&quot; | &quot;Always&quot;
+
+&#91;cursor&#93;
+blink_interval &#61; 750   # milliseconds
+unfocused_hollow &#61; true # Show hollow cursor when window not focused</code></pre>
+<h3 id="mouse"><a href="#mouse" class="header-anchor">Mouse</a></h3>
+<pre><code class="language-toml">&#91;mouse&#93;
+hide_when_typing &#61; true</code></pre>
+<hr />
+<h2 id="themes_color_schemes"><a href="#themes_color_schemes" class="header-anchor">Themes &#40;Color Schemes&#41;</a></h2>
+<p>Alacritty has an official <a href="https://github.com/alacritty/alacritty-theme">theme collection</a> with 200&#43; themes.</p>
+<h3 id="quick_setup"><a href="#quick_setup" class="header-anchor">Quick Setup</a></h3>
+<pre><code class="language-bash"># Clone the theme collection
+mkdir -p ~/.config/alacritty/themes
+git clone https://github.com/alacritty/alacritty-theme ~/.config/alacritty/themes</code></pre>
+<p>Then import a theme in your config:</p>
+<pre><code class="language-toml"># ~/.config/alacritty/alacritty.toml
+&#91;general&#93;
+import &#61; &#91;
+    &quot;~/.config/alacritty/themes/themes/gruvbox_dark.toml&quot;
+&#93;</code></pre>
+<h3 id="popular_themes"><a href="#popular_themes" class="header-anchor">Popular Themes</a></h3>
+<table><tr><th align="right">Theme</th><th align="right">File name</th></tr><tr><td align="right">Gruvbox Dark</td><td align="right"><code>gruvbox_dark.toml</code></td></tr><tr><td align="right">Dracula</td><td align="right"><code>dracula.toml</code></td></tr><tr><td align="right">Catppuccin Mocha</td><td align="right"><code>catppuccin_mocha.toml</code></td></tr><tr><td align="right">Tokyo Night</td><td align="right"><code>tokyo_night.toml</code></td></tr><tr><td align="right">Nord</td><td align="right"><code>nord.toml</code></td></tr><tr><td align="right">Solarized Dark</td><td align="right"><code>solarized_dark.toml</code></td></tr><tr><td align="right">Rose Pine</td><td align="right"><code>rose_pine.toml</code></td></tr><tr><td align="right">One Dark</td><td align="right"><code>one_dark.toml</code></td></tr><tr><td align="right">Everforest Dark</td><td align="right"><code>everforest_dark.toml</code></td></tr></table>
+<p><strong>Switching themes is instant</strong> thanks to live reload—just change the import path and save.</p>
+<h3 id="manual_color_configuration"><a href="#manual_color_configuration" class="header-anchor">Manual Color Configuration</a></h3>
+<p>If you want to tweak colors yourself:</p>
+<pre><code class="language-toml">&#91;colors.primary&#93;
+background &#61; &quot;#1e1e2e&quot;
+foreground &#61; &quot;#cdd6f4&quot;
+
+&#91;colors.normal&#93;
+black   &#61; &quot;#45475a&quot;
+red     &#61; &quot;#f38ba8&quot;
+green   &#61; &quot;#a6e3a1&quot;
+yellow  &#61; &quot;#f9e2af&quot;
+blue    &#61; &quot;#89b4fa&quot;
+magenta &#61; &quot;#f5c2e7&quot;
+cyan    &#61; &quot;#94e2d5&quot;
+white   &#61; &quot;#bac2de&quot;
+
+&#91;colors.bright&#93;
+black   &#61; &quot;#585b70&quot;
+red     &#61; &quot;#f38ba8&quot;
+green   &#61; &quot;#a6e3a1&quot;
+yellow  &#61; &quot;#f9e2af&quot;
+blue    &#61; &quot;#89b4fa&quot;
+magenta &#61; &quot;#f5c2e7&quot;
+cyan    &#61; &quot;#94e2d5&quot;
+white   &#61; &quot;#a6adc8&quot;</code></pre>
+<hr />
+<h2 id="vi_mode"><a href="#vi_mode" class="header-anchor">Vi Mode</a></h2>
+<p>Alacritty has a built-in Vi mode for keyboard-driven navigation and selection. No mouse needed.</p>
+<h3 id="enterexit_vi_mode"><a href="#enterexit_vi_mode" class="header-anchor">Enter/Exit Vi Mode</a></h3>
+<table><tr><th align="right">Action</th><th align="right">Key</th></tr><tr><td align="right">Toggle Vi mode</td><td align="right"><code>Ctrl &#43; Shift &#43; Space</code></td></tr><tr><td align="right">Exit Vi mode</td><td align="right"><code>Escape</code> or <code>i</code></td></tr></table>
+<h3 id="navigation_in_vi_mode"><a href="#navigation_in_vi_mode" class="header-anchor">Navigation &#40;in Vi mode&#41;</a></h3>
+<table><tr><th align="right">Key</th><th align="right">Action</th></tr><tr><td align="right"><code>h/j/k/l</code></td><td align="right">Move left/down/up/right</td></tr><tr><td align="right"><code>w/b</code></td><td align="right">Jump word forward/backward</td></tr><tr><td align="right"><code>0</code> / <code>&#36;</code></td><td align="right">Start/end of line</td></tr><tr><td align="right"><code>gg</code> / <code>G</code></td><td align="right">Top/bottom of scrollback</td></tr><tr><td align="right"><code>H/M/L</code></td><td align="right">Top/middle/bottom of screen</td></tr><tr><td align="right"><code>Ctrl&#43;u/d</code></td><td align="right">Half-page up/down</td></tr><tr><td align="right"><code>&#123;</code> / <code>&#125;</code></td><td align="right">Paragraph up/down</td></tr></table>
+<h3 id="selection_in_vi_mode"><a href="#selection_in_vi_mode" class="header-anchor">Selection &#40;in Vi mode&#41;</a></h3>
+<table><tr><th align="right">Key</th><th align="right">Action</th></tr><tr><td align="right"><code>v</code></td><td align="right">Start character selection</td></tr><tr><td align="right"><code>Shift &#43; v</code></td><td align="right">Start line selection</td></tr><tr><td align="right"><code>Ctrl &#43; v</code></td><td align="right">Start block selection</td></tr><tr><td align="right"><code>Alt &#43; v</code></td><td align="right">Start semantic &#40;word&#41; selection</td></tr><tr><td align="right"><code>y</code></td><td align="right">Copy selection to clipboard</td></tr><tr><td align="right"><code>Escape</code></td><td align="right">Cancel selection</td></tr></table>
+<p>This is incredibly powerful—select and copy text entirely with the keyboard.</p>
+<hr />
+<h2 id="search"><a href="#search" class="header-anchor">Search</a></h2>
+<h3 id="normal_search"><a href="#normal_search" class="header-anchor">Normal Search</a></h3>
+<table><tr><th align="right">Key</th><th align="right">Action</th></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; f</code></td><td align="right">Search forward</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; b</code></td><td align="right">Search backward</td></tr><tr><td align="right"><code>Enter</code></td><td align="right">Next match</td></tr><tr><td align="right"><code>Shift &#43; Enter</code></td><td align="right">Previous match</td></tr><tr><td align="right"><code>Escape</code></td><td align="right">Exit search &#40;keeps selection&#41;</td></tr></table>
+<h3 id="vi_mode_search"><a href="#vi_mode_search" class="header-anchor">Vi Mode Search</a></h3>
+<table><tr><th align="right">Key</th><th align="right">Action</th></tr><tr><td align="right"><code>/</code></td><td align="right">Search forward</td></tr><tr><td align="right"><code>?</code></td><td align="right">Search backward</td></tr><tr><td align="right"><code>n</code></td><td align="right">Next match</td></tr><tr><td align="right"><code>N</code></td><td align="right">Previous match</td></tr></table>
+<hr />
+<h2 id="hints_clickable_urls_and_more"><a href="#hints_clickable_urls_and_more" class="header-anchor">Hints &#40;Clickable URLs and More&#41;</a></h2>
+<p>Alacritty can detect URLs and other patterns in terminal output and let you open them.</p>
+<p><strong>Default behavior:</strong></p>
+<ul>
+<li><p>URLs are underlined when you hover over them</p>
+</li>
+<li><p><code>Ctrl &#43; Shift &#43; o</code> opens hints for clickable links</p>
+</li>
+<li><p>Click on a URL to open it in your browser</p>
+</li>
+</ul>
+<h3 id="custom_hints"><a href="#custom_hints" class="header-anchor">Custom Hints</a></h3>
+<p>You can add custom regex patterns that link to programs:</p>
+<pre><code class="language-toml">&#91;&#91;hints.enabled&#93;&#93;
+# Make file paths clickable → opens in vim
+regex &#61; &quot;&#91;/~&#93;&#91;\\w./-&#93;&#43;&quot;
+command &#61; &#123; program &#61; &quot;vim&quot; &#125;
+post_processing &#61; true
+binding &#61; &#123; key &#61; &quot;F&quot;, mods &#61; &quot;Control|Shift&quot; &#125;
+mouse &#61; &#123; mods &#61; &quot;Control&quot;, enabled &#61; true &#125;</code></pre>
+<hr />
+<h2 id="keyboard_shortcuts"><a href="#keyboard_shortcuts" class="header-anchor">Keyboard Shortcuts</a></h2>
+<h3 id="essential_default_keybindings"><a href="#essential_default_keybindings" class="header-anchor">Essential Default Keybindings</a></h3>
+<table><tr><th align="right">Key</th><th align="right">Action</th></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; c</code></td><td align="right">Copy</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; v</code></td><td align="right">Paste</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; Space</code></td><td align="right">Toggle Vi mode</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; f</code></td><td align="right">Search forward</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; b</code></td><td align="right">Search backward</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; o</code></td><td align="right">Open hint links</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; n</code></td><td align="right">New window &#40;same instance&#41;</td></tr><tr><td align="right"><code>Ctrl &#43; &#61;</code></td><td align="right">Increase font size</td></tr><tr><td align="right"><code>Ctrl &#43; -</code></td><td align="right">Decrease font size</td></tr><tr><td align="right"><code>Ctrl &#43; 0</code></td><td align="right">Reset font size</td></tr><tr><td align="right"><code>Ctrl &#43; Shift &#43; F11</code></td><td align="right">Toggle fullscreen</td></tr></table>
+<h3 id="custom_keybindings"><a href="#custom_keybindings" class="header-anchor">Custom Keybindings</a></h3>
+<pre><code class="language-toml">&#91;keyboard&#93;
+bindings &#61; &#91;
+    # Open a new Alacritty window
+    &#123; key &#61; &quot;N&quot;, mods &#61; &quot;Control|Shift&quot;, action &#61; &quot;CreateNewWindow&quot; &#125;,
+
+    # Quick clear terminal
+    &#123; key &#61; &quot;K&quot;, mods &#61; &quot;Control|Shift&quot;, action &#61; &quot;ClearHistory&quot; &#125;,
+
+    # Toggle fullscreen
+    &#123; key &#61; &quot;Return&quot;, mods &#61; &quot;Control|Shift&quot;, action &#61; &quot;ToggleFullscreen&quot; &#125;,
+&#93;</code></pre>
+<hr />
+<h2 id="multi-window"><a href="#multi-window" class="header-anchor">Multi-Window</a></h2>
+<p>Alacritty can run multiple windows from a single process &#40;saving resources&#41;:</p>
+<pre><code class="language-bash"># From another terminal or script:
+alacritty msg create-window
+
+# Or use the keybinding:
+# Ctrl &#43; Shift &#43; n</code></pre>
+<hr />
+<h2 id="productivity_hacks"><a href="#productivity_hacks" class="header-anchor">Productivity Hacks</a></h2>
+<h3 id="split_your_config_into_multiple_files"><a href="#split_your_config_into_multiple_files" class="header-anchor"><ol>
+<li><p>Split Your Config Into Multiple Files</p>
+</li>
+</ol>
+</a></h3>
+<p>Keep your config organized using imports:</p>
+<pre><code class="language-toml"># ~/.config/alacritty/alacritty.toml
+&#91;general&#93;
+import &#61; &#91;
+    &quot;~/.config/alacritty/themes/themes/catppuccin_mocha.toml&quot;,
+    &quot;~/.config/alacritty/font.toml&quot;,
+    &quot;~/.config/alacritty/keybindings.toml&quot;,
+&#93;</code></pre>
+<pre><code class="language-toml"># ~/.config/alacritty/font.toml
+&#91;font&#93;
+size &#61; 13.0
+&#91;font.normal&#93;
+family &#61; &quot;JetBrains Mono Nerd Font&quot;</code></pre>
+<pre><code class="language-toml"># ~/.config/alacritty/keybindings.toml
+&#91;keyboard&#93;
+bindings &#61; &#91;
+    &#123; key &#61; &quot;N&quot;, mods &#61; &quot;Control|Shift&quot;, action &#61; &quot;CreateNewWindow&quot; &#125;,
+&#93;</code></pre>
+<h3 id="ol_start2_quick_theme_switching_script"><a href="#ol_start2_quick_theme_switching_script" class="header-anchor"><ol start="2">
+<li><p>Quick Theme Switching Script</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-bash">#&#33;/bin/bash
+# ~/.local/bin/alacritty-theme
+# Usage: alacritty-theme gruvbox_dark
+
+THEME&#61;&quot;&#36;1&quot;
+CONF&#61;&quot;&#36;HOME/.config/alacritty/alacritty.toml&quot;
+sed -i &quot;s|themes/.*\.toml|themes/&#36;&#123;THEME&#125;.toml|&quot; &quot;&#36;CONF&quot;
+echo &quot;Switched to: &#36;THEME&quot;</code></pre>
+<p>Since Alacritty live-reloads, the theme changes instantly:</p>
+<pre><code class="language-bash">alacritty-theme dracula
+alacritty-theme nord
+alacritty-theme catppuccin_mocha</code></pre>
+<h3 id="ol_start3_environment_variables"><a href="#ol_start3_environment_variables" class="header-anchor"><ol start="3">
+<li><p>Environment Variables</p>
+</li>
+</ol>
+</a></h3>
+<p>Pass environment variables to programs inside Alacritty:</p>
+<pre><code class="language-toml">&#91;env&#93;
+TERM &#61; &quot;alacritty&quot;
+EDITOR &#61; &quot;vim&quot;</code></pre>
+<h3 id="ol_start4_pair_with_zellij_for_the_ultimate_setup"><a href="#ol_start4_pair_with_zellij_for_the_ultimate_setup" class="header-anchor"><ol start="4">
+<li><p>Pair with Zellij for the Ultimate Setup</p>
+</li>
+</ol>
+</a></h3>
+<p>Alacritty handles rendering fast. Zellij handles panes and tabs. Together, they&#39;re the perfect Rust dev environment:</p>
+<pre><code class="language-bash"># Auto-start Zellij inside Alacritty
+# Add to your ~/.zshrc:
+if &#91;&#91; -z &quot;&#36;ZELLIJ&quot; &#93;&#93;; then
+    zellij attach -c default
+fi</code></pre>
+<p>Or configure Alacritty to launch Zellij directly:</p>
+<pre><code class="language-toml">&#91;terminal&#93;
+shell &#61; &#123; program &#61; &quot;/usr/bin/zellij&quot;, args &#61; &#91;&quot;attach&quot;, &quot;-c&quot;, &quot;default&quot;&#93; &#125;</code></pre>
+<h3 id="ol_start5_font_size_per_monitor"><a href="#ol_start5_font_size_per_monitor" class="header-anchor"><ol start="5">
+<li><p>Font Size Per Monitor</p>
+</li>
+</ol>
+</a></h3>
+<p>If you use multiple monitors with different DPIs, you can launch Alacritty with different configs:</p>
+<pre><code class="language-bash">alias alacritty-laptop&#61;&quot;alacritty --config-file ~/.config/alacritty/laptop.toml&quot;
+alias alacritty-monitor&#61;&quot;alacritty --config-file ~/.config/alacritty/monitor.toml&quot;</code></pre>
+<h3 id="ol_start6_scroll_through_compiler_errors_with_vi_mode"><a href="#ol_start6_scroll_through_compiler_errors_with_vi_mode" class="header-anchor"><ol start="6">
+<li><p>Scroll Through Compiler Errors with Vi Mode</p>
+</li>
+</ol>
+</a></h3>
+<p>When <code>cargo build</code> dumps a wall of errors:</p>
+<ol>
+<li><p><code>Ctrl &#43; Shift &#43; Space</code> → Enter Vi mode</p>
+</li>
+<li><p><code>gg</code> → Jump to top of scrollback</p>
+</li>
+<li><p><code>/error</code> → Search for &quot;error&quot;</p>
+</li>
+<li><p><code>n</code> → Jump to next error</p>
+</li>
+<li><p><code>v</code> → Start selection, yank with <code>y</code></p>
+</li>
+</ol>
+<p>Much faster than mouse-scrolling&#33;</p>
+<h3 id="ol_start7_copy_on_select_linux"><a href="#ol_start7_copy_on_select_linux" class="header-anchor"><ol start="7">
+<li><p>Copy on Select &#40;Linux&#41;</p>
+</li>
+</ol>
+</a></h3>
+<pre><code class="language-toml">&#91;selection&#93;
+save_to_clipboard &#61; true  # Selected text auto-copies to clipboard</code></pre>
+<hr />
+<h2 id="starter_config_complete"><a href="#starter_config_complete" class="header-anchor">Starter Config &#40;Complete&#41;</a></h2>
+<p>Here&#39;s a ready-to-use config file combining the essentials:</p>
+<pre><code class="language-toml"># ~/.config/alacritty/alacritty.toml
+
+# Import a theme &#40;install alacritty-theme first&#41;
+&#91;general&#93;
+import &#61; &#91;
+    &quot;~/.config/alacritty/themes/themes/catppuccin_mocha.toml&quot;
+&#93;
+live_config_reload &#61; true
+
+&#91;env&#93;
+TERM &#61; &quot;alacritty&quot;
+
+&#91;window&#93;
+padding &#61; &#123; x &#61; 6, y &#61; 6 &#125;
+dynamic_padding &#61; true
+opacity &#61; 0.97
+startup_mode &#61; &quot;Maximized&quot;
+
+&#91;scrolling&#93;
+history &#61; 50000
+multiplier &#61; 3
+
+&#91;font&#93;
+size &#61; 13.0
+&#91;font.normal&#93;
+family &#61; &quot;JetBrains Mono&quot;
+style &#61; &quot;Regular&quot;
+&#91;font.bold&#93;
+style &#61; &quot;Bold&quot;
+&#91;font.italic&#93;
+style &#61; &quot;Italic&quot;
+&#91;font.offset&#93;
+y &#61; 1
+
+&#91;cursor.style&#93;
+shape &#61; &quot;Block&quot;
+blinking &#61; &quot;On&quot;
+
+&#91;mouse&#93;
+hide_when_typing &#61; true
+
+&#91;selection&#93;
+save_to_clipboard &#61; true
+
+&#91;terminal&#93;
+shell &#61; &#123; program &#61; &quot;/bin/zsh&quot;, args &#61; &#91;&quot;-l&quot;&#93; &#125;</code></pre>
+<hr />
+<h2 id="quick_reference"><a href="#quick_reference" class="header-anchor">Quick Reference</a></h2>
+<pre><code class="language-julia">NAVIGATION                    SEARCH
+Ctrl&#43;Shift&#43;Space &#61; Vi mode    Ctrl&#43;Shift&#43;f &#61; Search forward
+h/j/k/l          &#61; Move       Ctrl&#43;Shift&#43;b &#61; Search backward
+w/b               &#61; Word jump  Enter/Shift&#43;Enter &#61; Next/prev match
+gg / G            &#61; Top/bottom Escape &#61; Exit search
+
+SELECTION &#40;Vi mode&#41;           GENERAL
+v     &#61; Character select      Ctrl&#43;Shift&#43;c &#61; Copy
+V     &#61; Line select           Ctrl&#43;Shift&#43;v &#61; Paste
+Ctrl&#43;v &#61; Block select         Ctrl&#43;Shift&#43;n &#61; New window
+y     &#61; Copy to clipboard     Ctrl&#43;&#61; / Ctrl&#43;- &#61; Font size
+                              Ctrl&#43;0 &#61; Reset font size</code></pre>
+<hr />
+<h2 id="alacritty_vs_other_terminals"><a href="#alacritty_vs_other_terminals" class="header-anchor">Alacritty vs Other Terminals</a></h2>
+<table><tr><th align="right">Feature</th><th align="right">Alacritty</th><th align="right">GNOME Terminal</th><th align="right">Kitty</th><th align="right">WezTerm</th></tr><tr><td align="right">GPU-accelerated</td><td align="right">✅</td><td align="right">❌</td><td align="right">✅</td><td align="right">✅</td></tr><tr><td align="right">Built-in tabs</td><td align="right">❌</td><td align="right">✅</td><td align="right">✅</td><td align="right">✅</td></tr><tr><td align="right">Built-in splits</td><td align="right">❌</td><td align="right">❌</td><td align="right">✅</td><td align="right">✅</td></tr><tr><td align="right">Config format</td><td align="right">TOML</td><td align="right">GUI</td><td align="right">conf</td><td align="right">Lua</td></tr><tr><td align="right">Vi mode</td><td align="right">✅</td><td align="right">❌</td><td align="right">✅</td><td align="right">❌</td></tr><tr><td align="right">Latency</td><td align="right">Lowest</td><td align="right">Medium</td><td align="right">Low</td><td align="right">Low</td></tr><tr><td align="right">Resource usage</td><td align="right">Very low</td><td align="right">Medium</td><td align="right">Low</td><td align="right">Medium</td></tr><tr><td align="right">Philosophy</td><td align="right">Do one thing well</td><td align="right">All-in-one</td><td align="right">Feature-rich</td><td align="right">Feature-rich</td></tr></table>
+<p><strong>Bottom line:</strong> If you want the fastest, leanest terminal and you&#39;re already using Zellij or tmux for multiplexing, Alacritty is the best choice.</p>
+<div class="page-foot">
+    Contact me by <a href="mailto:skchu@wustl.edu">E-mail</a> | <a href="https://github.com/kchu25">Github</a> | <a href="https://www.linkedin.com/in/kchu1/">Linkedin</a>
+    <br>
+    This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.  Last modified: February 23, 2026.
+    <br>
+    Website built with <a href="https://github.com/tlienart/Franklin.jl">Franklin.jl</a> and the <a href="https://julialang.org">Julia language</a>.
+</div>
+</div><!-- CONTENT ENDS HERE -->
+    
+    
+        <script src="/libs/highlight/highlight.min.js"></script>
+<script>hljs.highlightAll();hljs.configure({tabReplace: '    '});</script>
+
+    
+  </body>
+</html>
