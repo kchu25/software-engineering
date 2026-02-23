@@ -61,39 +61,62 @@ Easy, but CSV is slow to read/write and bloated on disk. Fine for small-ish data
 
 Arrow is a **columnar binary format** — think of it like a DataFrame frozen in the exact memory layout Julia already uses. Reading it back is essentially zero-copy.
 
+#### Writing chunks during the loop
+
+The cleanest pattern is a **streaming writer** — one file, one chunk written per iteration, nothing accumulates in RAM:
+
 ```julia
 using Arrow, DataFrames
 
-# Write one chunk per file, then combine later
-for (i, chunk) in enumerate(chunks)
-    Arrow.write("chunk_$i.arrow", chunk)
-end
-
-# Read back lazily (doesn't load everything at once)
-tables = [Arrow.Table("chunk_$i.arrow") for i in 1:n]
-full = vcat(DataFrame.(tables)...)
-```
-
-Or, write a **multi-record-batch Arrow file** (one file, multiple chunks inside):
-
-```julia
 open("output.arrow", "w") do io
-    writer = Arrow.Writer(io)  # opens a streaming writer
-    for chunk in chunks
+    writer = Arrow.Writer(io)
+    for chunk in chunks          # chunk is a DataFrame
         Arrow.write(writer, chunk)
     end
     close(writer)
 end
 ```
 
-Then read it back in one shot, or iterate over batches lazily:
+Each `chunk` is flushed to disk and can be GC'd. The file grows on disk, not in RAM.
+
+#### Combining after the loop
+
+When you're done and ready to work with the full dataset, read it back as one DataFrame:
+
+```julia
+df = DataFrame(Arrow.Table("output.arrow"))
+```
+
+`Arrow.Table` reads all batches and presents them as a single table. Wrapping in `DataFrame(...)` materializes it. If the file is truly massive and you only need to process it in passes, iterate lazily instead:
 
 ```julia
 for batch in Arrow.Stream("output.arrow")
-    df = DataFrame(batch)
-    process(df)
+    df_batch = DataFrame(batch)
+    process(df_batch)
 end
 ```
+
+#### Deduplicating identical rows
+
+Once you have your combined DataFrame, `unique` drops exact duplicate rows:
+
+```julia
+df_deduped = unique(df)
+```
+
+If you only care about duplicates across *specific columns* (e.g. a natural key), pass them explicitly:
+
+```julia
+df_deduped = unique(df, [:col_a, :col_b])  # keep first occurrence of each unique combo
+```
+
+For very large DataFrames where you want to avoid a full copy, `unique!` deduplicates in-place:
+
+```julia
+unique!(df)   # mutates df, no copy made
+```
+
+> **Why not dedup per chunk during the loop?** You can — `unique!(chunk)` before writing is free and reduces file size. But you'll still need a final `unique!` after combining, since the *same row can appear in two different chunks*. Do both if chunks are huge.
 
 > **Why Arrow?** Read/write is $\sim 10\text{–}100\times$ faster than CSV, the file is compact, and the format is interoperable with Python (pandas, polars), R, and Spark.
 
