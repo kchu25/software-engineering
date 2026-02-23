@@ -1,6 +1,6 @@
 @def title = "GPU Memory Management for batched processing tasks"
 @def published = "15 October 2025"
-@def tags = ["julia", "gpu-programming"]
+@def tags = ["julia", "cuda"]
 
 
 # GPU Memory Management - The Simple Version

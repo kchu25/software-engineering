@@ -1,6 +1,6 @@
 @def title = "GPU Subset Sum Sampling: Mathematical Explanation"
 @def published = "15 October 2025"
-@def tags = ["julia"]
+@def tags = ["julia", "cuda"]
 
 # GPU Subset Sum Sampling: Mathematical Explanation
 

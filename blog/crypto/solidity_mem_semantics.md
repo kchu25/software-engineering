@@ -1,6 +1,6 @@
 @def title = "Formal Model of Solidity Memory Semantics"
 @def published = "29 November 2025"
-@def tags = ["crypto", "smart-contract", "block-chain", "eth"]
+@def tags = ["crypto"]
 
 # Formal Model of Solidity Memory Semantics
 

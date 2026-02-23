@@ -1,6 +1,6 @@
 @def title = "Node.js Cheatsheet for Solidity Development"
 @def published = "27 December 2025"
-@def tags = ["node-js"]
+@def tags = ["node-js", "crypto"]
 
 # Node.js Cheatsheet for Solidity Development
 

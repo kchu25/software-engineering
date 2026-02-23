@@ -1,6 +1,6 @@
 @def title = "Passing Functions to CUDA Kernels in Julia"
 @def published = "2 November 2025"
-@def tags = ["gpu-programming", "cuda", "julia"]
+@def tags = ["cuda", "julia"]
 
 # Passing Functions to CUDA Kernels in Julia
 

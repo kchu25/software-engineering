@@ -1,6 +1,6 @@
 @def title = "CUDA Design Patterns: A Friendly Guide"
 @def published = "17 October 2025"
-@def tags = ["gpu-programming", "cuda", "julia"]
+@def tags = ["cuda", "julia"]
 
 # CUDA Design Patterns: A Friendly Guide
 

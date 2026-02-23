@@ -1,6 +1,6 @@
 @def title = "NTFS Drive Rescue Cheatsheet"
 @def published = "17 February 2026"
-@def tags = ["ubuntu", "it"]
+@def tags = ["linux"]
 
 
 Here is a concise cheatsheet for managing your **18TB WD Elements** NTFS drive on Linux. Since we've dealt with "dirty" flags and mounting hurdles, keep this handy for the next time it acts up.

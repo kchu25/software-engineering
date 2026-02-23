@@ -1,6 +1,6 @@
 @def title = "Understanding Solidity Through a Zombie Factory"
 @def published = "29 November 2025"
-@def tags = ["crypto", "smart-contract", "block-chain", "eth"]
+@def tags = ["crypto"]
 
 # Understanding Solidity Through a Zombie Factory
 
